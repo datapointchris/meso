@@ -246,8 +246,9 @@ Go request/response structs per entity (Create / response / Update shapes) with 
 ## API endpoint shape (RESTful, `net/http` ServeMux)
 
 ```sql
-/api/v1/movements                 CRUD + ?kind=&favorite=&tag=&equipment=&search=
-/api/v1/movements/{id}/related    POST {related_movement_id, relationship_kind}; DELETE .../{rid}
+/api/v1/movements                 CRUD + ?kind=&favorite=&tag=&equipment=&muscle=&region=&search=
+/api/v1/muscles                   list the muscle lookup (tagging vocabulary; region drives filtering)
+/api/v1/movements/{id}/related    POST {related_movement_id, relationship_kind}; DELETE .../{rid}  (Phase 2)
 /api/v1/workouts                  CRUD + ?theme=&tag=&favorite=
 /api/v1/workouts/{id}/movements   POST add movement; PATCH reorder/prescription; DELETE remove
 /api/v1/sessions                  CRUD; POST from ?workout_id= copies template into session
@@ -270,7 +271,7 @@ Every endpoint group ships with its goose migration, a seed contribution, and a 
 
 ```bash
 meso auth        login | logout | status [--json] | token          # nomad's flow, verbatim
-meso movements   list [--kind --favorite --tag --equipment --search] | show <id> | create | update | delete | related add/rm | export --csv
+meso movements   list [--kind --favorite --tag --equipment --muscle --region --search] | show <id> | create | update | delete | related add/rm | export [--csv]
 meso workouts    list | show <id> | create | update | delete | movements add/reorder/rm
 meso sessions    log [--from-workout <id>] | list [--from --to] | show <id> | movement done <mid>
 meso cycles      list | show <id> | create | update | delete | workouts add/reorder/rm

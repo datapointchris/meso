@@ -4,7 +4,7 @@ A personal, mobile-first training app. A library of movements compiles into work
 
 Self-hosted, single-user, no external users. Defined as much by what it leaves out — no videos, gamification, social feed, or motivation bloat — as by what it does.
 
-**Status:** Phase 0 (scaffold). The Go API, the `meso` CLI (`auth` surface), and the Vue shell build and run locally under Docker; homelab provisioning is in progress. The full design lives in [`docs/design.md`](docs/design.md).
+**Status:** Phase 1 (Movements core) built locally; Phase 0 live in production. The unified movement library is complete end to end — Go API (`/api/v1/movements` CRUD + filtering, `/api/v1/muscles`), the `meso movements` CLI, and the Vue library/detail/add-edit surfaces, plus a seeded baseline catalog. The full design and phase plan live in [`docs/design.md`](docs/design.md); architecture and conventions in [`CLAUDE.md`](CLAUDE.md).
 
 ## Why "meso"
 

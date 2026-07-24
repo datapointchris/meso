@@ -19,6 +19,8 @@ import (
 
 	"meso/api/config"
 	"meso/api/database"
+	"meso/api/models"
+	"meso/api/repository"
 )
 
 // lookupSeed is a table and the categorical values it should contain.
@@ -52,6 +54,44 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("seeded lookups", "count", total)
+
+	muscleCount, err := seedMuscles(ctx, pool, muscleCatalog)
+	if err != nil {
+		slog.Error("seeding muscles", "seeded", muscleCount, "err", err)
+		os.Exit(1)
+	}
+	slog.Info("seeded muscles", "count", muscleCount)
+
+	// Movements go through the repository (not raw SQL) so the baseline catalog
+	// is written by the exact same code path the API and CLI use — muscle tags in
+	// a transaction, upsert-by-name idempotency. Muscles must exist first (FK).
+	movementRepo := repository.NewMovementRepo(pool)
+	movementCount := 0
+	for _, m := range baselineMovements {
+		if _, err := movementRepo.Upsert(ctx, m); err != nil {
+			slog.Error("seeding movement", "name", m.Name, "err", err)
+			os.Exit(1)
+		}
+		movementCount++
+	}
+	slog.Info("seeded movements", "count", movementCount)
+}
+
+// seedMuscles upserts the muscle lookup (name + region), returning the count
+// written. ON CONFLICT keeps re-runs no-ops while refreshing region if it changed.
+func seedMuscles(ctx context.Context, pool *pgxpool.Pool, muscles []models.Muscle) (int, error) {
+	count := 0
+	for _, m := range muscles {
+		_, err := pool.Exec(ctx,
+			`INSERT INTO muscles (name, region) VALUES ($1, $2)
+			 ON CONFLICT (name) DO UPDATE SET region = EXCLUDED.region`,
+			m.Name, m.Region)
+		if err != nil {
+			return count, err
+		}
+		count++
+	}
+	return count, nil
 }
 
 // seedLookups upserts every value across every lookup table, returning the count

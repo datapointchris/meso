@@ -1,0 +1,176 @@
+package handlers_test
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"meso/api/models"
+)
+
+func itoa(id int64) string { return strconv.FormatInt(id, 10) }
+
+// movementPayload builds a create body; overrides let each test vary a field.
+func movementPayload(name, kind string) map[string]any {
+	return map[string]any{
+		"name":          name,
+		"movement_kind": kind,
+		"tags":          []string{"posterior-chain"},
+		"equipment":     []string{"barbell"},
+		"how_to":        "hinge at the hips, flat back, drive through the floor",
+		"form_cues":     "brace, bar close to shins",
+		"common_faults": "rounding the lower back",
+		"muscles": []map[string]string{
+			{"muscle": "hamstrings", "role": "primary"},
+			{"muscle": "glutes", "role": "secondary"},
+		},
+	}
+}
+
+func decodeMovement(t *testing.T, rr interface{ Bytes() []byte }) models.Movement {
+	t.Helper()
+	var m models.Movement
+	require.NoError(t, json.Unmarshal(rr.Bytes(), &m))
+	return m
+}
+
+func TestMovement_CreateAndGet(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+
+	rr := postJSON(t, mux, "/api/v1/movements", movementPayload("Deadlift", "exercise"))
+	require.Equal(t, http.StatusCreated, rr.Code)
+
+	created := decodeMovement(t, rr.Body)
+	assert.Equal(t, "Deadlift", created.Name)
+	assert.Equal(t, "exercise", created.MovementKind)
+	assert.False(t, created.Favorite)
+	assert.Equal(t, []string{"posterior-chain"}, created.Tags)
+	require.Len(t, created.Muscles, 2)
+	// Muscles come back ordered by region then name, with region derived from the
+	// lookup: glutes(posterior) before hamstrings(posterior).
+	assert.Equal(t, "glutes", created.Muscles[0].Muscle)
+	assert.Equal(t, "posterior", created.Muscles[0].Region)
+	assert.Equal(t, "secondary", created.Muscles[0].Role)
+	assert.NotZero(t, created.ID)
+
+	got := getJSON(t, mux, "/api/v1/movements/"+itoa(created.ID))
+	require.Equal(t, http.StatusOK, got.Code)
+	fetched := decodeMovement(t, got.Body)
+	assert.Equal(t, created.ID, fetched.ID)
+	assert.Len(t, fetched.Muscles, 2)
+}
+
+func TestMovement_Get_NotFound(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+
+	assert.Equal(t, http.StatusNotFound, getJSON(t, mux, "/api/v1/movements/999999").Code)
+	// A non-numeric id is a client error (bad request), not a 404.
+	assert.Equal(t, http.StatusBadRequest, getJSON(t, mux, "/api/v1/movements/abc").Code)
+}
+
+func TestMovement_List_Filters(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+
+	// A favorited stretch tagged mobility, hitting quads.
+	stretch := movementPayload("Couch Stretch", "stretch")
+	stretch["favorite"] = true
+	stretch["tags"] = []string{"mobility"}
+	stretch["muscles"] = []map[string]string{{"muscle": "quads", "role": "primary"}}
+	require.Equal(t, http.StatusCreated, postJSON(t, mux, "/api/v1/movements", stretch).Code)
+
+	// A non-favorite exercise (hamstrings/glutes, posterior).
+	require.Equal(t, http.StatusCreated, postJSON(t, mux, "/api/v1/movements", movementPayload("Deadlift", "exercise")).Code)
+
+	list := func(query string) []models.Movement {
+		rr := getJSON(t, mux, "/api/v1/movements"+query)
+		require.Equal(t, http.StatusOK, rr.Code)
+		var out []models.Movement
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &out))
+		return out
+	}
+
+	assert.Len(t, list(""), 2)
+	assert.Len(t, list("?kind=stretch"), 1)
+	assert.Equal(t, "Couch Stretch", list("?kind=stretch")[0].Name)
+	assert.Len(t, list("?favorite=true"), 1)
+	assert.Len(t, list("?favorite=false"), 1)
+	assert.Len(t, list("?tag=mobility"), 1)
+	assert.Len(t, list("?equipment=barbell"), 2)
+	assert.Len(t, list("?muscle=quads"), 1)
+	assert.Len(t, list("?region=posterior"), 1)
+	assert.Equal(t, "Deadlift", list("?region=posterior")[0].Name)
+	assert.Len(t, list("?search=couch"), 1)
+	assert.Empty(t, list("?kind=yoga_pose"))
+	// An unparseable favorite is a bad request.
+	assert.Equal(t, http.StatusBadRequest, getJSON(t, mux, "/api/v1/movements?favorite=maybe").Code)
+}
+
+func TestMovement_Update_Partial(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+	created := decodeMovement(t, postJSON(t, mux, "/api/v1/movements", movementPayload("Deadlift", "exercise")).Body)
+
+	// Favorite it and replace its muscles, leaving name/kind untouched.
+	body := map[string]any{
+		"favorite": true,
+		"rating":   4,
+		"muscles":  []map[string]string{{"muscle": "glutes", "role": "primary"}},
+	}
+	rr := putJSON(t, mux, "/api/v1/movements/"+itoa(created.ID), body)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	updated := decodeMovement(t, rr.Body)
+	assert.True(t, updated.Favorite)
+	require.NotNil(t, updated.Rating)
+	assert.Equal(t, 4, *updated.Rating)
+	assert.Equal(t, "Deadlift", updated.Name) // unchanged
+	require.Len(t, updated.Muscles, 1)
+	assert.Equal(t, "glutes", updated.Muscles[0].Muscle)
+}
+
+func TestMovement_Delete(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+	created := decodeMovement(t, postJSON(t, mux, "/api/v1/movements", movementPayload("Deadlift", "exercise")).Body)
+
+	assert.Equal(t, http.StatusNoContent, deleteReq(t, mux, "/api/v1/movements/"+itoa(created.ID)).Code)
+	assert.Equal(t, http.StatusNotFound, getJSON(t, mux, "/api/v1/movements/"+itoa(created.ID)).Code)
+	assert.Equal(t, http.StatusNotFound, deleteReq(t, mux, "/api/v1/movements/"+itoa(created.ID)).Code)
+}
+
+func TestMovement_Create_Validation(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+
+	// Duplicate name -> 409.
+	require.Equal(t, http.StatusCreated, postJSON(t, mux, "/api/v1/movements", movementPayload("Deadlift", "exercise")).Code)
+	assert.Equal(t, http.StatusConflict, postJSON(t, mux, "/api/v1/movements", movementPayload("Deadlift", "exercise")).Code)
+
+	// Missing name / kind -> 400.
+	assert.Equal(t, http.StatusBadRequest, postJSON(t, mux, "/api/v1/movements", map[string]any{"movement_kind": "exercise"}).Code)
+	assert.Equal(t, http.StatusBadRequest, postJSON(t, mux, "/api/v1/movements", map[string]any{"name": "Nameless"}).Code)
+
+	// Unknown movement_kind (FK) -> 409.
+	assert.Equal(t, http.StatusConflict, postJSON(t, mux, "/api/v1/movements", movementPayload("Odd One", "not-a-kind")).Code)
+
+	// Invalid muscle role -> 400.
+	bad := movementPayload("Bad Role", "exercise")
+	bad["muscles"] = []map[string]string{{"muscle": "quads", "role": "tertiary"}}
+	assert.Equal(t, http.StatusBadRequest, postJSON(t, mux, "/api/v1/movements", bad).Code)
+
+	// Unknown muscle (FK) -> 409.
+	unknown := movementPayload("Unknown Muscle", "exercise")
+	unknown["muscles"] = []map[string]string{{"muscle": "gluteus-imaginarius", "role": "primary"}}
+	assert.Equal(t, http.StatusConflict, postJSON(t, mux, "/api/v1/movements", unknown).Code)
+}
+
+func TestMuscles_List(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+	rr := getJSON(t, mux, "/api/v1/muscles")
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var muscles []models.Muscle
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &muscles))
+	assert.NotEmpty(t, muscles)
+}

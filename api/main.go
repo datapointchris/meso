@@ -17,7 +17,9 @@ import (
 
 	"meso/api/config"
 	"meso/api/database"
+	"meso/api/handlers"
 	"meso/api/middleware"
+	"meso/api/repository"
 )
 
 func main() {
@@ -93,6 +95,9 @@ func main() {
 }
 
 func setupRoutes(pool *pgxpool.Pool) *http.ServeMux {
+	movementRepo := repository.NewMovementRepo(pool)
+	movementH := handlers.NewMovementHandler(movementRepo)
+
 	mux := http.NewServeMux()
 
 	// Health — unauthenticated (auth middleware exempts /health).
@@ -111,6 +116,16 @@ func setupRoutes(pool *pgxpool.Pool) *http.ServeMux {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"message": "meso API", "version": "0.1.0"})
 	})
+
+	// Movements — the unified exercise/stretch/pose library (Phase 1).
+	mux.HandleFunc("GET /api/v1/movements", movementH.List)
+	mux.HandleFunc("POST /api/v1/movements", movementH.Create)
+	mux.HandleFunc("GET /api/v1/movements/{id}", movementH.Get)
+	mux.HandleFunc("PUT /api/v1/movements/{id}", movementH.Update)
+	mux.HandleFunc("DELETE /api/v1/movements/{id}", movementH.Delete)
+
+	// Muscle lookup — the tagging vocabulary the UI offers.
+	mux.HandleFunc("GET /api/v1/muscles", movementH.ListMuscles)
 
 	return mux
 }

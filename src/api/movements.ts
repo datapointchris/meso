@@ -1,0 +1,111 @@
+// Typed access to the movements + muscles endpoints. Types mirror the Go API's
+// JSON wire contract; the DB owns id and timestamps.
+import { http } from './client'
+
+export type MovementKind = 'exercise' | 'stretch' | 'yoga_pose'
+export type MuscleRole = 'primary' | 'secondary'
+
+export interface MovementMuscle {
+  muscle: string
+  region: string
+  role: MuscleRole
+}
+
+export interface Movement {
+  id: number
+  name: string
+  movement_kind: MovementKind
+  favorite: boolean
+  rating: number | null
+  tags: string[]
+  equipment: string[]
+  how_to: string
+  form_cues: string
+  common_faults: string
+  default_sets: number | null
+  default_reps: string | null
+  default_hold_seconds: number | null
+  sanskrit_name: string | null
+  measurable_rom: boolean
+  source_url: string | null
+  source_name: string | null
+  muscles: MovementMuscle[]
+  created_at: string
+  updated_at: string
+}
+
+export interface Muscle {
+  name: string
+  region: string
+}
+
+export interface MuscleInput {
+  muscle: string
+  role: MuscleRole
+}
+
+// MovementWrite is the create/update payload. Fields omitted from an update are
+// left unchanged server-side, so update senders should pass only what changed.
+export interface MovementWrite {
+  name?: string
+  movement_kind?: MovementKind
+  favorite?: boolean
+  rating?: number | null
+  tags?: string[]
+  equipment?: string[]
+  how_to?: string
+  form_cues?: string
+  common_faults?: string
+  default_sets?: number | null
+  default_reps?: string | null
+  default_hold_seconds?: number | null
+  sanskrit_name?: string | null
+  measurable_rom?: boolean
+  source_url?: string | null
+  source_name?: string | null
+  muscles?: MuscleInput[]
+}
+
+export interface MovementFilter {
+  kind?: MovementKind | ''
+  favorite?: boolean
+  tag?: string
+  equipment?: string
+  muscle?: string
+  region?: string
+  search?: string
+}
+
+function queryString(filter: MovementFilter): string {
+  const params = new URLSearchParams()
+  if (filter.kind) params.set('kind', filter.kind)
+  if (filter.favorite !== undefined) params.set('favorite', String(filter.favorite))
+  if (filter.tag) params.set('tag', filter.tag)
+  if (filter.equipment) params.set('equipment', filter.equipment)
+  if (filter.muscle) params.set('muscle', filter.muscle)
+  if (filter.region) params.set('region', filter.region)
+  if (filter.search) params.set('search', filter.search)
+  const q = params.toString()
+  return q ? `?${q}` : ''
+}
+
+export const movementsApi = {
+  list: (filter: MovementFilter = {}) => http.get<Movement[]>(`/movements${queryString(filter)}`),
+  get: (id: number) => http.get<Movement>(`/movements/${id}`),
+  create: (body: MovementWrite) => http.post<Movement>('/movements', body),
+  update: (id: number, body: MovementWrite) => http.put<Movement>(`/movements/${id}`, body),
+  remove: (id: number) => http.del(`/movements/${id}`),
+  muscles: () => http.get<Muscle[]>('/muscles'),
+}
+
+// primaryMuscles returns the names of a movement's primary muscles.
+export function primaryMuscles(m: Movement): string[] {
+  return m.muscles.filter((mm) => mm.role === 'primary').map((mm) => mm.muscle)
+}
+
+// KIND_LABELS gives each kind a human label for chips and headings.
+export const KIND_LABELS: Record<MovementKind, string> = {
+  exercise: 'Exercise',
+  stretch: 'Stretch',
+  yoga_pose: 'Yoga Pose',
+}

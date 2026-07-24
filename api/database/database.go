@@ -7,6 +7,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// TestPool wraps pgxpool.Pool for use in integration tests, giving the handler
+// test harness a distinct type to build its mux from.
+type TestPool struct {
+	Pool *pgxpool.Pool
+}
+
 func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	cfg, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
