@@ -1,0 +1,51 @@
+# Production stack for meso-lxc.
+#
+# Pulls images from ghcr.io built and pushed by CI. No `build:` directives — the
+# same images run unchanged in k3s after migration. Secrets and runtime config
+# come from env files in /etc/meso/ (deployed out-of-band; never committed).
+#
+# For local development, use docker-compose.dev.yml instead.
+
+name: meso
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: /etc/meso/.env.postgres
+    volumes:
+      - /var/db/meso-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U meso -d meso']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    image: ghcr.io/datapointchris/meso-api:latest
+    restart: unless-stopped
+    env_file: /etc/meso/.env.api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:8088/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  web:
+    image: ghcr.io/datapointchris/meso-web:latest
+    restart: unless-stopped
+    ports:
+      - '80:80'
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

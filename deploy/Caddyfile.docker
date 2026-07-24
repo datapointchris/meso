@@ -1,0 +1,51 @@
+# Caddyfile baked into the meso-web image.
+#
+# app-ops Traefik forwards meso.ichrisbirch.com → this container on :80 (with the
+# Authelia middleware), which then splits paths between the API and the static
+# SPA. meso ships no MCP, so there is no /mcp route (unlike nomad).
+#
+# When this stack moves to k3s, this Caddyfile becomes an Ingress object's path
+# rules; the static-serve portion stays as a Deployment.
+
+:80 {
+	encode gzip
+
+	# Liveness/readiness — used by docker-compose healthcheck and k3s probes.
+	# Unauthenticated and identical across tiers. Wrapped in `handle` so it
+	# terminates routing before the SPA fallback catches it.
+	handle /health {
+		respond "ok" 200
+	}
+
+	handle /api/* {
+		reverse_proxy api:8088
+	}
+
+	handle {
+		root * /srv/dist
+
+		# SPA fallback — Vue Router owns all client routes
+		try_files {path} /index.html
+		file_server
+
+		# Hashed assets are immutable — cache aggressively
+		@hashed path_regexp ^/assets/.+\.(js|css|woff2?|webp|png|svg|jpg)$
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+
+		# HTML must revalidate so deploys are picked up promptly
+		@html path *.html /
+		header @html Cache-Control "public, max-age=300, must-revalidate"
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "interest-cohort=(), geolocation=(), microphone=(), camera=()"
+		# Self-contained SPA: no external origins. 'unsafe-inline' style is required
+		# for Vite's injected component styles; scripts stay 'self' only.
+		Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		-Server
+	}
+}

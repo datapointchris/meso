@@ -1,0 +1,63 @@
+# Local development stack — builds images from local source instead of pulling
+# from ghcr.io, exposes ports on the host, and uses inline credentials. The API
+# runs in ENV=development, so it is NOT gated by Authelia (the edge is only in
+# front of production); local traffic reaches it directly.
+#
+# Run with:  docker compose -f docker-compose.dev.yml up --build
+#
+# Migrations run automatically on api start. Seed the lookup tables once after
+# first boot (the seed one-shot ships in the api image):
+#   docker compose -f docker-compose.dev.yml run --rm --entrypoint ./meso-seed api
+#
+# For production deployment to meso-lxc, see docker-compose.yml.
+
+name: meso-dev
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: meso
+      POSTGRES_USER: meso
+      POSTGRES_PASSWORD: meso
+    ports:
+      - '5459:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U meso -d meso']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./api
+    environment:
+      DATABASE_URL: postgres://meso:meso@postgres:5432/meso?sslmode=disable
+      PORT: '8088'
+      ENV: development
+    ports:
+      - '8088:8088'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:8088/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    ports:
+      - '8080:80'
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:

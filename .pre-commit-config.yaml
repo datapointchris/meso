@@ -1,0 +1,97 @@
+fail_fast: true
+default_stages: [pre-commit]
+
+repos:
+  # ============================================================
+  # PHASE 1: Standard file checks
+  # ============================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-json
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+      - id: check-case-conflict
+
+  # ============================================================
+  # PHASE 2: Markdown
+  # ============================================================
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.45.0
+    hooks:
+      - id: markdownlint
+        args: [--fix]
+
+  # ============================================================
+  # PHASE 3: Go (api + cli) — format check then vet
+  # ============================================================
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt
+        description: Check Go formatting (api + cli)
+        entry: bash -c 'unformatted=$(gofmt -l api cli); if [ -n "$unformatted" ]; then echo "gofmt needed:"; echo "$unformatted"; exit 1; fi'
+        language: system
+        pass_filenames: false
+        files: '\.go$'
+
+      - id: go-vet-api
+        name: go vet (api)
+        entry: bash -c 'cd api && go vet ./...'
+        language: system
+        pass_filenames: false
+        files: '^api/.*\.go$'
+
+      - id: go-vet-cli
+        name: go vet (cli)
+        entry: bash -c 'cd cli && go vet ./...'
+        language: system
+        pass_filenames: false
+        files: '^cli/.*\.go$'
+
+  # ============================================================
+  # PHASE 4: Frontend (Vue/TS) linting, formatting, unit tests
+  # ============================================================
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        description: Run ESLint on Vue/TS files
+        entry: npm run lint:fix
+        language: system
+        pass_filenames: false
+        files: '\.(vue|ts|mts)$'
+
+      - id: prettier
+        name: prettier
+        description: Run Prettier on frontend files
+        entry: npm run format
+        language: system
+        pass_filenames: false
+        files: '\.(vue|ts|mts|css|scss|json)$'
+
+      - id: vitest
+        name: vitest unit
+        description: Run Vitest unit and component tests
+        entry: npm run test
+        language: system
+        pass_filenames: false
+        files: '\.(vue|ts|mts)$'
+
+  # ============================================================
+  # Conventional commits (commit-msg stage)
+  # ============================================================
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.6.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: ['--strict', '--verbose']

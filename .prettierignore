@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+package-lock.json
+
+# Go source (gofmt owns Go formatting)
+api
+cli

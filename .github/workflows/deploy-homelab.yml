@@ -1,0 +1,28 @@
+name: Deploy to Homelab (Manual)
+
+on:
+  workflow_dispatch:
+
+# Manual redeploy trigger.
+#
+# Normal deploys: push to main → CI builds and pushes images to ghcr.io →
+# GitHub fires `workflow_run.completed` → app-ops webhook receives it →
+# `deploy-meso.sh` SSHes to meso-lxc and runs `docker compose pull && up -d`.
+#
+# This workflow is for "redeploy whatever is currently :latest on ghcr.io
+# without making a new commit". It does not rebuild — it only fires the webhook
+# so the LXC pulls the current :latest images and restarts the containers.
+
+jobs:
+  redeploy:
+    name: Trigger redeploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger homelab deploy webhook
+        run: |
+          PAYLOAD="{\"action\":\"completed\",\"workflow_run\":{\"id\":${{ github.run_id }},\"conclusion\":\"success\",\"head_branch\":\"main\"},\"repository\":{\"full_name\":\"${{ github.repository }}\",\"name\":\"meso\"}}"
+          SIGNATURE=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac '${{ secrets.WEBHOOK_SECRET }}' | cut -d' ' -f2)
+          curl --fail -X POST https://hooks.ichrisbirch.com/hooks/meso \
+            -H "Content-Type: application/json" \
+            -H "X-Hub-Signature-256: sha256=$SIGNATURE" \
+            -d "$PAYLOAD"

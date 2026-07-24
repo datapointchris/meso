@@ -2,15 +2,19 @@
 
 A standalone, personal, mobile-first training app: a library of movements that compile into workouts, workouts that sequence into goal-directed **cycles** (mesocycles), sessions logged against them, tracked stats, and a journal — all drivable by Claude through a first-class `meso` CLI (no MCP) so progress can be reviewed and the next cycle drafted collaboratively.
 
-The name is the thesis. A *mesocycle* is the unit of training planning — a multi-week block aimed at a target. The app's value is that planning intelligence, unified across strength, running, mobility, and dance, not tracking-for-tracking's-sake. The block entity is named **Cycle** in the model.
+The name is the thesis. A _mesocycle_ is the unit of training planning — a multi-week block aimed at a target. The app's value is that planning intelligence, unified across strength, running, mobility, and dance, not tracking-for-tracking's-sake. The block entity is named **Cycle** in the model.
 
 Replaces the loose markdown collection in `~/shart/fitness/` (transcribed workouts + three research-backed plans). See **Migration & Seed** for how that content becomes the initial catalog.
 
 > **Why standalone, and modeled on nomad.** meso is a **product front door** in the sense of `~/dev/vision.md`: its own data store, its own web surface, and its own `meso` CLI — a clean-break app that does not depend on ichrisbirch. It follows the **nomad** product model wholesale (Go API + Go CLI + Vue, Authelia auth at the edge, registry-pull deploy), because nomad is the reference build for exactly this shape and copying its proven stack — including the fiddly CLI auth flow — beats reinventing it. It is the fourth product app (after `icb`, `learning`, `nomad`); the homelab is provisioned for the three, and meso needs its own slice (see Deployment).
 
+<!-- -->
+
 > **No MCP — ever.** The entire ecosystem is retiring MCP in favor of CLI front doors (`~/dev/vision.md`, "CLI-primary and MCP retirement"). meso is built CLI-first from day one and never ships an MCP server. The `meso` CLI is the agent surface: Claude drives it via Bash.
 
-> **Name note (settled 2026-07-22).** "meso" is the right *internal/personal* name — accurate and spare. It is a poor *commercial* brand: "mesocycle" is an industry term so the mark is descriptive/weak, and the fitness space already has several active "Meso"-named apps built on the same periodization thesis (meso.fitness, joinmeso.com, MesoBuilder, MesoTrack, Mesostrength) plus registered marks (MESO FIT / MESO METHOD, Class 41). None of that reaches a private, self-hosted, single-user tool. If commercial optionality is ever wanted, a distinct product/brand name would be chosen then while `meso` stays the codebase identity.
+<!-- -->
+
+> **Name note (settled 2026-07-22).** "meso" is the right _internal/personal_ name — accurate and spare. It is a poor _commercial_ brand: "mesocycle" is an industry term so the mark is descriptive/weak, and the fitness space already has several active "Meso"-named apps built on the same periodization thesis (meso.fitness, joinmeso.com, MesoBuilder, MesoTrack, Mesostrength) plus registered marks (MESO FIT / MESO METHOD, Class 41). None of that reaches a private, self-hosted, single-user tool. If commercial optionality is ever wanted, a distinct product/brand name would be chosen then while `meso` stays the codebase identity.
 
 ## Motivation
 
@@ -19,13 +23,13 @@ The markdown directory works as storage but not as a system. It can't answer "wh
 Two things make this worth building as an app rather than better markdown:
 
 1. **Template vs. instance.** A workout is a plan; doing it on a Tuesday is an event with actual weights, checkboxes, and how it felt. Markdown collapses those. The whole point of tracking is the instance data.
-2. **AI-assisted cycle drafting.** The differentiator. Because sessions, stats, and the journal are all reachable through the `meso` CLI, Claude can read the actual history — what got done, what stalled, how I felt — and help write the *next* cycle instead of me guessing. The capstone is a `meso review` read plus ordinary writes (below), not a server-side AI feature.
+2. **AI-assisted cycle drafting.** The differentiator. Because sessions, stats, and the journal are all reachable through the `meso` CLI, Claude can read the actual history — what got done, what stalled, how I felt — and help write the _next_ cycle instead of me guessing. The capstone is a `meso review` read plus ordinary writes (below), not a server-side AI feature.
 
 ## Design philosophy — defined by what it leaves out
 
 This app is defined by its exclusions. The value isn't more features; it's the absence of the bloat every commercial fitness app accretes. Stated up front so every future feature gets measured against it.
 
-**What it is**: a digital tool for writing down exercises and making planned, informed training plans — the programming intelligence a bodybuilder applies to a mesocycle, or (especially) a 5k coach applies to a periodized race build, but unified across strength, running, yoga, stretching, and dance, with **multiple concurrent goals** running at once. The intelligence is in the *planning* — structured cycles toward real targets — not in tracking-for-tracking's-sake.
+**What it is**: a digital tool for writing down exercises and making planned, informed training plans — the programming intelligence a bodybuilder applies to a mesocycle, or (especially) a 5k coach applies to a periodized race build, but unified across strength, running, yoga, stretching, and dance, with **multiple concurrent goals** running at once. The intelligence is in the _planning_ — structured cycles toward real targets — not in tracking-for-tracking's-sake.
 
 **What it is NOT** (hard exclusions — the anti-features list, reinforced by the competitive research below):
 
@@ -106,11 +110,11 @@ Exercises, stretches, and yoga poses are "the same concept." That's the design: 
 - `source_url`, `source_name` — where it came from (a plan, a video)
 - `created_at`, `updated_at`
 
-**The how-to fields are text, deliberately — no videos.** The need is "I forget exactly what a prisoner squat is, how to do it, what to watch for, and what commonly goes wrong." So a movement carries a written how-to, form cues, and common faults — enough to reconstruct the movement or explain a sequence I've built, nothing more. No instructional video, no GIF, no motivational framing (per the design philosophy). A prisoner-squat entry reads: *how-to* — hands laced behind the head, elbows wide, squat to depth keeping the chest up; *form cues* — elbows stay back, knees track over toes, weight mid-foot; *common faults* — elbows collapse forward, chest drops, heels lift. That's the whole ambition of the field.
+**The how-to fields are text, deliberately — no videos.** The need is "I forget exactly what a prisoner squat is, how to do it, what to watch for, and what commonly goes wrong." So a movement carries a written how-to, form cues, and common faults — enough to reconstruct the movement or explain a sequence I've built, nothing more. No instructional video, no GIF, no motivational framing (per the design philosophy). A prisoner-squat entry reads: _how-to_ — hands laced behind the head, elbows wide, squat to depth keeping the chest up; _form cues_ — elbows stay back, knees track over toes, weight mid-foot; _common faults_ — elbows collapse forward, chest drops, heels lift. That's the whole ambition of the field.
 
 ### 2. Movement relationships — alternates, antagonists (self-ref)
 
-Alternates and antagonist exercises are wanted. Modeled as a directional self-referential join, `movement_relationships(movement_id, related_movement_id, relationship_kind)` where kind ∈ `alternate` | `antagonist` | `progression` | `regression` | `see_also`. (Here `progression`/`regression` are the standard strength terms for a harder/easier *variant* of a movement — unrelated to the `Cycle` entity.)
+Alternates and antagonist exercises are wanted. Modeled as a directional self-referential join, `movement_relationships(movement_id, related_movement_id, relationship_kind)` where kind ∈ `alternate` | `antagonist` | `progression` | `regression` | `see_also`. (Here `progression`/`regression` are the standard strength terms for a harder/easier _variant_ of a movement — unrelated to the `Cycle` entity.)
 
 The test for whether a relationship deserves a table (vs. being prose) is whether there's a genuine query behind it. Here there is: **swapping a movement for an alternate while building or rotating a workout is a concrete UI action** ("give me an alternate for barbell row that I have equipment for"). That query justifies the structure. Antagonist/progression/regression ride the same table for free.
 
@@ -145,7 +149,7 @@ Two behaviors from the research make a cycle humane rather than a straightjacket
 
 - **Sliding reschedule, never "failed."** A missed session slides the calendar forward; it is never marked as a red failure. Cycles advance by readiness, not by wall-clock weekday.
 - **"Repeat this week until ready"** — Couch-to-5k's most-loved safety valve. A week can be held/repeated (gated by its `conditions`) before advancing.
-- **Legible, not opaque.** The cycle explains *why* the next block is what it is (from `phase` + `conditions` + the target), the opposite of the black-box adaptive plans people distrust. This is also what makes the AI-drafting capstone reviewable rather than magic.
+- **Legible, not opaque.** The cycle explains _why_ the next block is what it is (from `phase` + `conditions` + the target), the opposite of the black-box adaptive plans people distrust. This is also what makes the AI-drafting capstone reviewable rather than magic.
 
 ### 6. Measurement — the tracked stats time series
 
@@ -168,7 +172,7 @@ Feeds a stats page via the ported stats kit.
 - **No MCP** — the `meso` CLI is the sole programmatic/agent surface, in line with the ecosystem-wide MCP retirement.
 - **One `Movement` entity, not three** — exercises/stretches/poses share every operation (favorite, tag, search, compose, relate). A `movement_kind` lookup + nullable kind-specific fields beats three parallel tables. (Confirm in Open Questions.)
 - **Template vs. instance is the spine** — `Workout` (plan) and `WorkoutSession` (a dated performance) are separate entities. This is the single most important modeling call; it's what makes progress trackable instead of a pile of edited plans.
-- **Workout composition is a real payload-bearing M2M** — `WorkoutMovement` carries order + prescription and is read on every render. The relationship *is* the query, so the M2M-with-payload is correct (as distinct from a prose relationship, which would not earn a table).
+- **Workout composition is a real payload-bearing M2M** — `WorkoutMovement` carries order + prescription and is read on every render. The relationship _is_ the query, so the M2M-with-payload is correct (as distinct from a prose relationship, which would not earn a table).
 - **Movement relationships get a self-ref join, justified by the swap-alternate UI** — the concrete usage pattern. Falls back to tags if we defer (Open Questions).
 - **Lookup tables, never enums** — `movement_kinds`, `metric_definitions`, `cycle_statuses`, `relationship_kinds` all `Text PRIMARY KEY` + FK. All text columns `Text`.
 - **UUID7 PKs for user-generated rows** (`WorkoutSession`, `FitnessLogEntry`), identity for catalog rows (`Movement`, `Workout`) — keeps future client-side/offline creation feasible.
@@ -277,7 +281,7 @@ meso stats       [--json]
 meso review      [--since 30d] [--json]      # the capstone read
 ```
 
-**The AI capstone is a read plus ordinary writes — no server-side LLM.** `meso review --json` pulls recent sessions + measurements + log into one structured payload. Claude reads it via Bash, reasons about the next block *in the conversation*, and persists the drafted cycle with ordinary writes (`meso cycles create`, `meso cycles workouts add …`). This is strictly simpler than an MCP `draft_cycle` tool: the CLI only needs solid read + write primitives; Claude is the reasoning.
+**The AI capstone is a read plus ordinary writes — no server-side LLM.** `meso review --json` pulls recent sessions + measurements + log into one structured payload. Claude reads it via Bash, reasons about the next block _in the conversation_, and persists the drafted cycle with ordinary writes (`meso cycles create`, `meso cycles workouts add …`). This is strictly simpler than an MCP `draft_cycle` tool: the CLI only needs solid read + write primitives; Claude is the reasoning.
 
 ## Frontend (Vue) — top nav
 
@@ -321,13 +325,13 @@ Mechanism: a `cmd/seed` one-shot for the lookup tables and a baseline catalog, t
 
 Each phase independently shippable.
 
-- **Phase 0 — Scaffold.** Repo → running app: Go API skeleton (`net/http`, pgx, goose, `/health`), Postgres, Vue shell, Caddy web image, Docker compose, the **Go CLI skeleton copied from nomad** with `meso auth login/logout/status/token` working against Authelia, homelab provisioning (Authelia clients, `meso.ichrisbirch.com` route, ghcr repo, deploy webhook), CI. *Acceptance*: `meso auth login` succeeds and `meso auth status --json` reports logged-in; an empty Vue shell loads behind Authelia SSO; `/health` green.
-- **Phase 1 — Movements core.** `Movement` + kind/relationship lookups, CRUD, search/filter, favorites, CLI `meso movements …`, Vue library + detail + modal, **mobile-first patterns established here**, seed. Import shart movements. *Acceptance*: browse/search/favorite a unified library of exercises, stretches, and poses on a phone; `meso movements list --json` round-trips.
-- **Phase 2 — Workouts + relationships.** `Workout` + `WorkoutMovement` ordered composition, `movement_relationships` self-ref + swap-alternate UI, CLI. Import shart workouts. *Acceptance*: build/compose a themed workout, swap a movement for an alternate.
-- **Phase 3 — Sessions (logging).** `WorkoutSession` + `SessionMovement`, start-from-template, checkboxes, actuals, per-session notes. The `ActiveSessionView`. *Acceptance*: do a workout on the phone, check off sets, record real weights, add a note.
-- **Phase 4 — Measurements + Stats.** Metric definitions, measurement logging, `StatsView` with the ported kit. *Acceptance*: log a lift/ROM/time and see the trend chart.
-- **Phase 5 — Fitness log.** Dated journal entries, CLI read/write. *Acceptance*: write and browse journal entries; `meso log list --json` works.
-- **Phase 6 — Cycles + AI drafting.** `Cycle` sequencing, `meso review` capstone read. Import the research plans as cycles. *Acceptance*: an active cycle drives "what's next," and Claude drafts the following cycle from real `meso review` history and persists it via `meso cycles` writes.
+- **Phase 0 — Scaffold.** Repo → running app: Go API skeleton (`net/http`, pgx, goose, `/health`), Postgres, Vue shell, Caddy web image, Docker compose, the **Go CLI skeleton copied from nomad** with `meso auth login/logout/status/token` working against Authelia, homelab provisioning (Authelia clients, `meso.ichrisbirch.com` route, ghcr repo, deploy webhook), CI. _Acceptance_: `meso auth login` succeeds and `meso auth status --json` reports logged-in; an empty Vue shell loads behind Authelia SSO; `/health` green.
+- **Phase 1 — Movements core.** `Movement` + kind/relationship lookups, CRUD, search/filter, favorites, CLI `meso movements …`, Vue library + detail + modal, **mobile-first patterns established here**, seed. Import shart movements. _Acceptance_: browse/search/favorite a unified library of exercises, stretches, and poses on a phone; `meso movements list --json` round-trips.
+- **Phase 2 — Workouts + relationships.** `Workout` + `WorkoutMovement` ordered composition, `movement_relationships` self-ref + swap-alternate UI, CLI. Import shart workouts. _Acceptance_: build/compose a themed workout, swap a movement for an alternate.
+- **Phase 3 — Sessions (logging).** `WorkoutSession` + `SessionMovement`, start-from-template, checkboxes, actuals, per-session notes. The `ActiveSessionView`. _Acceptance_: do a workout on the phone, check off sets, record real weights, add a note.
+- **Phase 4 — Measurements + Stats.** Metric definitions, measurement logging, `StatsView` with the ported kit. _Acceptance_: log a lift/ROM/time and see the trend chart.
+- **Phase 5 — Fitness log.** Dated journal entries, CLI read/write. _Acceptance_: write and browse journal entries; `meso log list --json` works.
+- **Phase 6 — Cycles + AI drafting.** `Cycle` sequencing, `meso review` capstone read. Import the research plans as cycles. _Acceptance_: an active cycle drives "what's next," and Claude drafts the following cycle from real `meso review` history and persists it via `meso cycles` writes.
 
 ## Settled decisions
 

@@ -1,0 +1,26 @@
+# Frontend image — Caddy serving the built Vite SPA + reverse-proxying /api.
+# Entry point on meso-lxc; app-ops Traefik forwards traffic here.
+
+# ─── Build stage ───────────────────────────────────────────────────────────
+# Node major must match local (npm lockfile formats diverge across majors).
+FROM node:26-alpine AS builder
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+# ─── Runtime stage ─────────────────────────────────────────────────────────
+FROM caddy:2-alpine
+
+COPY --from=builder /app/dist /srv/dist
+COPY deploy/Caddyfile.docker /etc/caddy/Caddyfile
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD wget -qO- http://localhost/health || exit 1
+
+# Caddy's default CMD invokes /etc/caddy/Caddyfile; nothing to override.
