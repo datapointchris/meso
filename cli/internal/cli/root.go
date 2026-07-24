@@ -66,6 +66,7 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(newMetricsCommand())
 	root.AddCommand(newMeasurementsCommand())
 	root.AddCommand(newStatsCommand())
+	root.AddCommand(newLogCommand())
 	return root
 }
 

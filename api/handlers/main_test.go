@@ -152,11 +152,12 @@ func setupTestDB(t *testing.T) *database.TestPool {
 		// Order matters: both workout_movements and session_movements reference
 		// movements with ON DELETE RESTRICT, so their parents must be cleared first;
 		// measurements reference metric_definitions with RESTRICT likewise.
-		pool.Exec(ctx, `DELETE FROM measurements`)       //nolint:errcheck
-		pool.Exec(ctx, `DELETE FROM metric_definitions`) //nolint:errcheck
-		pool.Exec(ctx, `DELETE FROM workout_sessions`)   //nolint:errcheck // cascades to session_movements
-		pool.Exec(ctx, `DELETE FROM workouts`)           //nolint:errcheck // cascades to workout_movements
-		pool.Exec(ctx, `DELETE FROM movements`)          //nolint:errcheck // cascades to movement_muscles + movement_relationships
+		pool.Exec(ctx, `DELETE FROM fitness_log_entries`) //nolint:errcheck // standalone, no FKs
+		pool.Exec(ctx, `DELETE FROM measurements`)        //nolint:errcheck
+		pool.Exec(ctx, `DELETE FROM metric_definitions`)  //nolint:errcheck
+		pool.Exec(ctx, `DELETE FROM workout_sessions`)    //nolint:errcheck // cascades to session_movements
+		pool.Exec(ctx, `DELETE FROM workouts`)            //nolint:errcheck // cascades to workout_movements
+		pool.Exec(ctx, `DELETE FROM movements`)           //nolint:errcheck // cascades to movement_muscles + movement_relationships
 		pool.Close()
 	})
 
@@ -169,6 +170,7 @@ func buildTestMux(pool *database.TestPool) *http.ServeMux {
 	sessionH := handlers.NewSessionHandler(repository.NewSessionRepo(pool.Pool))
 	measurementH := handlers.NewMeasurementHandler(repository.NewMeasurementRepo(pool.Pool))
 	statsH := handlers.NewStatsHandler(repository.NewStatsRepo(pool.Pool))
+	logH := handlers.NewLogHandler(repository.NewLogRepo(pool.Pool))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/movements", movementH.List)
@@ -206,6 +208,12 @@ func buildTestMux(pool *database.TestPool) *http.ServeMux {
 	mux.HandleFunc("PUT /api/v1/measurements/{id}", measurementH.Update)
 	mux.HandleFunc("DELETE /api/v1/measurements/{id}", measurementH.Delete)
 	mux.HandleFunc("GET /api/v1/stats", statsH.Summary)
+
+	mux.HandleFunc("GET /api/v1/log", logH.List)
+	mux.HandleFunc("POST /api/v1/log", logH.Create)
+	mux.HandleFunc("GET /api/v1/log/{id}", logH.Get)
+	mux.HandleFunc("PUT /api/v1/log/{id}", logH.Update)
+	mux.HandleFunc("DELETE /api/v1/log/{id}", logH.Delete)
 	return mux
 }
 

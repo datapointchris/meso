@@ -104,6 +104,7 @@ func setupRoutes(pool *pgxpool.Pool) *http.ServeMux {
 	measurementRepo := repository.NewMeasurementRepo(pool)
 	measurementH := handlers.NewMeasurementHandler(measurementRepo)
 	statsH := handlers.NewStatsHandler(repository.NewStatsRepo(pool))
+	logH := handlers.NewLogHandler(repository.NewLogRepo(pool))
 
 	mux := http.NewServeMux()
 
@@ -176,6 +177,13 @@ func setupRoutes(pool *pgxpool.Pool) *http.ServeMux {
 
 	// Stats — the aggregated stats-page payload in one read (Phase 4).
 	mux.HandleFunc("GET /api/v1/stats", statsH.Summary)
+
+	// Fitness log — the dated training journal, `meso review`'s substrate (Phase 5).
+	mux.HandleFunc("GET /api/v1/log", logH.List)
+	mux.HandleFunc("POST /api/v1/log", logH.Create)
+	mux.HandleFunc("GET /api/v1/log/{id}", logH.Get)
+	mux.HandleFunc("PUT /api/v1/log/{id}", logH.Update)
+	mux.HandleFunc("DELETE /api/v1/log/{id}", logH.Delete)
 
 	return mux
 }
