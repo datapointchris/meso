@@ -144,6 +144,77 @@ func (h *MovementHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	writeNoContent(w)
 }
 
+// AddRelated handles POST /api/v1/movements/{id}/related — record a directional
+// relationship (alternate, antagonist, ...) from this movement to another. Returns
+// the refreshed movement so the caller sees the updated related list.
+func (h *MovementHandler) AddRelated(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r.PathValue("id"))
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	var in models.RelationshipInput
+	if err := decodeJSON(r, &in); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if in.RelatedMovementID == 0 {
+		writeBadRequest(w, "related_movement_id is required")
+		return
+	}
+	if in.RelationshipKind == "" {
+		writeBadRequest(w, "relationship_kind is required")
+		return
+	}
+
+	if err := h.movements.AddRelationship(r.Context(), id, in.RelatedMovementID, in.RelationshipKind); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeNotFound(w, fmt.Sprintf("movement %d not found", id))
+			return
+		}
+		writeMovementWriteError(w, err)
+		return
+	}
+	movement, err := h.movements.GetByID(r.Context(), id)
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, movement)
+}
+
+// RemoveRelated handles DELETE /api/v1/movements/{id}/related/{rid} — drop the
+// relationship(s) to {rid}; an optional ?kind= narrows to one kind. Returns the
+// refreshed movement.
+func (h *MovementHandler) RemoveRelated(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r.PathValue("id"))
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	relatedID, err := parseID(r.PathValue("rid"))
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	kind := r.URL.Query().Get("kind")
+
+	if err := h.movements.RemoveRelationship(r.Context(), id, relatedID, kind); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeNotFound(w, fmt.Sprintf("no such relationship from movement %d to %d", id, relatedID))
+			return
+		}
+		writeInternalError(w, err)
+		return
+	}
+	movement, err := h.movements.GetByID(r.Context(), id)
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, movement)
+}
+
 // ListMuscles handles GET /api/v1/muscles — the muscle-tagging vocabulary.
 func (h *MovementHandler) ListMuscles(w http.ResponseWriter, r *http.Request) {
 	muscles, err := h.movements.ListMuscles(r.Context())
@@ -177,7 +248,9 @@ func writeMovementWriteError(w http.ResponseWriter, err error) {
 	case errors.Is(err, repository.ErrConflict):
 		writeConflict(w, "a movement with that name already exists")
 	case errors.Is(err, repository.ErrReferenced):
-		writeConflict(w, "unknown movement_kind or muscle — it must exist in the lookup tables")
+		writeConflict(w, "unknown reference — the movement_kind, muscle, related movement, or relationship_kind must exist")
+	case errors.Is(err, repository.ErrInvalid):
+		writeBadRequest(w, err.Error())
 	default:
 		writeInternalError(w, err)
 	}

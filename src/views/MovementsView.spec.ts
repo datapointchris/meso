@@ -39,6 +39,7 @@ function fakeMovement(over: Partial<Movement>): Movement {
     source_url: null,
     source_name: null,
     muscles: [{ muscle: 'hamstrings', region: 'posterior', role: 'primary' }],
+    related: [],
     created_at: '',
     updated_at: '',
     ...over,

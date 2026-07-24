@@ -21,30 +21,50 @@ type MovementMuscleInput struct {
 	Role   string `json:"role"`
 }
 
+// RelatedMovement is a compact summary of a movement reached through a
+// relationship (an alternate, antagonist, ...), embedded on a movement's detail
+// read. It carries enough to render the swap/see-also lists and to link through.
+type RelatedMovement struct {
+	Name             string `json:"name"`
+	MovementKind     string `json:"movement_kind"`
+	RelationshipKind string `json:"relationship_kind"`
+	ID               int64  `json:"id"`
+	Favorite         bool   `json:"favorite"`
+}
+
+// RelationshipInput is the write shape for POST /movements/{id}/related — the
+// target movement and the kind of relationship. relationship_kind is FK-validated
+// against the lookup server-side; an unknown kind is a 409.
+type RelationshipInput struct {
+	RelationshipKind  string `json:"relationship_kind"`
+	RelatedMovementID int64  `json:"related_movement_id"`
+}
+
 // Movement is the full DB-owned record: an exercise, stretch, or yoga pose,
 // unified under movement_kind. Kind-specific fields (default_reps, sanskrit_name,
 // ...) are nullable and populated as appropriate. Muscles is embedded on read.
 type Movement struct {
-	CreatedAt          time.Time        `json:"created_at"`
-	UpdatedAt          time.Time        `json:"updated_at"`
-	Rating             *int             `json:"rating"`
-	DefaultSets        *int             `json:"default_sets"`
-	DefaultReps        *string          `json:"default_reps"`
-	DefaultHoldSeconds *int             `json:"default_hold_seconds"`
-	SanskritName       *string          `json:"sanskrit_name"`
-	SourceURL          *string          `json:"source_url"`
-	SourceName         *string          `json:"source_name"`
-	Name               string           `json:"name"`
-	MovementKind       string           `json:"movement_kind"`
-	HowTo              string           `json:"how_to"`
-	FormCues           string           `json:"form_cues"`
-	CommonFaults       string           `json:"common_faults"`
-	Tags               []string         `json:"tags"`
-	Equipment          []string         `json:"equipment"`
-	Muscles            []MovementMuscle `json:"muscles"`
-	ID                 int64            `json:"id"`
-	Favorite           bool             `json:"favorite"`
-	MeasurableROM      bool             `json:"measurable_rom"`
+	CreatedAt          time.Time         `json:"created_at"`
+	UpdatedAt          time.Time         `json:"updated_at"`
+	Rating             *int              `json:"rating"`
+	DefaultSets        *int              `json:"default_sets"`
+	DefaultReps        *string           `json:"default_reps"`
+	DefaultHoldSeconds *int              `json:"default_hold_seconds"`
+	SanskritName       *string           `json:"sanskrit_name"`
+	SourceURL          *string           `json:"source_url"`
+	SourceName         *string           `json:"source_name"`
+	Name               string            `json:"name"`
+	MovementKind       string            `json:"movement_kind"`
+	HowTo              string            `json:"how_to"`
+	FormCues           string            `json:"form_cues"`
+	CommonFaults       string            `json:"common_faults"`
+	Tags               []string          `json:"tags"`
+	Equipment          []string          `json:"equipment"`
+	Muscles            []MovementMuscle  `json:"muscles"`
+	Related            []RelatedMovement `json:"related"`
+	ID                 int64             `json:"id"`
+	Favorite           bool              `json:"favorite"`
+	MeasurableROM      bool              `json:"measurable_rom"`
 }
 
 // MovementCreate is the create body. Name and MovementKind are required (the

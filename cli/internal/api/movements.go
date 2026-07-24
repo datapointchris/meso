@@ -15,27 +15,43 @@ type MovementMuscle struct {
 	Role   string `json:"role"`
 }
 
+// RelatedMovement mirrors one embedded relationship in the API's movement JSON.
+type RelatedMovement struct {
+	Name             string `json:"name"`
+	MovementKind     string `json:"movement_kind"`
+	RelationshipKind string `json:"relationship_kind"`
+	ID               int64  `json:"id"`
+	Favorite         bool   `json:"favorite"`
+}
+
+// RelationshipInput is the write shape for POST /movements/{id}/related.
+type RelationshipInput struct {
+	RelationshipKind  string `json:"relationship_kind"`
+	RelatedMovementID int64  `json:"related_movement_id"`
+}
+
 // Movement mirrors the API's movement JSON. Kind-specific fields are nullable
 // pointers; muscles are embedded on read.
 type Movement struct {
-	Rating             *int             `json:"rating"`
-	DefaultSets        *int             `json:"default_sets"`
-	DefaultReps        *string          `json:"default_reps"`
-	DefaultHoldSeconds *int             `json:"default_hold_seconds"`
-	SanskritName       *string          `json:"sanskrit_name"`
-	SourceURL          *string          `json:"source_url"`
-	SourceName         *string          `json:"source_name"`
-	Name               string           `json:"name"`
-	MovementKind       string           `json:"movement_kind"`
-	HowTo              string           `json:"how_to"`
-	FormCues           string           `json:"form_cues"`
-	CommonFaults       string           `json:"common_faults"`
-	Tags               []string         `json:"tags"`
-	Equipment          []string         `json:"equipment"`
-	Muscles            []MovementMuscle `json:"muscles"`
-	ID                 int64            `json:"id"`
-	Favorite           bool             `json:"favorite"`
-	MeasurableROM      bool             `json:"measurable_rom"`
+	Rating             *int              `json:"rating"`
+	DefaultSets        *int              `json:"default_sets"`
+	DefaultReps        *string           `json:"default_reps"`
+	DefaultHoldSeconds *int              `json:"default_hold_seconds"`
+	SanskritName       *string           `json:"sanskrit_name"`
+	SourceURL          *string           `json:"source_url"`
+	SourceName         *string           `json:"source_name"`
+	Name               string            `json:"name"`
+	MovementKind       string            `json:"movement_kind"`
+	HowTo              string            `json:"how_to"`
+	FormCues           string            `json:"form_cues"`
+	CommonFaults       string            `json:"common_faults"`
+	Tags               []string          `json:"tags"`
+	Equipment          []string          `json:"equipment"`
+	Muscles            []MovementMuscle  `json:"muscles"`
+	Related            []RelatedMovement `json:"related"`
+	ID                 int64             `json:"id"`
+	Favorite           bool              `json:"favorite"`
+	MeasurableROM      bool              `json:"measurable_rom"`
 }
 
 // Muscle mirrors a muscle-lookup row.
@@ -145,6 +161,32 @@ func (c *Client) UpdateMovement(ctx context.Context, id int64, patch map[string]
 // DeleteMovement removes a movement (DELETE /api/v1/movements/{id}).
 func (c *Client) DeleteMovement(ctx context.Context, id int64) error {
 	return c.send(ctx, http.MethodDelete, "/api/v1/movements/"+strconv.FormatInt(id, 10), nil, nil)
+}
+
+// AddRelated records a relationship from a movement to another (POST
+// /api/v1/movements/{id}/related) and returns the refreshed movement.
+func (c *Client) AddRelated(ctx context.Context, id int64, in RelationshipInput) (Movement, error) {
+	var m Movement
+	path := "/api/v1/movements/" + strconv.FormatInt(id, 10) + "/related"
+	if err := c.send(ctx, http.MethodPost, path, in, &m); err != nil {
+		return Movement{}, err
+	}
+	return m, nil
+}
+
+// RemoveRelated drops a movement's relationship(s) to relatedID (DELETE
+// /api/v1/movements/{id}/related/{rid}). An empty kind removes every kind between
+// the pair; a specific kind narrows to one. Returns the refreshed movement.
+func (c *Client) RemoveRelated(ctx context.Context, id, relatedID int64, kind string) (Movement, error) {
+	var m Movement
+	path := "/api/v1/movements/" + strconv.FormatInt(id, 10) + "/related/" + strconv.FormatInt(relatedID, 10)
+	if kind != "" {
+		path += "?" + url.Values{"kind": {kind}}.Encode()
+	}
+	if err := c.send(ctx, http.MethodDelete, path, nil, &m); err != nil {
+		return Movement{}, err
+	}
+	return m, nil
 }
 
 // ListMuscles returns the muscle lookup (GET /api/v1/muscles).

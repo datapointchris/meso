@@ -4,7 +4,7 @@ A personal, mobile-first training app. A library of movements compiles into work
 
 Self-hosted, single-user, no external users. Defined as much by what it leaves out — no videos, gamification, social feed, or motivation bloat — as by what it does.
 
-**Status:** Phase 1 (Movements core) built locally; Phase 0 live in production. The unified movement library is complete end to end — Go API (`/api/v1/movements` CRUD + filtering, `/api/v1/muscles`), the `meso movements` CLI, and the Vue library/detail/add-edit surfaces, plus a seeded baseline catalog. The full design and phase plan live in [`docs/design.md`](docs/design.md); architecture and conventions in [`CLAUDE.md`](CLAUDE.md).
+**Status:** Phase 2 (Workouts + relationships) built locally; Phases 0–1 done, Phase 0 live in production. On top of the unified movement library, workouts are complete end to end — ordered, themed compositions (`/api/v1/workouts` CRUD + filtering, plus an add/edit/reorder/remove movement sub-resource), the self-referential movement-relationship join (`/api/v1/movements/{id}/related`), the `meso workouts` and `meso movements related` CLI, and the Vue workout list/detail/compose surfaces with a swap-alternate flow. The full design and phase plan live in [`docs/design.md`](docs/design.md); architecture and conventions in [`CLAUDE.md`](CLAUDE.md).
 
 ## Why "meso"
 

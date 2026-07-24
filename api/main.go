@@ -97,6 +97,8 @@ func main() {
 func setupRoutes(pool *pgxpool.Pool) *http.ServeMux {
 	movementRepo := repository.NewMovementRepo(pool)
 	movementH := handlers.NewMovementHandler(movementRepo)
+	workoutRepo := repository.NewWorkoutRepo(pool)
+	workoutH := handlers.NewWorkoutHandler(workoutRepo)
 
 	mux := http.NewServeMux()
 
@@ -124,8 +126,26 @@ func setupRoutes(pool *pgxpool.Pool) *http.ServeMux {
 	mux.HandleFunc("PUT /api/v1/movements/{id}", movementH.Update)
 	mux.HandleFunc("DELETE /api/v1/movements/{id}", movementH.Delete)
 
+	// Movement relationships — the self-ref alternate/antagonist join (Phase 2).
+	mux.HandleFunc("POST /api/v1/movements/{id}/related", movementH.AddRelated)
+	mux.HandleFunc("DELETE /api/v1/movements/{id}/related/{rid}", movementH.RemoveRelated)
+
 	// Muscle lookup — the tagging vocabulary the UI offers.
 	mux.HandleFunc("GET /api/v1/muscles", movementH.ListMuscles)
+
+	// Workouts — ordered, themed compositions of movements (Phase 2).
+	mux.HandleFunc("GET /api/v1/workouts", workoutH.List)
+	mux.HandleFunc("POST /api/v1/workouts", workoutH.Create)
+	mux.HandleFunc("GET /api/v1/workouts/{id}", workoutH.Get)
+	mux.HandleFunc("PUT /api/v1/workouts/{id}", workoutH.Update)
+	mux.HandleFunc("DELETE /api/v1/workouts/{id}", workoutH.Delete)
+
+	// Workout composition — the ordered movement list. PATCH without an entry id
+	// reorders; PATCH with one edits/swaps that entry.
+	mux.HandleFunc("POST /api/v1/workouts/{id}/movements", workoutH.AddMovement)
+	mux.HandleFunc("PATCH /api/v1/workouts/{id}/movements", workoutH.ReorderMovements)
+	mux.HandleFunc("PATCH /api/v1/workouts/{id}/movements/{entryID}", workoutH.UpdateMovement)
+	mux.HandleFunc("DELETE /api/v1/workouts/{id}/movements/{entryID}", workoutH.RemoveMovement)
 
 	return mux
 }

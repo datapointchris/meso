@@ -46,6 +46,7 @@ func scanMovement(row pgx.Row) (models.Movement, error) {
 		m.Equipment = []string{}
 	}
 	m.Muscles = []models.MovementMuscle{}
+	m.Related = []models.RelatedMovement{}
 	return m, nil
 }
 
@@ -167,7 +168,78 @@ func (r *MovementRepo) GetByID(ctx context.Context, id int64) (models.Movement, 
 	if err := r.attachMuscles(ctx, list, map[int64]int{m.ID: 0}); err != nil {
 		return models.Movement{}, err
 	}
+	related, err := r.relatedFor(ctx, m.ID)
+	if err != nil {
+		return models.Movement{}, err
+	}
+	list[0].Related = related
 	return list[0], nil
+}
+
+// relatedFor loads the movements this movement points at through relationships,
+// each as a compact summary joined with the target's name/kind/favorite. Directional:
+// only outgoing edges (movement_id = id) are returned, ordered by kind then name.
+func (r *MovementRepo) relatedFor(ctx context.Context, id int64) ([]models.RelatedMovement, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT m.id, m.name, m.movement_kind, mr.relationship_kind, m.favorite
+		FROM movement_relationships mr
+		JOIN movements m ON m.id = mr.related_movement_id
+		WHERE mr.movement_id = $1
+		ORDER BY mr.relationship_kind, m.name`, id)
+	if err != nil {
+		return nil, fmt.Errorf("loading relationships: %w", err)
+	}
+	defer rows.Close()
+
+	related := []models.RelatedMovement{}
+	for rows.Next() {
+		var rm models.RelatedMovement
+		if err := rows.Scan(&rm.ID, &rm.Name, &rm.MovementKind, &rm.RelationshipKind, &rm.Favorite); err != nil {
+			return nil, fmt.Errorf("scanning relationship: %w", err)
+		}
+		related = append(related, rm)
+	}
+	return related, rows.Err()
+}
+
+// AddRelationship records a directional relationship from movementID to relatedID
+// of the given kind. Re-adding the same triple is a no-op (idempotent). Returns
+// ErrNotFound if the source movement is absent, ErrReferenced if the target
+// movement or the kind is unknown (FK), and rejects a self-relationship up front.
+func (r *MovementRepo) AddRelationship(ctx context.Context, movementID, relatedID int64, kind string) error {
+	if movementID == relatedID {
+		return fmt.Errorf("a movement cannot relate to itself: %w", ErrInvalid)
+	}
+	if _, err := r.GetByID(ctx, movementID); err != nil {
+		return err
+	}
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO movement_relationships (movement_id, related_movement_id, relationship_kind)
+		VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`, movementID, relatedID, kind)
+	if err != nil {
+		return mapWriteError("adding relationship", err)
+	}
+	return nil
+}
+
+// RemoveRelationship deletes a movement's relationship(s) to relatedID. An empty
+// kind removes every relationship between the pair; a specific kind removes just
+// that edge. Returns ErrNotFound when no matching edge exists.
+func (r *MovementRepo) RemoveRelationship(ctx context.Context, movementID, relatedID int64, kind string) error {
+	query := `DELETE FROM movement_relationships WHERE movement_id = $1 AND related_movement_id = $2`
+	args := []any{movementID, relatedID}
+	if kind != "" {
+		query += ` AND relationship_kind = $3`
+		args = append(args, kind)
+	}
+	tag, err := r.pool.Exec(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("removing relationship: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("relationship %d->%d: %w", movementID, relatedID, ErrNotFound)
+	}
+	return nil
 }
 
 func (r *MovementRepo) Create(ctx context.Context, in models.MovementCreate) (models.Movement, error) {

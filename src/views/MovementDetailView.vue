@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { movementsApi, KIND_LABELS, type Movement, type MovementMuscle } from '@/api/movements'
+import {
+  movementsApi,
+  KIND_LABELS,
+  RELATIONSHIP_KIND_LABELS,
+  type Movement,
+  type MovementMuscle,
+  type RelatedMovement,
+  type RelationshipKind,
+} from '@/api/movements'
 import { ApiError } from '@/api/client'
 import { renderMarkdown } from '@/composables/useMarkdown'
 import AddEditMovementModal from '@/components/AddEditMovementModal.vue'
@@ -32,7 +40,48 @@ async function load() {
   }
 }
 
-onMounted(load)
+// The library for the relationship picker (all movements except this one).
+const library = ref<Movement[]>([])
+const pickRelated = ref<number | ''>('')
+const pickKind = ref<RelationshipKind>('alternate')
+const relError = ref('')
+const relationshipKinds = Object.entries(RELATIONSHIP_KIND_LABELS) as [RelationshipKind, string][]
+
+onMounted(async () => {
+  await load()
+  try {
+    library.value = await movementsApi.list()
+  } catch {
+    // A failed library load only disables the relationship picker.
+  }
+})
+
+const relatableMovements = computed(() => library.value.filter((m) => m.id !== id.value))
+
+async function addRelationship() {
+  if (!movement.value || pickRelated.value === '') return
+  relError.value = ''
+  try {
+    movement.value = await movementsApi.addRelated(movement.value.id, {
+      related_movement_id: pickRelated.value,
+      relationship_kind: pickKind.value,
+    })
+    pickRelated.value = ''
+  } catch (e) {
+    relError.value = e instanceof ApiError ? e.message : 'Failed to add relationship.'
+  }
+}
+
+async function removeRelationship(rel: RelatedMovement) {
+  if (!movement.value) return
+  relError.value = ''
+  try {
+    await movementsApi.removeRelated(movement.value.id, rel.id, rel.relationship_kind)
+    await load()
+  } catch (e) {
+    relError.value = e instanceof ApiError ? e.message : 'Failed to remove relationship.'
+  }
+}
 
 // Group muscles by role for the two-list display (primary first).
 const primary = computed(() => (movement.value?.muscles ?? []).filter((m) => m.role === 'primary'))
@@ -205,6 +254,75 @@ async function remove() {
         <div
           class="prose"
           v-html="renderMarkdown(movement.common_faults)" />
+      </section>
+
+      <section class="related">
+        <h2 class="section-title">Related movements</h2>
+        <ul
+          v-if="movement.related.length"
+          class="related__list">
+          <li
+            v-for="rel in movement.related"
+            :key="`${rel.id}-${rel.relationship_kind}`"
+            class="related__item">
+            <RouterLink
+              class="related__name"
+              :to="{ name: 'movement-detail', params: { id: rel.id } }">
+              {{ rel.name }}
+            </RouterLink>
+            <span class="related__kind">{{ RELATIONSHIP_KIND_LABELS[rel.relationship_kind] }}</span>
+            <button
+              type="button"
+              class="related__remove"
+              :aria-label="`Remove ${rel.name} relationship`"
+              @click="removeRelationship(rel)">
+              ✕
+            </button>
+          </li>
+        </ul>
+        <p
+          v-else
+          class="related__empty">
+          None yet. Relate an alternate so the workout swap can offer it.
+        </p>
+
+        <div class="related__add">
+          <select
+            v-model="pickRelated"
+            class="field__input"
+            aria-label="Related movement">
+            <option value="">Choose a movement…</option>
+            <option
+              v-for="m in relatableMovements"
+              :key="m.id"
+              :value="m.id">
+              {{ m.name }}
+            </option>
+          </select>
+          <select
+            v-model="pickKind"
+            class="field__input related__kind-select"
+            aria-label="Relationship kind">
+            <option
+              v-for="[value, label] in relationshipKinds"
+              :key="value"
+              :value="value">
+              {{ label }}
+            </option>
+          </select>
+          <button
+            type="button"
+            class="btn"
+            :disabled="pickRelated === ''"
+            @click="addRelationship">
+            Relate
+          </button>
+        </div>
+        <p
+          v-if="relError"
+          class="related__error">
+          {{ relError }}
+        </p>
       </section>
 
       <p
@@ -380,6 +498,90 @@ async function remove() {
     margin: 0 0 var(--space-2);
     padding-left: var(--space-6);
   }
+}
+
+.related {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.related__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.related__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.related__name {
+  flex: 1 1 auto;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.related__kind {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.related__remove {
+  flex: 0 0 auto;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.related__empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.related__add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+
+  .field__input {
+    flex: 1 1 8rem;
+  }
+}
+
+.field__input {
+  min-height: var(--touch-target);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.related__kind-select {
+  flex: 0 0 auto;
+}
+
+.related__error {
+  margin: 0;
+  color: #f87171;
+  font-size: 0.85rem;
 }
 
 .detail__source {

@@ -29,7 +29,103 @@ func newMovementsCommand() *cobra.Command {
 		newMovementsUpdateCommand(),
 		newMovementsDeleteCommand(),
 		newMovementsExportCommand(),
+		newMovementsRelatedCommand(),
 	)
+	return cmd
+}
+
+// newMovementsRelatedCommand groups the relationship sub-commands: add / rm a
+// directional relationship (alternate, antagonist, ...) between two movements.
+func newMovementsRelatedCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "related",
+		Short: "Manage a movement's relationships (alternates, antagonists, ...)",
+		Long: "Relate one movement to another so the swap-alternate flow can offer it.\n" +
+			"Kinds: alternate | antagonist | progression | regression | see_also.",
+		RunE: requireSubcommand,
+	}
+	cmd.AddCommand(newMovementsRelatedAddCommand(), newMovementsRelatedRemoveCommand())
+	return cmd
+}
+
+func newMovementsRelatedAddCommand() *cobra.Command {
+	var kind string
+	var asJSON bool
+	cmd := &cobra.Command{
+		Use:     "add <movement-id> <related-id> --kind <kind>",
+		Short:   "Relate a movement to another",
+		Example: "  meso movements related add 3 8 --kind alternate",
+		Args:    usageArgs(cobra.ExactArgs(2)),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id, err := api.ParseID(args[0])
+			if err != nil {
+				return usageError{err}
+			}
+			relatedID, err := api.ParseID(args[1])
+			if err != nil {
+				return usageError{err}
+			}
+			if kind == "" {
+				return usageError{fmt.Errorf("--kind is required (alternate|antagonist|progression|regression|see_also)")}
+			}
+
+			client, err := newAPIClient(cmd.Context())
+			if err != nil {
+				return handleAPIError(err)
+			}
+			movement, err := client.AddRelated(cmd.Context(), id, api.RelationshipInput{
+				RelatedMovementID: relatedID, RelationshipKind: kind,
+			})
+			if err != nil {
+				return handleAPIError(err)
+			}
+			if asJSON {
+				return encodeJSON(cmd.OutOrStdout(), movement)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Related movement %d --%s--> %d.\n", id, kind, relatedID)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&kind, "kind", "", "Relationship kind (alternate|antagonist|progression|regression|see_also)")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the updated movement as JSON")
+	return cmd
+}
+
+func newMovementsRelatedRemoveCommand() *cobra.Command {
+	var kind string
+	var asJSON bool
+	cmd := &cobra.Command{
+		Use:     "rm <movement-id> <related-id> [--kind <kind>]",
+		Short:   "Remove a relationship (omit --kind to remove every kind between the pair)",
+		Example: "  meso movements related rm 3 8 --kind alternate\n  meso movements related rm 3 8",
+		Args:    usageArgs(cobra.ExactArgs(2)),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id, err := api.ParseID(args[0])
+			if err != nil {
+				return usageError{err}
+			}
+			relatedID, err := api.ParseID(args[1])
+			if err != nil {
+				return usageError{err}
+			}
+
+			client, err := newAPIClient(cmd.Context())
+			if err != nil {
+				return handleAPIError(err)
+			}
+			movement, err := client.RemoveRelated(cmd.Context(), id, relatedID, kind)
+			if err != nil {
+				return handleAPIError(err)
+			}
+			if asJSON {
+				return encodeJSON(cmd.OutOrStdout(), movement)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Removed relationship from movement %d to %d.\n", id, relatedID)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&kind, "kind", "", "Only remove this kind (default: all kinds between the pair)")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the updated movement as JSON")
 	return cmd
 }
 
@@ -475,6 +571,13 @@ func printMovementDetail(out io.Writer, m api.Movement) {
 	section("How to", m.HowTo)
 	section("Form cues", m.FormCues)
 	section("Common faults", m.CommonFaults)
+
+	if len(m.Related) > 0 {
+		fmt.Fprintln(out, "\nRelated:")
+		for _, rel := range m.Related {
+			fmt.Fprintf(out, "  %-12s %s (#%d)\n", rel.RelationshipKind, rel.Name, rel.ID)
+		}
+	}
 }
 
 func writeMovementsCSV(out io.Writer, movements []api.Movement) error {

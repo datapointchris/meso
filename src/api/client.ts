@@ -61,5 +61,9 @@ export const http = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body: unknown) => request<T>('POST', path, body),
   put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),
+  patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),
   del: (path: string) => request<void>('DELETE', path),
+  // delData is a DELETE whose 200 response carries a body (e.g. removing a workout
+  // entry returns the refreshed workout), distinct from del which expects 204.
+  delData: <T>(path: string) => request<T>('DELETE', path),
 }

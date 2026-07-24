@@ -120,6 +120,12 @@ func seedTestLookups(url string) error {
 			return err
 		}
 	}
+	relationshipKinds := []string{"alternate", "antagonist", "progression", "regression", "see_also"}
+	for _, k := range relationshipKinds {
+		if _, err := db.Exec(`INSERT INTO relationship_kinds (name) VALUES ($1) ON CONFLICT DO NOTHING`, k); err != nil {
+			return err
+		}
+	}
 	muscles := map[string]string{
 		"chest": "anterior", "triceps": "arms", "quads": "anterior",
 		"hamstrings": "posterior", "glutes": "posterior", "shoulders": "shoulders",
@@ -143,7 +149,10 @@ func setupTestDB(t *testing.T) *database.TestPool {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		pool.Exec(ctx, `DELETE FROM movements`) //nolint:errcheck // cascades to movement_muscles
+		// Delete workouts first: workout_movements references movements with ON
+		// DELETE RESTRICT, so movements can't be cleared while a workout uses them.
+		pool.Exec(ctx, `DELETE FROM workouts`)  //nolint:errcheck // cascades to workout_movements
+		pool.Exec(ctx, `DELETE FROM movements`) //nolint:errcheck // cascades to movement_muscles + movement_relationships
 		pool.Close()
 	})
 
@@ -152,6 +161,7 @@ func setupTestDB(t *testing.T) *database.TestPool {
 
 func buildTestMux(pool *database.TestPool) *http.ServeMux {
 	movementH := handlers.NewMovementHandler(repository.NewMovementRepo(pool.Pool))
+	workoutH := handlers.NewWorkoutHandler(repository.NewWorkoutRepo(pool.Pool))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/movements", movementH.List)
@@ -159,7 +169,19 @@ func buildTestMux(pool *database.TestPool) *http.ServeMux {
 	mux.HandleFunc("GET /api/v1/movements/{id}", movementH.Get)
 	mux.HandleFunc("PUT /api/v1/movements/{id}", movementH.Update)
 	mux.HandleFunc("DELETE /api/v1/movements/{id}", movementH.Delete)
+	mux.HandleFunc("POST /api/v1/movements/{id}/related", movementH.AddRelated)
+	mux.HandleFunc("DELETE /api/v1/movements/{id}/related/{rid}", movementH.RemoveRelated)
 	mux.HandleFunc("GET /api/v1/muscles", movementH.ListMuscles)
+
+	mux.HandleFunc("GET /api/v1/workouts", workoutH.List)
+	mux.HandleFunc("POST /api/v1/workouts", workoutH.Create)
+	mux.HandleFunc("GET /api/v1/workouts/{id}", workoutH.Get)
+	mux.HandleFunc("PUT /api/v1/workouts/{id}", workoutH.Update)
+	mux.HandleFunc("DELETE /api/v1/workouts/{id}", workoutH.Delete)
+	mux.HandleFunc("POST /api/v1/workouts/{id}/movements", workoutH.AddMovement)
+	mux.HandleFunc("PATCH /api/v1/workouts/{id}/movements", workoutH.ReorderMovements)
+	mux.HandleFunc("PATCH /api/v1/workouts/{id}/movements/{entryID}", workoutH.UpdateMovement)
+	mux.HandleFunc("DELETE /api/v1/workouts/{id}/movements/{entryID}", workoutH.RemoveMovement)
 	return mux
 }
 
@@ -179,6 +201,17 @@ func putJSON(t *testing.T, mux *http.ServeMux, path string, body any) *httptest.
 	b, err := json.Marshal(body)
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPut, path, bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+	return rr
+}
+
+func patchJSON(t *testing.T, mux *http.ServeMux, path string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	b, err := json.Marshal(body)
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPatch, path, bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)

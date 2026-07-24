@@ -4,11 +4,21 @@ import { http } from './client'
 
 export type MovementKind = 'exercise' | 'stretch' | 'yoga_pose'
 export type MuscleRole = 'primary' | 'secondary'
+export type RelationshipKind = 'alternate' | 'antagonist' | 'progression' | 'regression' | 'see_also'
 
 export interface MovementMuscle {
   muscle: string
   region: string
   role: MuscleRole
+}
+
+// RelatedMovement is a movement reached through a relationship, embedded on detail.
+export interface RelatedMovement {
+  id: number
+  name: string
+  movement_kind: MovementKind
+  relationship_kind: RelationshipKind
+  favorite: boolean
 }
 
 export interface Movement {
@@ -30,6 +40,7 @@ export interface Movement {
   source_url: string | null
   source_name: string | null
   muscles: MovementMuscle[]
+  related: RelatedMovement[]
   created_at: string
   updated_at: string
 }
@@ -89,6 +100,11 @@ function queryString(filter: MovementFilter): string {
   return q ? `?${q}` : ''
 }
 
+export interface RelationshipInput {
+  related_movement_id: number
+  relationship_kind: RelationshipKind
+}
+
 export const movementsApi = {
   list: (filter: MovementFilter = {}) => http.get<Movement[]>(`/movements${queryString(filter)}`),
   get: (id: number) => http.get<Movement>(`/movements/${id}`),
@@ -96,6 +112,20 @@ export const movementsApi = {
   update: (id: number, body: MovementWrite) => http.put<Movement>(`/movements/${id}`, body),
   remove: (id: number) => http.del(`/movements/${id}`),
   muscles: () => http.get<Muscle[]>('/muscles'),
+  // Relationships return the refreshed movement, so the detail view re-renders its
+  // related list without a follow-up fetch.
+  addRelated: (id: number, body: RelationshipInput) => http.post<Movement>(`/movements/${id}/related`, body),
+  removeRelated: (id: number, relatedId: number, kind?: RelationshipKind) =>
+    http.del(`/movements/${id}/related/${relatedId}${kind ? `?kind=${kind}` : ''}`),
+}
+
+// RELATIONSHIP_KIND_LABELS gives each relationship kind a human label.
+export const RELATIONSHIP_KIND_LABELS: Record<RelationshipKind, string> = {
+  alternate: 'Alternate',
+  antagonist: 'Antagonist',
+  progression: 'Progression',
+  regression: 'Regression',
+  see_also: 'See also',
 }
 
 // primaryMuscles returns the names of a movement's primary muscles.

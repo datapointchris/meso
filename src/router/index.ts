@@ -10,6 +10,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/WorkoutsView.vue'),
   },
   {
+    path: '/workouts/:id',
+    name: 'workout-detail',
+    component: () => import('@/views/WorkoutDetailView.vue'),
+  },
+  {
     path: '/movements',
     name: 'movements',
     component: () => import('@/views/MovementsView.vue'),
