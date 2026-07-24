@@ -25,6 +25,16 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/MovementDetailView.vue'),
   },
   {
+    path: '/sessions',
+    name: 'sessions',
+    component: () => import('@/views/SessionsView.vue'),
+  },
+  {
+    path: '/sessions/:id',
+    name: 'session-detail',
+    component: () => import('@/views/ActiveSessionView.vue'),
+  },
+  {
     path: '/cycles',
     name: 'cycles',
     component: () => import('@/views/CyclesView.vue'),

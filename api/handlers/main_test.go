@@ -149,10 +149,11 @@ func setupTestDB(t *testing.T) *database.TestPool {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		// Delete workouts first: workout_movements references movements with ON
-		// DELETE RESTRICT, so movements can't be cleared while a workout uses them.
-		pool.Exec(ctx, `DELETE FROM workouts`)  //nolint:errcheck // cascades to workout_movements
-		pool.Exec(ctx, `DELETE FROM movements`) //nolint:errcheck // cascades to movement_muscles + movement_relationships
+		// Order matters: both workout_movements and session_movements reference
+		// movements with ON DELETE RESTRICT, so their parents must be cleared first.
+		pool.Exec(ctx, `DELETE FROM workout_sessions`) //nolint:errcheck // cascades to session_movements
+		pool.Exec(ctx, `DELETE FROM workouts`)         //nolint:errcheck // cascades to workout_movements
+		pool.Exec(ctx, `DELETE FROM movements`)        //nolint:errcheck // cascades to movement_muscles + movement_relationships
 		pool.Close()
 	})
 
@@ -162,6 +163,7 @@ func setupTestDB(t *testing.T) *database.TestPool {
 func buildTestMux(pool *database.TestPool) *http.ServeMux {
 	movementH := handlers.NewMovementHandler(repository.NewMovementRepo(pool.Pool))
 	workoutH := handlers.NewWorkoutHandler(repository.NewWorkoutRepo(pool.Pool))
+	sessionH := handlers.NewSessionHandler(repository.NewSessionRepo(pool.Pool))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/movements", movementH.List)
@@ -182,6 +184,13 @@ func buildTestMux(pool *database.TestPool) *http.ServeMux {
 	mux.HandleFunc("PATCH /api/v1/workouts/{id}/movements", workoutH.ReorderMovements)
 	mux.HandleFunc("PATCH /api/v1/workouts/{id}/movements/{entryID}", workoutH.UpdateMovement)
 	mux.HandleFunc("DELETE /api/v1/workouts/{id}/movements/{entryID}", workoutH.RemoveMovement)
+
+	mux.HandleFunc("GET /api/v1/sessions", sessionH.List)
+	mux.HandleFunc("POST /api/v1/sessions", sessionH.Create)
+	mux.HandleFunc("GET /api/v1/sessions/{id}", sessionH.Get)
+	mux.HandleFunc("PUT /api/v1/sessions/{id}", sessionH.Update)
+	mux.HandleFunc("DELETE /api/v1/sessions/{id}", sessionH.Delete)
+	mux.HandleFunc("PATCH /api/v1/sessions/{id}/movements/{entryID}", sessionH.UpdateMovement)
 	return mux
 }
 

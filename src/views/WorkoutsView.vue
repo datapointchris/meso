@@ -78,12 +78,19 @@ function onCreated(created: Workout) {
   <section class="workouts">
     <header class="workouts__head">
       <h1 class="workouts__title">Workouts</h1>
-      <button
-        class="btn btn--accent"
-        type="button"
-        @click="showCreate = true">
-        + Add
-      </button>
+      <div class="workouts__head-actions">
+        <RouterLink
+          class="btn"
+          :to="{ name: 'sessions' }">
+          Sessions
+        </RouterLink>
+        <button
+          class="btn btn--accent"
+          type="button"
+          @click="showCreate = true">
+          + Add
+        </button>
+      </div>
     </header>
 
     <input
@@ -183,6 +190,11 @@ function onCreated(created: Workout) {
 .workouts__title {
   margin: 0;
   font-size: 1.5rem;
+}
+
+.workouts__head-actions {
+  display: flex;
+  gap: var(--space-2);
 }
 
 .workouts__search {
@@ -317,6 +329,8 @@ function onCreated(created: Workout) {
 
 .btn {
   min-height: var(--touch-target);
+  display: inline-flex;
+  align-items: center;
   padding: 0 var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--radius);

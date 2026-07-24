@@ -99,6 +99,8 @@ func setupRoutes(pool *pgxpool.Pool) *http.ServeMux {
 	movementH := handlers.NewMovementHandler(movementRepo)
 	workoutRepo := repository.NewWorkoutRepo(pool)
 	workoutH := handlers.NewWorkoutHandler(workoutRepo)
+	sessionRepo := repository.NewSessionRepo(pool)
+	sessionH := handlers.NewSessionHandler(sessionRepo)
 
 	mux := http.NewServeMux()
 
@@ -146,6 +148,16 @@ func setupRoutes(pool *pgxpool.Pool) *http.ServeMux {
 	mux.HandleFunc("PATCH /api/v1/workouts/{id}/movements", workoutH.ReorderMovements)
 	mux.HandleFunc("PATCH /api/v1/workouts/{id}/movements/{entryID}", workoutH.UpdateMovement)
 	mux.HandleFunc("DELETE /api/v1/workouts/{id}/movements/{entryID}", workoutH.RemoveMovement)
+
+	// Sessions — workouts performed on a date, the logged instance (Phase 3).
+	// POST with a workout_id copies that template's movements in; the sub-resource
+	// PATCH checks off a set / records actuals / swaps an entry mid-session.
+	mux.HandleFunc("GET /api/v1/sessions", sessionH.List)
+	mux.HandleFunc("POST /api/v1/sessions", sessionH.Create)
+	mux.HandleFunc("GET /api/v1/sessions/{id}", sessionH.Get)
+	mux.HandleFunc("PUT /api/v1/sessions/{id}", sessionH.Update)
+	mux.HandleFunc("DELETE /api/v1/sessions/{id}", sessionH.Delete)
+	mux.HandleFunc("PATCH /api/v1/sessions/{id}/movements/{entryID}", sessionH.UpdateMovement)
 
 	return mux
 }

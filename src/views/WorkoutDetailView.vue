@@ -3,6 +3,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { workoutsApi, prescriptionSummary, type Workout, type WorkoutMovement, type WorkoutMovementPatch } from '@/api/workouts'
 import { movementsApi, type Movement, type RelatedMovement } from '@/api/movements'
+import { sessionsApi } from '@/api/sessions'
 import { ApiError } from '@/api/client'
 import { renderMarkdown } from '@/composables/useMarkdown'
 import AddEditWorkoutModal from '@/components/AddEditWorkoutModal.vue'
@@ -187,6 +188,21 @@ async function removeWorkout() {
 function goToMovement(movementId: number) {
   router.push({ name: 'movement-detail', params: { id: movementId } })
 }
+
+// startSession logs a session from this workout — its movements copy in with the
+// prescription seeded as actuals — and jumps to the mobile logging screen.
+const starting = ref(false)
+async function startSession() {
+  if (!workout.value || starting.value) return
+  starting.value = true
+  try {
+    const session = await sessionsApi.create({ workout_id: workout.value.id })
+    router.push({ name: 'session-detail', params: { id: session.id } })
+  } catch (e) {
+    error.value = e instanceof ApiError ? e.message : 'Failed to start session.'
+    starting.value = false
+  }
+}
 </script>
 
 <template>
@@ -225,6 +241,14 @@ function goToMovement(movementId: number) {
           Edit
         </button>
       </header>
+
+      <button
+        type="button"
+        class="btn btn--accent detail__start"
+        :disabled="starting"
+        @click="startSession">
+        {{ starting ? 'Starting…' : '▶ Start session' }}
+      </button>
 
       <div
         v-if="workout.tags.length"
@@ -554,6 +578,12 @@ function goToMovement(movementId: number) {
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+// The primary CTA — full-width so it's a one-tap target on a phone.
+.detail__start {
+  width: 100%;
+  justify-content: center;
 }
 
 .chips-row {

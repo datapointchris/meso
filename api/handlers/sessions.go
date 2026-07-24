@@ -1,0 +1,181 @@
+package handlers
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+	"strconv"
+
+	"github.com/google/uuid"
+
+	"meso/api/models"
+	"meso/api/repository"
+)
+
+type SessionHandler struct {
+	sessions *repository.SessionRepo
+}
+
+func NewSessionHandler(sessions *repository.SessionRepo) *SessionHandler {
+	return &SessionHandler{sessions: sessions}
+}
+
+// List handles GET /api/v1/sessions with optional filters: ?workout_id=&from=&to=.
+func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	filter := models.WorkoutSessionFilter{
+		From: q.Get("from"),
+		To:   q.Get("to"),
+	}
+	if raw := q.Get("workout_id"); raw != "" {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			writeBadRequest(w, fmt.Sprintf("invalid workout_id %q: want a number", raw))
+			return
+		}
+		filter.WorkoutID = &id
+	}
+
+	sessions, err := h.sessions.List(r.Context(), filter)
+	if err != nil {
+		if errors.Is(err, repository.ErrInvalid) {
+			writeBadRequest(w, err.Error())
+			return
+		}
+		writeInternalError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, sessions)
+}
+
+func (h *SessionHandler) Get(w http.ResponseWriter, r *http.Request) {
+	id, err := parseSessionID(r.PathValue("id"))
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	session, err := h.sessions.GetByID(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeNotFound(w, fmt.Sprintf("session %s not found", id))
+			return
+		}
+		writeInternalError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, session)
+}
+
+// Create handles POST /api/v1/sessions — start a session. A workout_id copies that
+// workout's movements in (start-from-template); an ad-hoc session may carry its own
+// movements. performed_on defaults to today when omitted.
+func (h *SessionHandler) Create(w http.ResponseWriter, r *http.Request) {
+	var in models.WorkoutSessionCreate
+	if err := decodeJSON(r, &in); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+
+	session, err := h.sessions.Create(r.Context(), in)
+	if err != nil {
+		writeSessionWriteError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, session)
+}
+
+func (h *SessionHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id, err := parseSessionID(r.PathValue("id"))
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	var in models.WorkoutSessionUpdate
+	if err := decodeJSON(r, &in); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+
+	session, err := h.sessions.Update(r.Context(), id, in)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeNotFound(w, fmt.Sprintf("session %s not found", id))
+			return
+		}
+		writeSessionWriteError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, session)
+}
+
+func (h *SessionHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := parseSessionID(r.PathValue("id"))
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if err := h.sessions.Delete(r.Context(), id); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeNotFound(w, fmt.Sprintf("session %s not found", id))
+			return
+		}
+		writeInternalError(w, err)
+		return
+	}
+	writeNoContent(w)
+}
+
+// UpdateMovement handles PATCH /api/v1/sessions/{id}/movements/{entryID} — check off a
+// set, record actuals, or swap the entry for an alternate. Returns the refreshed session.
+func (h *SessionHandler) UpdateMovement(w http.ResponseWriter, r *http.Request) {
+	sessionID, err := parseSessionID(r.PathValue("id"))
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	entryID, err := parseID(r.PathValue("entryID"))
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	var in models.SessionMovementUpdate
+	if err := decodeJSON(r, &in); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+
+	session, err := h.sessions.UpdateMovement(r.Context(), sessionID, entryID, in)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeNotFound(w, fmt.Sprintf("session %s entry %d not found", sessionID, entryID))
+			return
+		}
+		writeSessionWriteError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, session)
+}
+
+// parseSessionID reads a UUID path value (sessions use a UUID7 PK). A malformed uuid
+// is a client error (400), not a 404.
+func parseSessionID(raw string) (uuid.UUID, error) {
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid session id %q", raw)
+	}
+	return id, nil
+}
+
+// writeSessionWriteError maps repository write failures to status codes: an unknown
+// workout or movement (FK) is 409 with a hint; a semantically invalid request (bad
+// date) is 400; anything else is 500.
+func writeSessionWriteError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, repository.ErrReferenced):
+		writeConflict(w, "unknown workout or movement — every id must reference an existing row")
+	case errors.Is(err, repository.ErrInvalid):
+		writeBadRequest(w, err.Error())
+	default:
+		writeInternalError(w, err)
+	}
+}

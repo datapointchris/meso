@@ -62,6 +62,7 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(newAuthCommand())
 	root.AddCommand(newMovementsCommand())
 	root.AddCommand(newWorkoutsCommand())
+	root.AddCommand(newSessionsCommand())
 	return root
 }
 

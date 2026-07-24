@@ -26,6 +26,7 @@ describe('App shell', () => {
       routes: [
         { path: '/', redirect: '/workouts' },
         { path: '/workouts', name: 'workouts', component: WorkoutsView },
+        { path: '/sessions', name: 'sessions', component: { template: '<div />' } },
         { path: '/movements', name: 'movements', component: MovementsView },
         { path: '/cycles', name: 'cycles', component: { template: '<div />' } },
         { path: '/log', name: 'log', component: { template: '<div />' } },
