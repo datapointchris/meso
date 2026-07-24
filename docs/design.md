@@ -96,7 +96,7 @@ Exercises, stretches, and yoga poses are "the same concept." That's the design: 
 
 - `name`, `movement_kind` (FK lookup), `favorite` (bool), `rating` (1–5, nullable)
 - `tags: Text[]` — the "good for" dimension (mobility, posterior-chain, desk-counter, anti-rotation, ...)
-- `primary_muscles: Text[]`, `secondary_muscles: Text[]` — honest primary/secondary tagging (the ExRx distinction), which also drives substitution: an alternate must share the primary. (Lookup-backed vs. free tags — see Open Questions.)
+- muscles are **lookup-backed** (not free tags): a `muscles(name PK, region)` lookup + a `movement_muscles(movement_id, muscle, role)` join where role ∈ `primary` | `secondary` — honest primary/secondary tagging (the ExRx distinction). This drives substitution (an alternate must share a primary muscle) and region filtering ("show me posterior-chain movements", via `muscle.region`) and leaves the door open to a body-map UI. Per the project-wide lookup-tables-for-categoricals rule.
 - `equipment: Text[]` — barbell, dumbbell, mat, none
 - `how_to: Text` (markdown) — how to perform it, step by step; for a sequence I like, the sequence written out
 - `form_cues: Text` (markdown) — what to watch for to maintain good form
@@ -183,7 +183,7 @@ This is an iOS-in-the-gym app; mobile-first is the whole point, not a later pass
 - Touch targets ≥ 44px; the session-logging screen (check off a set, bump a weight) must be usable one-handed without zoom.
 - Responsive layouts from a phone viewport up — no horizontal scroll, no desktop-table-crammed-onto-phone.
 - The "active session" view is the highest-traffic screen: big checkboxes, inline +/- for actual load/reps, minimal navigation.
-- Consider a PWA/installable shell so it opens like an app and works with flaky gym wifi (offline session logging that syncs later — Open Question; UUID7 PKs keep it possible).
+- Ships as an **installable PWA** so it opens like an app from the home screen — matching the mobile-PWA write-surface in `~/dev/vision.md` and the gym-mobile need. Full **offline session logging + sync is deferred past v1** (a large add); v1 is a responsive PWA that needs connectivity. UUID7 PKs keep offline-create possible when it's built.
 - The mobile patterns established here (breakpoints, touch components) should stay design-variable-driven so they compose with the design-style-switcher idea.
 
 ## Data-model sketch
@@ -195,12 +195,15 @@ movement_kinds(name PK)                                   -- exercise|stretch|yo
 relationship_kinds(name PK)                               -- alternate|antagonist|progression|regression|see_also
 cycle_statuses(name PK)                                   -- planned|active|paused|complete
 metric_definitions(name PK, unit, direction, category)
+muscles(name PK, region)                                  -- hamstrings→posterior, ... (region drives filtering)
 
 movements(id PK identity, name, movement_kind FK, favorite,
-          rating, tags Text[], primary_muscles Text[], secondary_muscles Text[],
-          equipment Text[], how_to, form_cues, common_faults,
+          rating, tags Text[], equipment Text[], how_to, form_cues, common_faults,
           default_sets, default_reps, default_hold_seconds, sanskrit_name,
           measurable_rom, source_url, source_name, created_at, updated_at)
+
+movement_muscles(movement_id FK, muscle FK, role,         -- role: primary|secondary
+          PK(movement_id, muscle, role))
 
 movement_relationships(movement_id FK, related_movement_id FK,
           relationship_kind FK, PK(movement_id, related_movement_id, relationship_kind),
@@ -298,7 +301,7 @@ Traefik on app-ops routes `meso.ichrisbirch.com` to the meso host's `web` contai
 
 The homelab is set up for the three (`icb`, `learning`, `nomad`); meso needs its own slice, mirroring nomad's setup (reference: `~/webapps/nomad/.planning/cli-auth-design.md`, `~/homelab/containers/auth-lxc/README.md`):
 
-- A **host** for the app (its own LXC, or a shared app host — Open Question), plus a Postgres for meso.
+- Its **own `meso-lxc`** (every app gets its own LXC — `ichrisbirch-lxc`, `learning-lxc`, `nomad-lxc`; meso follows the pattern), plus a Postgres for meso.
 - **Authelia clients**: one public CLI client per machine, `meso-cli-<host>`, with loopback redirect URIs; and the `meso.ichrisbirch.com` audience wired into the ForwardAuth edge.
 - **Traefik**: a `meso.ichrisbirch.com` router → meso web container, with the Authelia middleware.
 - **CI/CD**: a `ghcr.io/datapointchris/meso-*` image repo and a `deploy-meso.sh` + webhook route on app-ops-lxc.
@@ -326,23 +329,23 @@ Each phase independently shippable.
 - **Phase 5 — Fitness log.** Dated journal entries, CLI read/write. *Acceptance*: write and browse journal entries; `meso log list --json` works.
 - **Phase 6 — Cycles + AI drafting.** `Cycle` sequencing, `meso review` capstone read. Import the research plans as cycles. *Acceptance*: an active cycle drives "what's next," and Claude drafts the following cycle from real `meso review` history and persists it via `meso cycles` writes.
 
-## Open questions (before/while building)
+## Settled decisions
 
-1. **Unified `Movement` entity — agree?** Recommended (one entity + kind). Only reason to split is if poses/stretches diverge far more than expected.
-2. **Movement relationships now or later?** Recommended in Phase 2 (self-ref, because swap-alternate is a core goal). Defer-to-tags is the conservative alternative.
-3. **Muscle/region tagging — lookup table or free tags?** Lookup gives clean filtering and a body-map UI later; tags are lighter. Leaning lookup, since "show me posterior-chain movements" is a real filter.
-4. **Offline session logging (PWA)?** Gym wifi is unreliable. UUID7 PKs keep offline-create possible, but full offline sync is a large add — worth it, or is a good responsive web app enough for v1?
-5. **Host: own LXC or a shared app host?** nomad has its own `nomad-lxc`. meso could get `meso-lxc` or share an app host. Decide in Phase 0 provisioning.
-
-### Settled
+All initial open questions are resolved — by the established ecosystem patterns where one applies.
 
 - **Stack: full nomad model** — Go API + Go CLI + Vue, Authelia edge auth (web cookie / CLI PKCE), registry-pull deploy. No MCP.
 - **Block entity named `Cycle`** (not Progression / Mesocycle).
 - **Web login = Authelia cookie SSO**; CLI login = `meso auth login` (OAuth PKCE, keychain token).
+- **Unified `Movement` entity** — one entity + `movement_kind` lookup, not three parallel tables (exercises/stretches/poses share every operation).
+- **Movement relationships built in Phase 2** — the self-ref join, because the swap-alternate query justifies the table.
+- **Muscles are lookup-backed** — `muscles(name PK, region)` + `movement_muscles` join with a role, not free tags. Enables region filtering and a future body-map, per the project-wide lookup-tables rule.
+- **Ships as an installable PWA**; full offline logging + sync is deferred past v1 (UUID7 keeps it possible).
+- **Own `meso-lxc`** — every app gets its own LXC; meso follows the pattern.
 - **Private-only** — single user, no multi-tenant scope.
 
 ## Out of scope (v1)
 
+- Offline session logging + sync — v1 is an installable-but-online PWA; offline-create-and-sync is a later add (UUID7 keeps the door open).
 - Wearable/health-app import (Apple Health, Strava) — later.
 - Auto-deriving lift stats from session data — measurements are manual in v1; the `source` field leaves the door open.
 - Video attachments for movements — `source_url` link only.
