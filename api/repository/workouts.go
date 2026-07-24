@@ -234,10 +234,13 @@ func (r *WorkoutRepo) Upsert(ctx context.Context, in models.WorkoutCreate) (mode
 	return r.GetByID(ctx, id)
 }
 
+// Delete removes a workout. A workout referenced by a cycle (cycle_workouts FKs it
+// with ON DELETE RESTRICT) surfaces as ErrReferenced (409); sessions reference it
+// with SET NULL, so a logged session never blocks the delete.
 func (r *WorkoutRepo) Delete(ctx context.Context, id int64) error {
 	tag, err := r.pool.Exec(ctx, `DELETE FROM workouts WHERE id = $1`, id)
 	if err != nil {
-		return fmt.Errorf("deleting workout: %w", err)
+		return mapWriteError("deleting workout", err)
 	}
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("workout %d: %w", id, ErrNotFound)
@@ -311,7 +314,11 @@ func (r *WorkoutRepo) ReorderMovements(ctx context.Context, workoutID int64, ent
 	if err != nil {
 		return models.Workout{}, err
 	}
-	if !sameEntrySet(current.Movements, entryIDs) {
+	currentIDs := make([]int64, len(current.Movements))
+	for i, wm := range current.Movements {
+		currentIDs[i] = wm.ID
+	}
+	if !sameIDSet(currentIDs, entryIDs) {
 		return models.Workout{}, fmt.Errorf("reorder must list every entry exactly once: %w", ErrInvalid)
 	}
 
@@ -403,15 +410,16 @@ func insertMovementsInOrder(ctx context.Context, tx pgx.Tx, workoutID int64, ent
 	return nil
 }
 
-// sameEntrySet reports whether entryIDs is a permutation of the workout's current
-// entry ids — the precondition for a well-formed reorder.
-func sameEntrySet(current []models.WorkoutMovement, entryIDs []int64) bool {
-	if len(current) != len(entryIDs) {
+// sameIDSet reports whether entryIDs is a permutation of currentIDs — the
+// precondition for a well-formed reorder, shared by the workout and cycle ordered
+// joins.
+func sameIDSet(currentIDs, entryIDs []int64) bool {
+	if len(currentIDs) != len(entryIDs) {
 		return false
 	}
-	want := make(map[int64]bool, len(current))
-	for _, wm := range current {
-		want[wm.ID] = true
+	want := make(map[int64]bool, len(currentIDs))
+	for _, id := range currentIDs {
+		want[id] = true
 	}
 	seen := make(map[int64]bool, len(entryIDs))
 	for _, id := range entryIDs {

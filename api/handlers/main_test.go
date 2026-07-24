@@ -126,6 +126,12 @@ func seedTestLookups(url string) error {
 			return err
 		}
 	}
+	cycleStatuses := []string{"planned", "active", "paused", "complete"}
+	for _, s := range cycleStatuses {
+		if _, err := db.Exec(`INSERT INTO cycle_statuses (name) VALUES ($1) ON CONFLICT DO NOTHING`, s); err != nil {
+			return err
+		}
+	}
 	muscles := map[string]string{
 		"chest": "anterior", "triceps": "arms", "quads": "anterior",
 		"hamstrings": "posterior", "glutes": "posterior", "shoulders": "shoulders",
@@ -151,8 +157,11 @@ func setupTestDB(t *testing.T) *database.TestPool {
 	t.Cleanup(func() {
 		// Order matters: both workout_movements and session_movements reference
 		// movements with ON DELETE RESTRICT, so their parents must be cleared first;
-		// measurements reference metric_definitions with RESTRICT likewise.
+		// measurements reference metric_definitions with RESTRICT likewise. cycles
+		// must go before workouts (cycle_workouts RESTRICTs the workout) and before
+		// metric_definitions (cycles.target_metric references it).
 		pool.Exec(ctx, `DELETE FROM fitness_log_entries`) //nolint:errcheck // standalone, no FKs
+		pool.Exec(ctx, `DELETE FROM cycles`)              //nolint:errcheck // cascades to cycle_workouts
 		pool.Exec(ctx, `DELETE FROM measurements`)        //nolint:errcheck
 		pool.Exec(ctx, `DELETE FROM metric_definitions`)  //nolint:errcheck
 		pool.Exec(ctx, `DELETE FROM workout_sessions`)    //nolint:errcheck // cascades to session_movements
@@ -167,10 +176,17 @@ func setupTestDB(t *testing.T) *database.TestPool {
 func buildTestMux(pool *database.TestPool) *http.ServeMux {
 	movementH := handlers.NewMovementHandler(repository.NewMovementRepo(pool.Pool))
 	workoutH := handlers.NewWorkoutHandler(repository.NewWorkoutRepo(pool.Pool))
-	sessionH := handlers.NewSessionHandler(repository.NewSessionRepo(pool.Pool))
-	measurementH := handlers.NewMeasurementHandler(repository.NewMeasurementRepo(pool.Pool))
+	sessionRepo := repository.NewSessionRepo(pool.Pool)
+	sessionH := handlers.NewSessionHandler(sessionRepo)
+	measurementRepo := repository.NewMeasurementRepo(pool.Pool)
+	measurementH := handlers.NewMeasurementHandler(measurementRepo)
 	statsH := handlers.NewStatsHandler(repository.NewStatsRepo(pool.Pool))
-	logH := handlers.NewLogHandler(repository.NewLogRepo(pool.Pool))
+	logRepo := repository.NewLogRepo(pool.Pool)
+	logH := handlers.NewLogHandler(logRepo)
+	cycleRepo := repository.NewCycleRepo(pool.Pool)
+	cycleH := handlers.NewCycleHandler(cycleRepo)
+	reviewH := handlers.NewReviewHandler(
+		repository.NewReviewRepo(sessionRepo, measurementRepo, logRepo, cycleRepo))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/movements", movementH.List)
@@ -214,6 +230,18 @@ func buildTestMux(pool *database.TestPool) *http.ServeMux {
 	mux.HandleFunc("GET /api/v1/log/{id}", logH.Get)
 	mux.HandleFunc("PUT /api/v1/log/{id}", logH.Update)
 	mux.HandleFunc("DELETE /api/v1/log/{id}", logH.Delete)
+
+	mux.HandleFunc("GET /api/v1/cycles", cycleH.List)
+	mux.HandleFunc("POST /api/v1/cycles", cycleH.Create)
+	mux.HandleFunc("GET /api/v1/cycles/{id}", cycleH.Get)
+	mux.HandleFunc("PUT /api/v1/cycles/{id}", cycleH.Update)
+	mux.HandleFunc("DELETE /api/v1/cycles/{id}", cycleH.Delete)
+	mux.HandleFunc("POST /api/v1/cycles/{id}/workouts", cycleH.AddWorkout)
+	mux.HandleFunc("PATCH /api/v1/cycles/{id}/workouts", cycleH.ReorderWorkouts)
+	mux.HandleFunc("PATCH /api/v1/cycles/{id}/workouts/{entryID}", cycleH.UpdateWorkout)
+	mux.HandleFunc("DELETE /api/v1/cycles/{id}/workouts/{entryID}", cycleH.RemoveWorkout)
+
+	mux.HandleFunc("GET /api/v1/review", reviewH.Review)
 	return mux
 }
 

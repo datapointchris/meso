@@ -40,6 +40,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/CyclesView.vue'),
   },
   {
+    path: '/cycles/:id',
+    name: 'cycle-detail',
+    component: () => import('@/views/CycleDetailView.vue'),
+  },
+  {
     path: '/log',
     name: 'log',
     component: () => import('@/views/LogView.vue'),

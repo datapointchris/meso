@@ -104,7 +104,12 @@ func setupRoutes(pool *pgxpool.Pool) *http.ServeMux {
 	measurementRepo := repository.NewMeasurementRepo(pool)
 	measurementH := handlers.NewMeasurementHandler(measurementRepo)
 	statsH := handlers.NewStatsHandler(repository.NewStatsRepo(pool))
-	logH := handlers.NewLogHandler(repository.NewLogRepo(pool))
+	logRepo := repository.NewLogRepo(pool)
+	logH := handlers.NewLogHandler(logRepo)
+	cycleRepo := repository.NewCycleRepo(pool)
+	cycleH := handlers.NewCycleHandler(cycleRepo)
+	reviewH := handlers.NewReviewHandler(
+		repository.NewReviewRepo(sessionRepo, measurementRepo, logRepo, cycleRepo))
 
 	mux := http.NewServeMux()
 
@@ -184,6 +189,22 @@ func setupRoutes(pool *pgxpool.Pool) *http.ServeMux {
 	mux.HandleFunc("GET /api/v1/log/{id}", logH.Get)
 	mux.HandleFunc("PUT /api/v1/log/{id}", logH.Update)
 	mux.HandleFunc("DELETE /api/v1/log/{id}", logH.Delete)
+
+	// Cycles — mesocycles: ordered sequences of workouts toward a goal (Phase 6).
+	// The sub-resource PATCH without an entry id reorders; with one it edits/swaps.
+	mux.HandleFunc("GET /api/v1/cycles", cycleH.List)
+	mux.HandleFunc("POST /api/v1/cycles", cycleH.Create)
+	mux.HandleFunc("GET /api/v1/cycles/{id}", cycleH.Get)
+	mux.HandleFunc("PUT /api/v1/cycles/{id}", cycleH.Update)
+	mux.HandleFunc("DELETE /api/v1/cycles/{id}", cycleH.Delete)
+	mux.HandleFunc("POST /api/v1/cycles/{id}/workouts", cycleH.AddWorkout)
+	mux.HandleFunc("PATCH /api/v1/cycles/{id}/workouts", cycleH.ReorderWorkouts)
+	mux.HandleFunc("PATCH /api/v1/cycles/{id}/workouts/{entryID}", cycleH.UpdateWorkout)
+	mux.HandleFunc("DELETE /api/v1/cycles/{id}/workouts/{entryID}", cycleH.RemoveWorkout)
+
+	// Review — the capstone read: active cycles + recent sessions/measurements/log
+	// in one payload, for Claude to draft the next cycle from real history (Phase 6).
+	mux.HandleFunc("GET /api/v1/review", reviewH.Review)
 
 	return mux
 }

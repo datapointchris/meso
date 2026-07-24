@@ -111,11 +111,14 @@ func (h *WorkoutHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.workouts.Delete(r.Context(), id); err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
 			writeNotFound(w, fmt.Sprintf("workout %d not found", id))
-			return
+		case errors.Is(err, repository.ErrReferenced):
+			writeConflict(w, "workout is used by a cycle and cannot be deleted — remove it from the cycle first")
+		default:
+			writeInternalError(w, err)
 		}
-		writeInternalError(w, err)
 		return
 	}
 	writeNoContent(w)
