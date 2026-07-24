@@ -434,7 +434,8 @@ func replaceMuscles(ctx context.Context, tx pgx.Tx, movementID int64, muscles []
 
 // mapWriteError translates the Postgres constraint violations we care about into
 // the repository's sentinel errors: 23505 (unique) -> ErrConflict, 23503 (FK, e.g.
-// an unknown movement_kind or muscle) -> ErrReferenced. Everything else is wrapped.
+// an unknown movement_kind or muscle) -> ErrReferenced, 23514 (CHECK, e.g. a metric
+// direction/category outside its allowed set) -> ErrInvalid. Everything else is wrapped.
 func mapWriteError(op string, err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
@@ -443,6 +444,8 @@ func mapWriteError(op string, err error) error {
 			return fmt.Errorf("%s: %w", op, ErrConflict)
 		case "23503":
 			return fmt.Errorf("%s: %w", op, ErrReferenced)
+		case "23514":
+			return fmt.Errorf("%s: %w", op, ErrInvalid)
 		}
 	}
 	return fmt.Errorf("%s: %w", op, err)

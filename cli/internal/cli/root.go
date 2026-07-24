@@ -63,6 +63,9 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(newMovementsCommand())
 	root.AddCommand(newWorkoutsCommand())
 	root.AddCommand(newSessionsCommand())
+	root.AddCommand(newMetricsCommand())
+	root.AddCommand(newMeasurementsCommand())
+	root.AddCommand(newStatsCommand())
 	return root
 }
 

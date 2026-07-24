@@ -36,6 +36,11 @@
   --text-muted: #94a3b8;
   --accent: #38bdf8;
   --accent-contrast: #04121f;
+  // Semantic stat colors — improvement / regression / neutral. Used by the stats
+  // charts and change badges so good/bad reads consistently and stays theme-driven.
+  --positive: #4ade80;
+  --negative: #f87171;
+  --neutral: #94a3b8;
 }
 
 :root[data-theme='light'] {
@@ -47,6 +52,9 @@
   --text-muted: #64748b;
   --accent: #0284c7;
   --accent-contrast: #ffffff;
+  --positive: #16a34a;
+  --negative: #dc2626;
+  --neutral: #64748b;
 }
 
 // ─── Reset-ish base ─────────────────────────────────────────────────────────

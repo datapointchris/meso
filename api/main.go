@@ -101,6 +101,9 @@ func setupRoutes(pool *pgxpool.Pool) *http.ServeMux {
 	workoutH := handlers.NewWorkoutHandler(workoutRepo)
 	sessionRepo := repository.NewSessionRepo(pool)
 	sessionH := handlers.NewSessionHandler(sessionRepo)
+	measurementRepo := repository.NewMeasurementRepo(pool)
+	measurementH := handlers.NewMeasurementHandler(measurementRepo)
+	statsH := handlers.NewStatsHandler(repository.NewStatsRepo(pool))
 
 	mux := http.NewServeMux()
 
@@ -158,6 +161,21 @@ func setupRoutes(pool *pgxpool.Pool) *http.ServeMux {
 	mux.HandleFunc("PUT /api/v1/sessions/{id}", sessionH.Update)
 	mux.HandleFunc("DELETE /api/v1/sessions/{id}", sessionH.Delete)
 	mux.HandleFunc("PATCH /api/v1/sessions/{id}/movements/{entryID}", sessionH.UpdateMovement)
+
+	// Metrics + measurements — the tracked stats time series (Phase 4). Metrics are
+	// the definition vocabulary; measurements are dated readings against them; the
+	// {name}/trend sub-resource returns one metric's series plus its summary numbers.
+	mux.HandleFunc("GET /api/v1/metrics", measurementH.ListMetrics)
+	mux.HandleFunc("POST /api/v1/metrics", measurementH.DefineMetric)
+	mux.HandleFunc("GET /api/v1/metrics/{name}/trend", measurementH.Trend)
+	mux.HandleFunc("GET /api/v1/measurements", measurementH.List)
+	mux.HandleFunc("POST /api/v1/measurements", measurementH.Record)
+	mux.HandleFunc("GET /api/v1/measurements/{id}", measurementH.Get)
+	mux.HandleFunc("PUT /api/v1/measurements/{id}", measurementH.Update)
+	mux.HandleFunc("DELETE /api/v1/measurements/{id}", measurementH.Delete)
+
+	// Stats — the aggregated stats-page payload in one read (Phase 4).
+	mux.HandleFunc("GET /api/v1/stats", statsH.Summary)
 
 	return mux
 }

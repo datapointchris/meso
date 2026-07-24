@@ -39,6 +39,30 @@ func secondary(name string) models.MovementMuscleInput {
 }
 func ptr[T any](v T) *T { return &v }
 
+// metricCatalog is the initial tracked-stat vocabulary, seeded from the targets in
+// ~/shart/fitness/goals.md so the stats page has something to measure against on
+// first boot. direction records which way is improvement (a heavier lift, a faster
+// 5k — opposite signs); a "body" metric (bodyweight) has no inherent good/bad
+// direction, so the stats UI renders its change neutrally and the value here is a
+// filler. The Week-0 baseline readings become the first measurements once recorded.
+var metricCatalog = []models.MetricDefinitionCreate{
+	{Name: "deadlift-working-weight", Unit: "lb", Direction: "higher_better", Category: "strength"},
+	{Name: "back-squat-working-weight", Unit: "lb", Direction: "higher_better", Category: "strength"},
+	{Name: "bench-press-working-weight", Unit: "lb", Direction: "higher_better", Category: "strength"},
+	{Name: "overhead-press-working-weight", Unit: "lb", Direction: "higher_better", Category: "strength"},
+	{Name: "barbell-row-working-weight", Unit: "lb", Direction: "higher_better", Category: "strength"},
+	{Name: "pull-up-reps", Unit: "reps", Direction: "higher_better", Category: "strength"},
+	{Name: "5k-time", Unit: "seconds", Direction: "lower_better", Category: "cardio"},
+	{Name: "continuous-easy-run", Unit: "minutes", Direction: "higher_better", Category: "cardio"},
+	{Name: "knee-to-wall-left", Unit: "cm", Direction: "higher_better", Category: "mobility"},
+	{Name: "knee-to-wall-right", Unit: "cm", Direction: "higher_better", Category: "mobility"},
+	{Name: "heel-raise-capacity-left", Unit: "reps", Direction: "higher_better", Category: "mobility"},
+	{Name: "heel-raise-capacity-right", Unit: "reps", Direction: "higher_better", Category: "mobility"},
+	{Name: "toe-reach", Unit: "cm", Direction: "higher_better", Category: "mobility"},
+	{Name: "supine-shoulder-flexion-gap", Unit: "cm", Direction: "lower_better", Category: "mobility"},
+	{Name: "bodyweight", Unit: "lb", Direction: "higher_better", Category: "body"},
+}
+
 // baselineMovements is the initial library the app ships with, so it isn't empty
 // on first boot. A curated set across all three kinds (exercise/stretch/yoga_pose)
 // grounded in the transcribed workouts and plans in ~/shart/fitness. The richer

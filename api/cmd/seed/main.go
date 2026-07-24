@@ -62,6 +62,13 @@ func main() {
 	}
 	slog.Info("seeded muscles", "count", muscleCount)
 
+	metricCount, err := seedMetrics(ctx, pool, metricCatalog)
+	if err != nil {
+		slog.Error("seeding metrics", "seeded", metricCount, "err", err)
+		os.Exit(1)
+	}
+	slog.Info("seeded metrics", "count", metricCount)
+
 	// Movements go through the repository (not raw SQL) so the baseline catalog
 	// is written by the exact same code path the API and CLI use — muscle tags in
 	// a transaction, upsert-by-name idempotency. Muscles must exist first (FK).
@@ -86,6 +93,25 @@ func seedMuscles(ctx context.Context, pool *pgxpool.Pool, muscles []models.Muscl
 			`INSERT INTO muscles (name, region) VALUES ($1, $2)
 			 ON CONFLICT (name) DO UPDATE SET region = EXCLUDED.region`,
 			m.Name, m.Region)
+		if err != nil {
+			return count, err
+		}
+		count++
+	}
+	return count, nil
+}
+
+// seedMetrics upserts the metric-definition vocabulary (a lookup), returning the
+// count written. ON CONFLICT refreshes the metadata so a re-run converges each
+// definition to the catalog while leaving its recorded measurements untouched.
+func seedMetrics(ctx context.Context, pool *pgxpool.Pool, metrics []models.MetricDefinitionCreate) (int, error) {
+	count := 0
+	for _, m := range metrics {
+		_, err := pool.Exec(ctx,
+			`INSERT INTO metric_definitions (name, unit, direction, category) VALUES ($1, $2, $3, $4)
+			 ON CONFLICT (name) DO UPDATE SET
+			     unit = EXCLUDED.unit, direction = EXCLUDED.direction, category = EXCLUDED.category`,
+			m.Name, m.Unit, m.Direction, m.Category)
 		if err != nil {
 			return count, err
 		}
