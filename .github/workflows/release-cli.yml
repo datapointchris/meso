@@ -1,0 +1,74 @@
+name: Release CLI
+
+# Tagged `cli/v*` rather than a bare `v*`: the CLI is a nested module with its
+# own version, and a bare tag would collide with the app's tag namespace. The
+# dotfiles installer resolves the latest release carrying this prefix.
+on:
+  push:
+    tags: ['cli/v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [linux, darwin]
+        goarch: [amd64, arm64]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+
+      # Archive names must match the {version_num}/{os}/{go_arch} placeholders
+      # that dotfiles' packages.yml expands — see install/offline/create-bundle.sh.
+      - name: Build and archive
+        working-directory: cli
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: |
+          version="${GITHUB_REF_NAME#cli/}"
+          version_num="${version#v}"
+          mkdir -p ../dist
+          go build -trimpath \
+            -ldflags "-s -w -X meso/cli/internal/cli.version=${version}" \
+            -o ../dist/meso .
+          tar -czf "../dist/meso_${version_num}_${GOOS}_${GOARCH}.tar.gz" -C ../dist meso
+          rm ../dist/meso
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meso-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: cd dist && sha256sum ./*.tar.gz > checksums.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
