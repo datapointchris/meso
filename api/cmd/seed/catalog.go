@@ -37,4 +37,5 @@ var muscleCatalog = []models.Muscle{
 	{Name: "abductors", Region: "legs"},
 	{Name: "peroneals", Region: "legs"},
 	{Name: "neck", Region: "other"},
+	{Name: "foot_intrinsics", Region: "other"},
 }
