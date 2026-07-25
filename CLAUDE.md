@@ -68,5 +68,12 @@ default `/var/run/docker.sock` needs nothing. This is a machine concern, not a r
 
 ## Gates (all must pass before commit)
 
+`task lint` and `task test` run these across all three subsystems; the per-subsystem
+verbs are `task {api,cli,web}:{lint,test}`.
+
 - **api / cli:** `gofmt -l .` (clean), `go vet ./...`, `go test ./...`
 - **web:** `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build`, `npm run format:check`
+
+`task cli:install` puts `meso` on your PATH at `$GOBIN` (falling back to `$GOPATH/bin`)
+with a git-derived version embedded via ldflags. Released binaries come from CI on a
+`cli/v*` tag, not from a developer machine.

@@ -1,0 +1,136 @@
+version: '3'
+
+vars:
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+  # GOBIN wins when set; resolving GOPATH first would install somewhere that is
+  # never on PATH on a machine that sets GOBIN.
+  INSTALL_DIR:
+    sh: gobin=$(go env GOBIN); [ -n "$gobin" ] || gobin="$(go env GOPATH)/bin"; echo "$gobin"
+
+tasks:
+  default:
+    desc: Show available tasks
+    silent: true
+    cmds:
+      - task --list
+
+  # ---------------------------------------------------------------------------
+  # CLI (meso) — module meso/cli
+  # ---------------------------------------------------------------------------
+
+  cli:build:
+    desc: Build the meso CLI to bin/meso
+    dir: cli
+    cmds:
+      - go build -ldflags "-s -w -X meso/cli/internal/cli.version={{.VERSION}}" -o ../bin/meso .
+
+  cli:install:
+    desc: Install the meso CLI to $GOBIN (falls back to $GOPATH/bin)
+    dir: cli
+    cmds:
+      - go build -ldflags "-s -w -X meso/cli/internal/cli.version={{.VERSION}}" -o {{.INSTALL_DIR}}/meso .
+      - 'echo "installed meso {{.VERSION}} -> {{.INSTALL_DIR}}/meso"'
+
+  cli:test:
+    desc: Run the CLI test suite
+    dir: cli
+    cmds:
+      - go test ./...
+
+  cli:lint:
+    desc: Vet the CLI and fail on unformatted files
+    dir: cli
+    cmds:
+      - go vet ./...
+      - |
+        unformatted=$(gofmt -l .)
+        if [ -n "$unformatted" ]; then
+          echo "gofmt needed on:"; echo "$unformatted"; exit 1
+        fi
+
+  cli:fmt:
+    desc: Format the CLI sources
+    dir: cli
+    cmds:
+      - gofmt -w .
+
+  # ---------------------------------------------------------------------------
+  # API — module meso/api
+  # ---------------------------------------------------------------------------
+
+  api:test:
+    desc: Run the API test suite (provisions Postgres via testcontainers)
+    dir: api
+    cmds:
+      - go test ./...
+
+  api:lint:
+    desc: Vet the API and fail on unformatted files
+    dir: api
+    cmds:
+      - go vet ./...
+      - |
+        unformatted=$(gofmt -l .)
+        if [ -n "$unformatted" ]; then
+          echo "gofmt needed on:"; echo "$unformatted"; exit 1
+        fi
+
+  api:run:
+    desc: Run the API against the local dev database
+    dir: api
+    cmds:
+      - DATABASE_URL=postgres://meso:meso@localhost:5459/meso?sslmode=disable go run .
+
+  api:seed:
+    desc: Load the FK-backbone lookups (idempotent)
+    dir: api
+    cmds:
+      - go run ./cmd/seed
+
+  # ---------------------------------------------------------------------------
+  # Web
+  # ---------------------------------------------------------------------------
+
+  web:dev:
+    desc: Start the Vite dev server
+    dir: web
+    cmds:
+      - npm run dev
+
+  web:build:
+    desc: Typecheck and build the SPA
+    dir: web
+    cmds:
+      - npm run build
+
+  web:test:
+    desc: Run the web unit tests
+    dir: web
+    cmds:
+      - npm run test
+
+  web:lint:
+    desc: Lint and format-check the SPA
+    dir: web
+    cmds:
+      - npm run lint
+      - npm run format:check
+
+  # ---------------------------------------------------------------------------
+  # Aggregate
+  # ---------------------------------------------------------------------------
+
+  lint:
+    desc: Lint every subsystem
+    cmds:
+      - task: api:lint
+      - task: cli:lint
+      - task: web:lint
+
+  test:
+    desc: Test every subsystem
+    cmds:
+      - task: api:test
+      - task: cli:test
+      - task: web:test
