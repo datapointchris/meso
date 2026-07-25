@@ -51,8 +51,7 @@ services:
 
   web:
     build:
-      context: .
-      dockerfile: Dockerfile.web
+      context: ./web
     ports:
       - '8080:80'
     depends_on:
