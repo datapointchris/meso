@@ -318,9 +318,9 @@ The `~/shart/fitness/` content becomes the initial catalog, so the app isn't emp
 - **Movements**: the exercises across `ppl/*.md`, `general-workouts/apartment-*.md`, `michael-workout-*.md`, `flexibility-moves.md`, plus the movements named in the three research plans → `movements` rows with tags/muscles.
 - **Workouts**: each `ppl/*.md` sheet, each apartment/michael workout, and the plans' named sessions (A/B/C/D) → `workouts` with ordered `workout_movements` carrying the transcribed sets/reps/load.
 - **Cycles**: `lower-body-plan.md` (12-week run return) and `shoulder-plan.md` (rehab arc) → `cycles` sequencing their sessions; `dance-conditioning.md` shelved as a `paused` cycle.
-- **Goals/metrics**: seed `metric_definitions` from `shart/fitness/goals.md` (deadlift working weight, 5k time, knee-to-wall L/R, toe reach, bodyweight) and `program.md`'s Week-0 baseline test as the first `measurements` once recorded.
+- **Goals/metrics**: define `metric_definitions` via `meso metrics define` from `shart/fitness/goals.md` (deadlift working weight, 5k time, knee-to-wall L/R, toe reach, bodyweight); `program.md`'s Week-0 baseline test becomes the first `measurements` once recorded.
 
-Mechanism: a `cmd/seed` one-shot for the lookup tables and a baseline catalog, then a **CLI-driven import pass** (Claude reads the markdown and calls `meso movements create` / `meso workouts create` etc.) for the richer content — exercising the CLI against real content, exactly the kind of validation that shakes out model rough edges before automation. Decide the split during Phase 1.
+Mechanism (split settled): a `cmd/seed` one-shot carries **only the FK-backbone lookups** — the enum lookups (`movement_kinds`, `relationship_kinds`, `cycle_statuses`) plus `muscles`, the categoricals with no CLI verb — and runs on every deploy, idempotently, so a fresh environment can accept writes. **Everything else is content loaded through a CLI-driven import pass** (Claude reads the markdown and calls `meso metrics define` / `meso movements create` / `meso workouts create` / `meso cycles create` etc.) — exercising the CLI against real content, exactly the kind of validation that shakes out model rough edges before automation. Rule: if an entity has a CLI verb, it is imported, never seeded; migrations and seed carry no actual content.
 
 ## Phased plan
 

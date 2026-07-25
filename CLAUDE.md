@@ -38,10 +38,10 @@ under `internal/cli`, each with a matching `internal/api/<resource>.go` client.
 ## Conventions specific to meso
 
 - **Lookup tables, never enum types** — categoricals (`movement_kinds`, `muscles`, `relationship_kinds`, `cycle_statuses`) are `TEXT PRIMARY KEY` + FK. A _bounded sub-attribute_ of a join (e.g. `movement_muscles.role ∈ primary|secondary`) uses a `CHECK`, not a 2-row lookup — a CHECK is not an enum type.
-- **PK strategy** — catalog rows (`movements`, `workouts`) use Postgres `GENERATED ALWAYS AS IDENTITY`; user-generated rows (`workout_sessions`, `fitness_log_entries`) will use UUID7. Catalog rows carry a natural key (`movements.name`, `workouts.name` — both `UNIQUE`) so seed/import can upsert idempotently. Ordered-join rows (`workout_movements`) get their own surrogate id plus a `DEFERRABLE UNIQUE(parent_id, position)` so a reorder can swap positions within one transaction without tripping the constraint.
+- **PK strategy** — catalog rows (`movements`, `workouts`) use Postgres `GENERATED ALWAYS AS IDENTITY`; user-generated rows (`workout_sessions`, `fitness_log_entries`) will use UUID7. Catalog rows carry a natural key (`movements.name`, `workouts.name` — both `UNIQUE`) so the CLI import can upsert idempotently. Ordered-join rows (`workout_movements`) get their own surrogate id plus a `DEFERRABLE UNIQUE(parent_id, position)` so a reorder can swap positions within one transaction without tripping the constraint.
 - **All text columns are `TEXT`** (never `varchar(n)`); array columns are `NOT NULL DEFAULT '{}'` and normalized nil→`[]` on write so reads are branch-free.
 - **Filtering is server-side** — list endpoints own their query params and build the `WHERE` in SQL, so the CLI and web share one filter definition rather than each re-implementing it.
-- **Seed writes through the repository**, not raw SQL, so `cmd/seed` exercises the real write path (transactions, FK validation). Lookups seed via direct upsert; catalog rows via `Repo.Upsert`.
+- **Seed carries only the FK-backbone lookups** (`movement_kinds`, `relationship_kinds`, `cycle_statuses`, `muscles`) via direct idempotent upsert — the minimum a blank DB needs to accept writes. It runs on **every deploy** so no fresh environment ever comes up write-dead. All content (metrics, movements, workouts, cycles, measurements, journal) is loaded through the `meso` CLI, which exercises the real API write path. Anything with a CLI verb behind it stays out of the seed.
 - **No MCP, ever** — the `meso` CLI is the sole programmatic/agent surface.
 
 ## Local development
@@ -53,7 +53,7 @@ docker compose -f docker-compose.dev.yml run --rm --entrypoint ./meso-seed api  
 
 # Or run pieces directly:
 cd api && DATABASE_URL=postgres://meso:meso@localhost:5459/meso?sslmode=disable go run .   # applies migrations, serves :8088
-cd api && go run ./cmd/seed        # muscles + baseline movement catalog
+cd api && go run ./cmd/seed        # FK-backbone lookups + muscles (idempotent)
 npm run dev                        # Vite :3001, proxies /api → :8088
 cd cli && go run . movements list  # needs `meso auth login` against Authelia
 ```
