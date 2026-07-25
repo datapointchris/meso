@@ -139,9 +139,25 @@ func TestMeasurement_Validation(t *testing.T) {
 	// Non-numeric id -> 400; well-formed but absent -> 404.
 	assert.Equal(t, http.StatusBadRequest, getJSON(t, mux, "/api/v1/measurements/abc").Code)
 	assert.Equal(t, http.StatusNotFound, getJSON(t, mux, "/api/v1/measurements/999999").Code)
+}
 
-	// A metric with recorded history cannot be deleted implicitly — there is no
-	// metric-delete endpoint, and the FK is RESTRICT, so the definition persists.
+func TestMetric_Delete(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+	defineMetric(t, mux, "continuous-easy-run", "minutes", "higher_better", "cardio")
+	defineMetric(t, mux, "deadlift-working-weight", "lb", "higher_better", "strength")
+
+	// An unreferenced metric deletes -> 204 and is gone (its trend 404s).
+	require.Equal(t, http.StatusNoContent, deleteReq(t, mux, "/api/v1/metrics/continuous-easy-run").Code)
+	assert.Equal(t, http.StatusNotFound, getJSON(t, mux, "/api/v1/metrics/continuous-easy-run/trend").Code)
+
+	// A metric with a recorded measurement is RESTRICT-guarded -> 409.
+	require.Equal(t, http.StatusCreated, postJSON(t, mux, "/api/v1/measurements", map[string]any{
+		"metric": "deadlift-working-weight", "value": 225,
+	}).Code)
+	assert.Equal(t, http.StatusConflict, deleteReq(t, mux, "/api/v1/metrics/deadlift-working-weight").Code)
+
+	// Unknown metric -> 404.
+	assert.Equal(t, http.StatusNotFound, deleteReq(t, mux, "/api/v1/metrics/ghost").Code)
 }
 
 func TestMetric_Trend_SeriesAndSummary(t *testing.T) {

@@ -66,6 +66,18 @@ func TestDefineMetric_SendsBody(t *testing.T) {
 	}
 }
 
+func TestDeleteMetric_SendsDelete(t *testing.T) {
+	srv, got := recordingServer(t, http.StatusNoContent, "")
+	client := New(srv.URL, staticTokenClient("t"))
+
+	if err := client.DeleteMetric(context.Background(), "continuous-easy-run"); err != nil {
+		t.Fatalf("DeleteMetric: %v", err)
+	}
+	if got.method != http.MethodDelete || got.path != "/api/v1/metrics/continuous-easy-run" {
+		t.Errorf("request = %s %s", got.method, got.path)
+	}
+}
+
 func TestTrend_QueryPathAndDecode(t *testing.T) {
 	srv, got := recordingServer(t, http.StatusOK, `{
 		"metric":"5k-time","unit":"seconds","direction":"lower_better","category":"cardio",

@@ -134,6 +134,12 @@ func (c *Client) DefineMetric(ctx context.Context, in MetricDefinitionCreate) (M
 	return m, nil
 }
 
+// DeleteMetric removes a metric definition (DELETE /api/v1/metrics/{name}). A metric
+// still referenced by a recorded measurement is a 409.
+func (c *Client) DeleteMetric(ctx context.Context, name string) error {
+	return c.send(ctx, http.MethodDelete, "/api/v1/metrics/"+url.PathEscape(name), nil, nil)
+}
+
 // Trend returns one metric's series + summary (GET /api/v1/metrics/{name}/trend),
 // optionally windowed by from/to.
 func (c *Client) Trend(ctx context.Context, metric string, f MeasurementFilter) (MetricTrend, error) {

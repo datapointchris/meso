@@ -71,6 +71,21 @@ func (r *MeasurementRepo) DefineMetric(ctx context.Context, in models.MetricDefi
 	return r.GetMetric(ctx, in.Name)
 }
 
+// DeleteMetric removes a metric definition by name. A metric still referenced by a
+// recorded measurement (FK RESTRICT) is ErrReferenced (409); an unknown name is
+// ErrNotFound (404). A cycle that targets it is SET NULL by the FK, so deleting is
+// not blocked by cycle references — the cycle simply loses its target.
+func (r *MeasurementRepo) DeleteMetric(ctx context.Context, name string) error {
+	tag, err := r.pool.Exec(ctx, `DELETE FROM metric_definitions WHERE name = $1`, name)
+	if err != nil {
+		return mapWriteError("deleting metric", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("metric %q: %w", name, ErrNotFound)
+	}
+	return nil
+}
+
 // measurementSelect is the shared read query; scanMeasurement stays in lockstep.
 const measurementSelect = `SELECT id, metric, value, measured_on, source, notes, created_at FROM measurements`
 

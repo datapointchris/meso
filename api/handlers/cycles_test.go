@@ -137,6 +137,33 @@ func TestCycle_Update_Partial_AndClearDate(t *testing.T) {
 	assert.Nil(t, decodeCycle(t, rr.Body).StartDate)
 }
 
+func TestCycle_Update_ChangingMetricClearsStaleValue(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+	defineMetric(t, mux, "continuous-easy-run", "minutes", "higher_better", "cardio")
+	defineMetric(t, mux, "5k-time", "seconds", "lower_better", "cardio")
+
+	created := decodeCycle(t, postJSON(t, mux, "/api/v1/cycles", map[string]any{
+		"name": "Return to running", "target_metric": "continuous-easy-run", "target_value": 30,
+	}).Body)
+	require.NotNil(t, created.TargetValue)
+
+	// Repointing the metric without a new value clears the stale value — 30 minutes
+	// means nothing against 5k-time.
+	updated := decodeCycle(t, putJSON(t, mux, "/api/v1/cycles/"+itoa(created.ID), map[string]any{
+		"target_metric": "5k-time",
+	}).Body)
+	require.NotNil(t, updated.TargetMetric)
+	assert.Equal(t, "5k-time", *updated.TargetMetric)
+	assert.Nil(t, updated.TargetValue)
+
+	// Supplying a value alongside the metric keeps it.
+	kept := decodeCycle(t, putJSON(t, mux, "/api/v1/cycles/"+itoa(created.ID), map[string]any{
+		"target_metric": "5k-time", "target_value": 1500,
+	}).Body)
+	require.NotNil(t, kept.TargetValue)
+	assert.Equal(t, 1500.0, *kept.TargetValue)
+}
+
 func TestCycle_ComposeWorkouts_AddSwapReorderRemove(t *testing.T) {
 	mux := buildTestMux(setupTestDB(t))
 	wA := createWorkout(t, mux, "Week A")

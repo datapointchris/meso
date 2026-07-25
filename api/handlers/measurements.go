@@ -43,6 +43,25 @@ func (h *MeasurementHandler) DefineMetric(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusCreated, metric)
 }
 
+// DeleteMetric handles DELETE /api/v1/metrics/{name}. A metric still referenced by a
+// recorded measurement is 409; an unknown name is 404. A cycle that targets it is
+// SET NULL by the FK, so cycle references do not block the delete.
+func (h *MeasurementHandler) DeleteMetric(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if err := h.repo.DeleteMetric(r.Context(), name); err != nil {
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
+			writeNotFound(w, fmt.Sprintf("metric %q not found", name))
+		case errors.Is(err, repository.ErrReferenced):
+			writeConflict(w, "metric is still referenced by a recorded measurement — delete those readings first")
+		default:
+			writeInternalError(w, err)
+		}
+		return
+	}
+	writeNoContent(w)
+}
+
 // Trend handles GET /api/v1/metrics/{name}/trend — one metric's series plus summary,
 // optionally windowed by ?from=&to=. A 404 when the metric is undefined.
 func (h *MeasurementHandler) Trend(w http.ResponseWriter, r *http.Request) {

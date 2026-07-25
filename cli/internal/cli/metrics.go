@@ -22,7 +22,39 @@ func newMetricsCommand() *cobra.Command {
 	cmd.AddCommand(
 		newMetricsListCommand(),
 		newMetricsDefineCommand(),
+		newMetricsDeleteCommand(),
 	)
+	return cmd
+}
+
+func newMetricsDeleteCommand() *cobra.Command {
+	var yes bool
+	cmd := &cobra.Command{
+		Use:   "delete <name>",
+		Short: "Delete a metric definition",
+		Long: "Remove a metric from the tracked-stat vocabulary. A metric with recorded\n" +
+			"measurements can't be deleted (delete those readings first); a cycle that\n" +
+			"targets it simply loses its target.",
+		Example: "  meso metrics delete continuous-easy-run",
+		Args:    usageArgs(cobra.ExactArgs(1)),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+			if !yes && !confirm(cmd.InOrStdin(), cmd.OutOrStdout(), fmt.Sprintf("Delete metric %q?", name)) {
+				fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+				return nil
+			}
+			client, err := newAPIClient(cmd.Context())
+			if err != nil {
+				return handleAPIError(err)
+			}
+			if err := client.DeleteMetric(cmd.Context(), name); err != nil {
+				return handleAPIError(err)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Deleted metric %s\n", name)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&yes, "yes", false, "Skip the confirmation prompt")
 	return cmd
 }
 

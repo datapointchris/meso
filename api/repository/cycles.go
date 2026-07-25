@@ -177,6 +177,12 @@ func (r *CycleRepo) Update(ctx context.Context, id int64, in models.CycleUpdate)
 	notes := valueOr(in.Notes, current.Notes)
 	targetValue := pickPtr(in.TargetValue, current.TargetValue)
 	targetMetric := clearableString(pickPtr(in.TargetMetric, current.TargetMetric))
+	// A target value is bound to its metric. If the metric is being changed or
+	// cleared and no new value is supplied, the old value is stale — a number
+	// against the wrong (or no) metric — so clear it too.
+	if in.TargetMetric != nil && in.TargetValue == nil {
+		targetValue = nil
+	}
 
 	targetDate, err := resolveNullableDate(in.TargetDate, current.TargetDate)
 	if err != nil {

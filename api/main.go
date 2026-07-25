@@ -173,6 +173,7 @@ func setupRoutes(pool *pgxpool.Pool) *http.ServeMux {
 	// {name}/trend sub-resource returns one metric's series plus its summary numbers.
 	mux.HandleFunc("GET /api/v1/metrics", measurementH.ListMetrics)
 	mux.HandleFunc("POST /api/v1/metrics", measurementH.DefineMetric)
+	mux.HandleFunc("DELETE /api/v1/metrics/{name}", measurementH.DeleteMetric)
 	mux.HandleFunc("GET /api/v1/metrics/{name}/trend", measurementH.Trend)
 	mux.HandleFunc("GET /api/v1/measurements", measurementH.List)
 	mux.HandleFunc("POST /api/v1/measurements", measurementH.Record)
