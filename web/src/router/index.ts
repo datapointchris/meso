@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
-// The five top-level surfaces (design doc: Workouts | Movements | Cycles | Log |
+// The five top-level surfaces (README: Workouts | Movements | Cycles | Log |
 // Stats), each with a detail route.
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/workouts' },

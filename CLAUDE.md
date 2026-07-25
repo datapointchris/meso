@@ -5,7 +5,7 @@ compiles into workouts, cycles, sessions, stats, and a journal, drivable by the
 `meso` CLI (no MCP). It follows the **nomad** product model wholesale — Go API +
 Go CLI + Vue, Authelia edge auth, registry-pull deploy.
 
-- **What it is, why, and the phase plan:** [`docs/design.md`](docs/design.md) — the design doc is the spec. Read it before adding an entity or endpoint.
+- **What it is, why, and the domain model:** [`README.md`](README.md) — the README is the spec. Read it before adding an entity or endpoint.
 - **Reference build to copy patterns from:** `~/webapps/nomad/` (`CLAUDE.md`, `api/`, `cli/`, `.planning/cli-auth-design.md`).
 - **Universal rules** (git, commits, Python/JS conventions, MCP, etc.) live in `~/.claude/CLAUDE.md` and are not restated here.
 - **Current progress and settled decisions:** `.planning/status.md` (gitignored).
