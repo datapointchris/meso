@@ -43,19 +43,12 @@ repos:
         pass_filenames: false
         files: '\.go$'
 
-      - id: go-vet-api
-        name: go vet (api)
-        entry: bash -c 'cd api && go vet ./...'
-        language: system
-        pass_filenames: false
-        files: '^api/.*\.go$'
-
-      - id: go-vet-cli
-        name: go vet (cli)
-        entry: bash -c 'cd cli && go vet ./...'
-        language: system
-        pass_filenames: false
-        files: '^cli/.*\.go$'
+  # go-vet-repo-mod runs in every go.mod it finds, so it covers api/ and cli/
+  # without a hook per module.
+  - repo: https://github.com/tekwizely/pre-commit-golang
+    rev: v1.0.0-rc.1
+    hooks:
+      - id: go-vet-repo-mod
 
   # ============================================================
   # PHASE 4: Frontend (Vue/TS) linting, formatting, unit tests
@@ -78,14 +71,6 @@ repos:
         pass_filenames: false
         files: '\.(vue|ts|mts|css|scss|json)$'
 
-      - id: vitest
-        name: vitest unit
-        description: Run Vitest unit and component tests
-        entry: bash -c 'cd web && npm run test'
-        language: system
-        pass_filenames: false
-        files: '\.(vue|ts|mts)$'
-
   # ============================================================
   # Conventional commits (commit-msg stage)
   # ============================================================
@@ -95,3 +80,14 @@ repos:
       - id: conventional-pre-commit
         stages: [commit-msg]
         args: ['--strict', '--verbose']
+
+# > custom:after:vue - Frontend unit tests
+  - repo: local
+    hooks:
+      - id: vitest
+        name: vitest unit
+        description: Run Vitest unit and component tests
+        entry: bash -c 'cd web && npm run test'
+        language: system
+        pass_filenames: false
+        files: '\.(vue|ts|mts)$'
