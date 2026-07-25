@@ -367,13 +367,50 @@ func printSessionDetail(out io.Writer, s api.Session) {
 	}
 	fmt.Fprintln(out, "\nMovements:")
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "  #\tENTRY\tDONE\tMOVEMENT\tSETS\tREPS\tLOAD")
+	fmt.Fprintln(tw, "  #\tENTRY\tDONE\tMOVEMENT\tSETS\tREPS\tLOAD\tPREVIOUS")
 	for _, m := range s.Movements {
-		fmt.Fprintf(tw, "  %d\t%d\t%s\t%s\t%s\t%s\t%s\n",
+		fmt.Fprintf(tw, "  %d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			m.Position, m.ID, doneGlyph(m.Done), m.MovementName,
-			orDashIntPtr(m.ActualSets), orDashPtr(m.ActualReps), orDashPtr(m.ActualLoad))
+			orDashIntPtr(m.ActualSets), orDashPtr(m.ActualReps), orDashPtr(m.ActualLoad),
+			formatPrevious(m.Previous))
 	}
 	_ = tw.Flush()
+}
+
+// formatPrevious renders the last performed result as one compact cell — the number to
+// beat, alongside when it was set.
+func formatPrevious(p *api.PreviousActuals) string {
+	if p == nil {
+		return "—"
+	}
+	// A "?" rather than an em dash here: within a result that exists, a missing half of
+	// "sets × reps" reads as unrecorded, not as absent.
+	unknown := func(s string) string {
+		if s == "" {
+			return "?"
+		}
+		return s
+	}
+	sets := ""
+	if p.ActualSets != nil {
+		sets = strconv.Itoa(*p.ActualSets)
+	}
+	reps := ""
+	if p.ActualReps != nil {
+		reps = *p.ActualReps
+	}
+
+	parts := []string{}
+	if sets != "" || reps != "" {
+		parts = append(parts, unknown(sets)+" × "+unknown(reps))
+	}
+	if p.ActualLoad != nil && *p.ActualLoad != "" {
+		parts = append(parts, *p.ActualLoad)
+	}
+	if len(parts) == 0 {
+		return p.PerformedOn
+	}
+	return strings.Join(parts, " · ") + " (" + p.PerformedOn + ")"
 }
 
 // doneGlyph renders the checkbox state compactly for the detail table.

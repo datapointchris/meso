@@ -4,6 +4,16 @@
 import { http } from './client'
 import type { MovementKind } from './movements'
 
+// PreviousActuals is the last performed result for a movement before this session —
+// the number to beat. Null when never performed, and only sent on session detail; the
+// list endpoint leaves it null.
+export interface PreviousActuals {
+  performed_on: string
+  actual_sets: number | null
+  actual_reps: string | null
+  actual_load: string | null
+}
+
 // SessionMovement is one logged entry — the done checkbox and the real (actual)
 // numbers, with the movement's name/kind embedded for render.
 export interface SessionMovement {
@@ -16,6 +26,7 @@ export interface SessionMovement {
   actual_sets: number | null
   actual_reps: string | null
   actual_load: string | null
+  previous: PreviousActuals | null
   notes: string
 }
 
@@ -97,5 +108,18 @@ export function actualsSummary(m: SessionMovement): string {
   const parts: string[] = []
   if (m.actual_sets != null || m.actual_reps) parts.push(`${m.actual_sets ?? '?'} × ${m.actual_reps ?? '?'}`)
   if (m.actual_load) parts.push(m.actual_load)
+  return parts.join(' · ')
+}
+
+// previousSummary renders the last performed result as one line for the logging screen
+// (e.g. "5 × 5 · 185lb · 2026-07-08"). Empty when the movement has never been performed,
+// so the caller can skip the row entirely rather than render a placeholder.
+export function previousSummary(m: SessionMovement): string {
+  const p = m.previous
+  if (!p) return ''
+  const parts: string[] = []
+  if (p.actual_sets != null || p.actual_reps) parts.push(`${p.actual_sets ?? '?'} × ${p.actual_reps ?? '?'}`)
+  if (p.actual_load) parts.push(p.actual_load)
+  parts.push(p.performed_on)
   return parts.join(' · ')
 }

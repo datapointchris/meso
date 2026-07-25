@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive } from 'vue'
 import { useRoute } from 'vue-router'
-import { sessionsApi, doneCount, type Session, type SessionMovement, type SessionMovementPatch } from '@/api/sessions'
+import { sessionsApi, doneCount, previousSummary, type Session, type SessionMovement, type SessionMovementPatch } from '@/api/sessions'
 import { ApiError } from '@/api/client'
 
 // The mobile-critical logging screen: check off sets one-handed, bump actual
@@ -159,7 +159,14 @@ async function saveMeta() {
               @click="toggleDone(entry)">
               {{ entry.done ? '✓' : '' }}
             </button>
-            <span class="log-entry__name">{{ entry.movement_name }}</span>
+            <div class="log-entry__ident">
+              <span class="log-entry__name">{{ entry.movement_name }}</span>
+              <span
+                v-if="entry.previous"
+                class="log-entry__previous">
+                Last: {{ previousSummary(entry) }}
+              </span>
+            </div>
           </div>
 
           <div class="actuals">
@@ -363,9 +370,22 @@ async function saveMeta() {
   }
 }
 
+.log-entry__ident {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .log-entry__name {
   font-weight: 600;
   font-size: 1.05rem;
+}
+
+.log-entry__previous {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .log-entry--done .log-entry__name {

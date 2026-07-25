@@ -13,16 +13,28 @@ import (
 // in place as the workout is performed. The actual_* fields are nullable (a set may
 // be checked off without recording a number).
 type SessionMovement struct {
-	ActualSets   *int    `json:"actual_sets"`
-	ActualReps   *string `json:"actual_reps"`
-	ActualLoad   *string `json:"actual_load"`
-	MovementName string  `json:"movement_name"`
-	MovementKind string  `json:"movement_kind"`
-	Notes        string  `json:"notes"`
-	ID           int64   `json:"id"`
-	MovementID   int64   `json:"movement_id"`
-	Position     int     `json:"position"`
-	Done         bool    `json:"done"`
+	ActualSets   *int             `json:"actual_sets"`
+	ActualReps   *string          `json:"actual_reps"`
+	ActualLoad   *string          `json:"actual_load"`
+	Previous     *PreviousActuals `json:"previous"`
+	MovementName string           `json:"movement_name"`
+	MovementKind string           `json:"movement_kind"`
+	Notes        string           `json:"notes"`
+	ID           int64            `json:"id"`
+	MovementID   int64            `json:"movement_id"`
+	Position     int              `json:"position"`
+	Done         bool             `json:"done"`
+}
+
+// PreviousActuals is the last recorded performance of a movement before the session
+// being viewed — the number to beat, shown inline next to each input on the logging
+// screen. Null when the movement has never been performed. Populated on session detail
+// only; list responses leave it nil.
+type PreviousActuals struct {
+	ActualSets  *int    `json:"actual_sets"`
+	ActualReps  *string `json:"actual_reps"`
+	ActualLoad  *string `json:"actual_load"`
+	PerformedOn string  `json:"performed_on"`
 }
 
 // SessionMovementInput is the write shape for one logged movement when creating an

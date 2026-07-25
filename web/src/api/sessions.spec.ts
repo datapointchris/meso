@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { sessionsApi, doneCount, actualsSummary, type Session, type SessionMovement } from './sessions'
+import {
+  sessionsApi,
+  doneCount,
+  actualsSummary,
+  previousSummary,
+  type Session,
+  type SessionMovement,
+} from './sessions'
 import { ApiError } from './client'
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -81,6 +88,7 @@ describe('session helpers', () => {
     actual_sets: null,
     actual_reps: null,
     actual_load: null,
+    previous: null,
     notes: '',
   }
 
@@ -101,5 +109,25 @@ describe('session helpers', () => {
 
   it('actualsSummary is empty when nothing is logged', () => {
     expect(actualsSummary(entry)).toBe('')
+  })
+
+  it('previousSummary renders the last result with its date', () => {
+    const withPrevious: SessionMovement = {
+      ...entry,
+      previous: { performed_on: '2026-07-08', actual_sets: 5, actual_reps: '5', actual_load: '185lb' },
+    }
+    expect(previousSummary(withPrevious)).toBe('5 × 5 · 185lb · 2026-07-08')
+  })
+
+  it('previousSummary is empty when the movement has never been performed', () => {
+    expect(previousSummary(entry)).toBe('')
+  })
+
+  it('previousSummary still dates a result logged without numbers', () => {
+    const noNumbers: SessionMovement = {
+      ...entry,
+      previous: { performed_on: '2026-07-08', actual_sets: null, actual_reps: null, actual_load: null },
+    }
+    expect(previousSummary(noNumbers)).toBe('2026-07-08')
   })
 })

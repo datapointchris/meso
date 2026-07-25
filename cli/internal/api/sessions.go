@@ -10,16 +10,27 @@ import (
 // SessionMovement mirrors one logged entry in the API's session JSON — the done
 // checkbox and the real (actual) numbers, with the movement's name/kind embedded.
 type SessionMovement struct {
-	ActualSets   *int    `json:"actual_sets"`
-	ActualReps   *string `json:"actual_reps"`
-	ActualLoad   *string `json:"actual_load"`
-	MovementName string  `json:"movement_name"`
-	MovementKind string  `json:"movement_kind"`
-	Notes        string  `json:"notes"`
-	ID           int64   `json:"id"`
-	MovementID   int64   `json:"movement_id"`
-	Position     int     `json:"position"`
-	Done         bool    `json:"done"`
+	ActualSets   *int             `json:"actual_sets"`
+	ActualReps   *string          `json:"actual_reps"`
+	ActualLoad   *string          `json:"actual_load"`
+	Previous     *PreviousActuals `json:"previous"`
+	MovementName string           `json:"movement_name"`
+	MovementKind string           `json:"movement_kind"`
+	Notes        string           `json:"notes"`
+	ID           int64            `json:"id"`
+	MovementID   int64            `json:"movement_id"`
+	Position     int              `json:"position"`
+	Done         bool             `json:"done"`
+}
+
+// PreviousActuals is the last performed result for a movement before this session —
+// the number to beat. Null when never performed, and only populated on session detail
+// (`sessions show`); the list endpoint leaves it out.
+type PreviousActuals struct {
+	ActualSets  *int    `json:"actual_sets"`
+	ActualReps  *string `json:"actual_reps"`
+	ActualLoad  *string `json:"actual_load"`
+	PerformedOn string  `json:"performed_on"`
 }
 
 // Session mirrors the API's workout-session JSON. The id is a UUID7 string; the CLI

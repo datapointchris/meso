@@ -160,7 +160,70 @@ func (r *SessionRepo) GetByID(ctx context.Context, id uuid.UUID) (models.Workout
 	if err := r.attachMovements(ctx, list, map[uuid.UUID]int{s.ID: 0}); err != nil {
 		return models.WorkoutSession{}, err
 	}
+	if err := r.attachPreviousActuals(ctx, &list[0]); err != nil {
+		return models.WorkoutSession{}, err
+	}
 	return list[0], nil
+}
+
+// attachPreviousActuals hangs the last recorded performance of each movement onto its
+// entry — the number to beat on the logging screen. Detail-only: the list endpoint has
+// no use for it and would pay the query per session.
+//
+// Only entries marked done count. A session started from a template seeds actual_* from
+// the prescription, so every session — including one opened and abandoned — carries
+// numbers; without the done filter a plan never performed would come back as a result to
+// beat. One DISTINCT ON query covers every movement in the session rather than one per
+// entry.
+func (r *SessionRepo) attachPreviousActuals(ctx context.Context, s *models.WorkoutSession) error {
+	if len(s.Movements) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(s.Movements))
+	for _, m := range s.Movements {
+		ids = append(ids, m.MovementID)
+	}
+	performedOn, err := parseDate(s.PerformedOn)
+	if err != nil {
+		return err
+	}
+
+	// The (performed_on, created_at) tuple orders sessions on the same day, and the
+	// strict < excludes this session from being its own previous.
+	rows, err := r.pool.Query(ctx, `
+		SELECT DISTINCT ON (sm.movement_id)
+			sm.movement_id, prev.performed_on, sm.actual_sets, sm.actual_reps, sm.actual_load
+		FROM session_movements sm
+		JOIN workout_sessions prev ON prev.id = sm.session_id
+		WHERE sm.movement_id = ANY($1)
+			AND sm.done
+			AND (prev.performed_on, prev.created_at) < ($2, $3)
+		ORDER BY sm.movement_id, prev.performed_on DESC, prev.created_at DESC`,
+		ids, performedOn, s.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("loading previous actuals: %w", err)
+	}
+	defer rows.Close()
+
+	previous := map[int64]*models.PreviousActuals{}
+	for rows.Next() {
+		var movementID int64
+		var performed time.Time
+		p := &models.PreviousActuals{}
+		if err := rows.Scan(&movementID, &performed, &p.ActualSets, &p.ActualReps, &p.ActualLoad); err != nil {
+			return fmt.Errorf("scanning previous actuals: %w", err)
+		}
+		p.PerformedOn = performed.Format(dateLayout)
+		previous[movementID] = p
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for i := range s.Movements {
+		s.Movements[i].Previous = previous[s.Movements[i].MovementID]
+	}
+	return nil
 }
 
 // Create starts a session and returns it fully populated. When WorkoutID is set, the

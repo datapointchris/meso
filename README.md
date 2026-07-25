@@ -139,6 +139,8 @@ The "checkboxes that they are done" + "notes with a particular workout I do on a
 
 The logging screen carries the features every strength user rewards (see Competitive landscape): the **previous session's actual weight/reps shown inline** next to each input so I know what to beat; and **set-type tags** (warmup / AMRAP / drop / failure). When a movement is swapped for an alternate mid-session, its target **carries over** to the substitute. This is the `ActiveSessionView` — the single most-used, most mobile-critical screen.
 
+Session detail embeds each entry's `previous` — the last recorded performance of that movement, strictly before this session. Only entries marked **done** qualify: starting from a template seeds `actual_*` from the prescription, so without that filter a plan opened and abandoned would come back as a result to beat. It is detail-only (the list endpoint leaves it null) and resolves in one `DISTINCT ON` query for the whole session.
+
 Two features the landscape rewards are **deliberately excluded**: the rest timer (not wanted) and the plate calculator. The plate calculator is also structurally wrong for this library — barbell lifts are a small minority of the movements, and `load` is free `Text` by design (`"80% 1RM"`, `"2 plates"`, `"bodyweight"`), so there is no number to calculate from without parsing prose.
 
 ### 5. Cycle (mesocycle) — an ordered sequence of workouts toward a goal

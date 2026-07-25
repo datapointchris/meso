@@ -164,6 +164,58 @@ func TestSession_UpdateMovement_DoneActualsAndSwap(t *testing.T) {
 		patchJSON(t, mux, "/api/v1/sessions/"+session.ID.String()+"/movements/999999", map[string]any{"done": true}).Code)
 }
 
+// Previous actuals are the number to beat on the logging screen: the most recent
+// *performed* result for that movement, strictly before the session being viewed.
+func TestSession_PreviousActuals(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+	squat := createMovement(t, mux, "Back Squat", "exercise")
+	fresh := createMovement(t, mux, "Nordic Curl", "exercise")
+	workout := createWorkoutWithMovements(t, mux, "Leg Day", []map[string]any{
+		{"movement_id": squat, "sets": 5, "reps": "5", "load": "185lb"},
+		{"movement_id": fresh, "sets": 3, "reps": "6"},
+	})
+
+	// logSquat starts a session on a date and optionally records a performed squat.
+	logSquat := func(date, load string, done bool) models.WorkoutSession {
+		s := decodeSession(t, postJSON(t, mux, "/api/v1/sessions", map[string]any{
+			"workout_id": workout.ID, "performed_on": date,
+		}).Body)
+		rr := patchJSON(t, mux, "/api/v1/sessions/"+s.ID.String()+"/movements/"+itoa(s.Movements[0].ID),
+			map[string]any{"done": done, "actual_load": load})
+		require.Equal(t, http.StatusOK, rr.Code)
+		return s
+	}
+
+	earliest := logSquat("2026-07-01", "175lb", true)
+	logSquat("2026-07-08", "185lb", true)
+	// Opened, never performed — its seeded prescription must not count as a result.
+	logSquat("2026-07-12", "999lb", false)
+	today := logSquat("2026-07-15", "190lb", true)
+
+	detail := decodeSession(t, getJSON(t, mux, "/api/v1/sessions/"+today.ID.String()).Body)
+
+	// The most recent performed session wins, and the abandoned 07-12 one is skipped.
+	require.NotNil(t, detail.Movements[0].Previous)
+	assert.Equal(t, "2026-07-08", detail.Movements[0].Previous.PerformedOn)
+	require.NotNil(t, detail.Movements[0].Previous.ActualLoad)
+	assert.Equal(t, "185lb", *detail.Movements[0].Previous.ActualLoad)
+	require.NotNil(t, detail.Movements[0].Previous.ActualSets)
+	assert.Equal(t, 5, *detail.Movements[0].Previous.ActualSets)
+
+	// A movement never performed has no previous.
+	assert.Nil(t, detail.Movements[1].Previous)
+
+	// A session is never its own previous, so the first one ever logged has none.
+	first := decodeSession(t, getJSON(t, mux, "/api/v1/sessions/"+earliest.ID.String()).Body)
+	assert.Nil(t, first.Movements[0].Previous)
+
+	// The list endpoint stays lean — previous is detail-only.
+	var list []models.WorkoutSession
+	require.NoError(t, json.Unmarshal(getJSON(t, mux, "/api/v1/sessions").Body.Bytes(), &list))
+	require.NotEmpty(t, list)
+	assert.Nil(t, list[0].Movements[0].Previous)
+}
+
 func TestSession_Update_Partial(t *testing.T) {
 	mux := buildTestMux(setupTestDB(t))
 	session := decodeSession(t, postJSON(t, mux, "/api/v1/sessions", map[string]any{"performed_on": "2026-07-10"}).Body)
