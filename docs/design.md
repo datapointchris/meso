@@ -136,7 +136,9 @@ The "checkboxes that they are done" + "notes with a particular workout I do on a
 - `SessionMovement` (per-exercise actuals): `session_id`, `movement_id`, `position`, `done: bool` (the checkbox), `actual_sets`, `actual_reps: Text`, `actual_load: Text`, `notes: Text`
   - Seeded from the workout's `WorkoutMovement` rows when a session is started from a template, then edited in place as it's performed.
 
-The logging screen carries the features every strength user rewards (see Competitive landscape): the **previous session's actual weight/reps shown inline** next to each input so I know what to beat; a **plate calculator**; an optional **rest timer** that notifies and survives app-switching (off for supersets/circuits); and **set-type tags** (warmup / AMRAP / drop / failure). When a movement is swapped for an alternate mid-session, its target **carries over** to the substitute. This is the `ActiveSessionView` — the single most-used, most mobile-critical screen.
+The logging screen carries the features every strength user rewards (see Competitive landscape): the **previous session's actual weight/reps shown inline** next to each input so I know what to beat; and **set-type tags** (warmup / AMRAP / drop / failure). When a movement is swapped for an alternate mid-session, its target **carries over** to the substitute. This is the `ActiveSessionView` — the single most-used, most mobile-critical screen.
+
+Two features the landscape rewards are **deliberately excluded**: the rest timer (not wanted) and the plate calculator. The plate calculator is also structurally wrong for this library — barbell lifts are a small minority of it, and `load` is free `Text` by design, so no number is there to calculate from without parsing prose.
 
 ### 5. Cycle (mesocycle) — an ordered sequence of workouts toward a goal
 
