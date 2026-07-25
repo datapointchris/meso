@@ -32,7 +32,7 @@ docker compose -f docker-compose.dev.yml up --build
 docker compose -f docker-compose.dev.yml run --rm --entrypoint ./meso-seed api
 ```
 
-Or run pieces directly: the API with `cd api && go run .` (needs Postgres on `5459`), the SPA with `npm run dev` (Vite on `3001`, proxies `/api` → `8088`), and the CLI with `cd cli && go run . auth status`.
+Or run pieces directly: the API with `cd api && go run .` (needs Postgres on `5459`), the SPA with `cd web && npm run dev` (Vite on `3001`, proxies `/api` → `8088`), and the CLI with `cd cli && go run . auth status`.
 
 ## Origin
 

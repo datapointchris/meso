@@ -1,0 +1,8 @@
+# Build context is this directory (web/), so the sibling Go trees are already
+# outside it — only web-local noise needs excluding. node_modules is rebuilt by
+# `npm ci`; dist is rebuilt by `npm run build`.
+node_modules
+dist
+coverage
+*.md
+.DS_Store

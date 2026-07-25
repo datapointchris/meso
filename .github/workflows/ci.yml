@@ -14,6 +14,9 @@ jobs:
   frontend:
     name: Lint, Typecheck & Build (web)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
     steps:
       - uses: actions/checkout@v7
       - name: Set up Node.js
@@ -21,6 +24,7 @@ jobs:
         with:
           node-version: '26'
           cache: 'npm'
+          cache-dependency-path: web/package-lock.json
       - name: Install dependencies
         run: npm ci
       - name: Lint
@@ -33,6 +37,9 @@ jobs:
   unit-tests:
     name: Frontend Unit Tests
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
     steps:
       - uses: actions/checkout@v7
       - name: Set up Node.js
@@ -40,6 +47,7 @@ jobs:
         with:
           node-version: '26'
           cache: 'npm'
+          cache-dependency-path: web/package-lock.json
       - name: Install dependencies
         run: npm ci
       - name: Run unit tests
@@ -111,8 +119,8 @@ jobs:
       matrix:
         include:
           - service: web
-            dockerfile: Dockerfile.web
-            context: .
+            dockerfile: web/Dockerfile
+            context: web
           - service: api
             dockerfile: api/Dockerfile
             context: api

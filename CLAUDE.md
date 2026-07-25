@@ -16,7 +16,7 @@ Go CLI + Vue, Authelia edge auth, registry-pull deploy.
 | --------- | ------ | -------------------------------------------------------------------------------- |
 | API       | `api/` | Go 1.26, `net/http` ServeMux, `pgx/v5`, goose migrations at startup, `slog` JSON |
 | CLI       | `cli/` | Go/cobra thin REST client over the API — the agent + power-user surface          |
-| Web       | `src/` | Vue 3 + TypeScript + Vite SPA, Authelia cookie SSO (no login page in-app)        |
+| Web       | `web/` | Vue 3 + TypeScript + Vite SPA, Authelia cookie SSO (no login page in-app)        |
 
 The CLI's natural sibling is the API (shared REST contract), not the Vue frontend
 — that is why the CLI is Go, not TS.
@@ -54,7 +54,7 @@ docker compose -f docker-compose.dev.yml run --rm --entrypoint ./meso-seed api  
 # Or run pieces directly:
 cd api && DATABASE_URL=postgres://meso:meso@localhost:5459/meso?sslmode=disable go run .   # applies migrations, serves :8088
 cd api && go run ./cmd/seed        # FK-backbone lookups + muscles (idempotent)
-npm run dev                        # Vite :3001, proxies /api → :8088
+cd web && npm run dev              # Vite :3001, proxies /api → :8088
 cd cli && go run . movements list  # needs `meso auth login` against Authelia
 ```
 

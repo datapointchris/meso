@@ -65,7 +65,7 @@ repos:
       - id: eslint
         name: eslint
         description: Run ESLint on Vue/TS files
-        entry: npm run lint:fix
+        entry: bash -c 'cd web && npm run lint:fix'
         language: system
         pass_filenames: false
         files: '\.(vue|ts|mts)$'
@@ -73,7 +73,7 @@ repos:
       - id: prettier
         name: prettier
         description: Run Prettier on frontend files
-        entry: npm run format
+        entry: bash -c 'cd web && npm run format'
         language: system
         pass_filenames: false
         files: '\.(vue|ts|mts|css|scss|json)$'
@@ -81,7 +81,7 @@ repos:
       - id: vitest
         name: vitest unit
         description: Run Vitest unit and component tests
-        entry: npm run test
+        entry: bash -c 'cd web && npm run test'
         language: system
         pass_filenames: false
         files: '\.(vue|ts|mts)$'

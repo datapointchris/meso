@@ -16,7 +16,7 @@ RUN npm run build
 FROM caddy:2-alpine
 
 COPY --from=builder /app/dist /srv/dist
-COPY deploy/Caddyfile.docker /etc/caddy/Caddyfile
+COPY Caddyfile.docker /etc/caddy/Caddyfile
 
 EXPOSE 80
 
