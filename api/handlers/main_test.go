@@ -22,7 +22,6 @@ import (
 
 	"meso/api/database"
 	"meso/api/handlers"
-	"meso/api/repository"
 )
 
 // sharedDatabaseURL points at the Postgres the whole package's tests run against.
@@ -173,77 +172,11 @@ func setupTestDB(t *testing.T) *database.TestPool {
 	return &database.TestPool{Pool: pool}
 }
 
+// buildTestMux builds the real production router against the test's throwaway
+// Postgres. It delegates to handlers.NewRouter so the tests exercise the exact route
+// table main() serves — the two can't drift.
 func buildTestMux(pool *database.TestPool) *http.ServeMux {
-	movementH := handlers.NewMovementHandler(repository.NewMovementRepo(pool.Pool))
-	workoutH := handlers.NewWorkoutHandler(repository.NewWorkoutRepo(pool.Pool))
-	sessionRepo := repository.NewSessionRepo(pool.Pool)
-	sessionH := handlers.NewSessionHandler(sessionRepo)
-	measurementRepo := repository.NewMeasurementRepo(pool.Pool)
-	measurementH := handlers.NewMeasurementHandler(measurementRepo)
-	statsH := handlers.NewStatsHandler(repository.NewStatsRepo(pool.Pool))
-	logRepo := repository.NewLogRepo(pool.Pool)
-	logH := handlers.NewLogHandler(logRepo)
-	cycleRepo := repository.NewCycleRepo(pool.Pool)
-	cycleH := handlers.NewCycleHandler(cycleRepo)
-	reviewH := handlers.NewReviewHandler(
-		repository.NewReviewRepo(sessionRepo, measurementRepo, logRepo, cycleRepo))
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/v1/movements", movementH.List)
-	mux.HandleFunc("POST /api/v1/movements", movementH.Create)
-	mux.HandleFunc("GET /api/v1/movements/{id}", movementH.Get)
-	mux.HandleFunc("PUT /api/v1/movements/{id}", movementH.Update)
-	mux.HandleFunc("DELETE /api/v1/movements/{id}", movementH.Delete)
-	mux.HandleFunc("POST /api/v1/movements/{id}/related", movementH.AddRelated)
-	mux.HandleFunc("DELETE /api/v1/movements/{id}/related/{rid}", movementH.RemoveRelated)
-	mux.HandleFunc("GET /api/v1/muscles", movementH.ListMuscles)
-
-	mux.HandleFunc("GET /api/v1/workouts", workoutH.List)
-	mux.HandleFunc("POST /api/v1/workouts", workoutH.Create)
-	mux.HandleFunc("GET /api/v1/workouts/{id}", workoutH.Get)
-	mux.HandleFunc("PUT /api/v1/workouts/{id}", workoutH.Update)
-	mux.HandleFunc("DELETE /api/v1/workouts/{id}", workoutH.Delete)
-	mux.HandleFunc("POST /api/v1/workouts/{id}/movements", workoutH.AddMovement)
-	mux.HandleFunc("PATCH /api/v1/workouts/{id}/movements", workoutH.ReorderMovements)
-	mux.HandleFunc("PATCH /api/v1/workouts/{id}/movements/{entryID}", workoutH.UpdateMovement)
-	mux.HandleFunc("DELETE /api/v1/workouts/{id}/movements/{entryID}", workoutH.RemoveMovement)
-
-	mux.HandleFunc("GET /api/v1/sessions", sessionH.List)
-	mux.HandleFunc("POST /api/v1/sessions", sessionH.Create)
-	mux.HandleFunc("GET /api/v1/sessions/{id}", sessionH.Get)
-	mux.HandleFunc("PUT /api/v1/sessions/{id}", sessionH.Update)
-	mux.HandleFunc("DELETE /api/v1/sessions/{id}", sessionH.Delete)
-	mux.HandleFunc("PATCH /api/v1/sessions/{id}/movements/{entryID}", sessionH.UpdateMovement)
-
-	mux.HandleFunc("GET /api/v1/metrics", measurementH.ListMetrics)
-	mux.HandleFunc("POST /api/v1/metrics", measurementH.DefineMetric)
-	mux.HandleFunc("DELETE /api/v1/metrics/{name}", measurementH.DeleteMetric)
-	mux.HandleFunc("GET /api/v1/metrics/{name}/trend", measurementH.Trend)
-	mux.HandleFunc("GET /api/v1/measurements", measurementH.List)
-	mux.HandleFunc("POST /api/v1/measurements", measurementH.Record)
-	mux.HandleFunc("GET /api/v1/measurements/{id}", measurementH.Get)
-	mux.HandleFunc("PUT /api/v1/measurements/{id}", measurementH.Update)
-	mux.HandleFunc("DELETE /api/v1/measurements/{id}", measurementH.Delete)
-	mux.HandleFunc("GET /api/v1/stats", statsH.Summary)
-
-	mux.HandleFunc("GET /api/v1/log", logH.List)
-	mux.HandleFunc("POST /api/v1/log", logH.Create)
-	mux.HandleFunc("GET /api/v1/log/{id}", logH.Get)
-	mux.HandleFunc("PUT /api/v1/log/{id}", logH.Update)
-	mux.HandleFunc("DELETE /api/v1/log/{id}", logH.Delete)
-
-	mux.HandleFunc("GET /api/v1/cycles", cycleH.List)
-	mux.HandleFunc("POST /api/v1/cycles", cycleH.Create)
-	mux.HandleFunc("GET /api/v1/cycles/{id}", cycleH.Get)
-	mux.HandleFunc("PUT /api/v1/cycles/{id}", cycleH.Update)
-	mux.HandleFunc("DELETE /api/v1/cycles/{id}", cycleH.Delete)
-	mux.HandleFunc("POST /api/v1/cycles/{id}/workouts", cycleH.AddWorkout)
-	mux.HandleFunc("PATCH /api/v1/cycles/{id}/workouts", cycleH.ReorderWorkouts)
-	mux.HandleFunc("PATCH /api/v1/cycles/{id}/workouts/{entryID}", cycleH.UpdateWorkout)
-	mux.HandleFunc("DELETE /api/v1/cycles/{id}/workouts/{entryID}", cycleH.RemoveWorkout)
-
-	mux.HandleFunc("GET /api/v1/review", reviewH.Review)
-	return mux
+	return handlers.NewRouter(pool.Pool)
 }
 
 func postJSON(t *testing.T, mux *http.ServeMux, path string, body any) *httptest.ResponseRecorder {

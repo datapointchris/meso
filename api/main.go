@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,7 +10,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 
@@ -19,7 +17,6 @@ import (
 	"meso/api/database"
 	"meso/api/handlers"
 	"meso/api/middleware"
-	"meso/api/repository"
 )
 
 func main() {
@@ -56,7 +53,7 @@ func main() {
 	defer pool.Close()
 	slog.Info("connected to database")
 
-	var handler http.Handler = setupRoutes(pool)
+	var handler http.Handler = handlers.NewRouter(pool)
 
 	if cfg.Env == "development" {
 		handler = middleware.DevCORS(handler)
@@ -92,120 +89,4 @@ func main() {
 	} else {
 		slog.Info("stopped gracefully")
 	}
-}
-
-func setupRoutes(pool *pgxpool.Pool) *http.ServeMux {
-	movementRepo := repository.NewMovementRepo(pool)
-	movementH := handlers.NewMovementHandler(movementRepo)
-	workoutRepo := repository.NewWorkoutRepo(pool)
-	workoutH := handlers.NewWorkoutHandler(workoutRepo)
-	sessionRepo := repository.NewSessionRepo(pool)
-	sessionH := handlers.NewSessionHandler(sessionRepo)
-	measurementRepo := repository.NewMeasurementRepo(pool)
-	measurementH := handlers.NewMeasurementHandler(measurementRepo)
-	statsH := handlers.NewStatsHandler(repository.NewStatsRepo(pool))
-	logRepo := repository.NewLogRepo(pool)
-	logH := handlers.NewLogHandler(logRepo)
-	cycleRepo := repository.NewCycleRepo(pool)
-	cycleH := handlers.NewCycleHandler(cycleRepo)
-	reviewH := handlers.NewReviewHandler(
-		repository.NewReviewRepo(sessionRepo, measurementRepo, logRepo, cycleRepo))
-
-	mux := http.NewServeMux()
-
-	// Health — unauthenticated (auth middleware exempts /health).
-	// Returns 503 on DB failure so docker/k8s healthchecks detect outages.
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if err := pool.Ping(r.Context()); err != nil {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "reason": err.Error()})
-			return
-		}
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-	})
-
-	mux.HandleFunc("GET /api/v1/", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"message": "meso API", "version": "0.1.0"})
-	})
-
-	// Movements — the unified exercise/stretch/pose library (Phase 1).
-	mux.HandleFunc("GET /api/v1/movements", movementH.List)
-	mux.HandleFunc("POST /api/v1/movements", movementH.Create)
-	mux.HandleFunc("GET /api/v1/movements/{id}", movementH.Get)
-	mux.HandleFunc("PUT /api/v1/movements/{id}", movementH.Update)
-	mux.HandleFunc("DELETE /api/v1/movements/{id}", movementH.Delete)
-
-	// Movement relationships — the self-ref alternate/antagonist join (Phase 2).
-	mux.HandleFunc("POST /api/v1/movements/{id}/related", movementH.AddRelated)
-	mux.HandleFunc("DELETE /api/v1/movements/{id}/related/{rid}", movementH.RemoveRelated)
-
-	// Muscle lookup — the tagging vocabulary the UI offers.
-	mux.HandleFunc("GET /api/v1/muscles", movementH.ListMuscles)
-
-	// Workouts — ordered, themed compositions of movements (Phase 2).
-	mux.HandleFunc("GET /api/v1/workouts", workoutH.List)
-	mux.HandleFunc("POST /api/v1/workouts", workoutH.Create)
-	mux.HandleFunc("GET /api/v1/workouts/{id}", workoutH.Get)
-	mux.HandleFunc("PUT /api/v1/workouts/{id}", workoutH.Update)
-	mux.HandleFunc("DELETE /api/v1/workouts/{id}", workoutH.Delete)
-
-	// Workout composition — the ordered movement list. PATCH without an entry id
-	// reorders; PATCH with one edits/swaps that entry.
-	mux.HandleFunc("POST /api/v1/workouts/{id}/movements", workoutH.AddMovement)
-	mux.HandleFunc("PATCH /api/v1/workouts/{id}/movements", workoutH.ReorderMovements)
-	mux.HandleFunc("PATCH /api/v1/workouts/{id}/movements/{entryID}", workoutH.UpdateMovement)
-	mux.HandleFunc("DELETE /api/v1/workouts/{id}/movements/{entryID}", workoutH.RemoveMovement)
-
-	// Sessions — workouts performed on a date, the logged instance (Phase 3).
-	// POST with a workout_id copies that template's movements in; the sub-resource
-	// PATCH checks off a set / records actuals / swaps an entry mid-session.
-	mux.HandleFunc("GET /api/v1/sessions", sessionH.List)
-	mux.HandleFunc("POST /api/v1/sessions", sessionH.Create)
-	mux.HandleFunc("GET /api/v1/sessions/{id}", sessionH.Get)
-	mux.HandleFunc("PUT /api/v1/sessions/{id}", sessionH.Update)
-	mux.HandleFunc("DELETE /api/v1/sessions/{id}", sessionH.Delete)
-	mux.HandleFunc("PATCH /api/v1/sessions/{id}/movements/{entryID}", sessionH.UpdateMovement)
-
-	// Metrics + measurements — the tracked stats time series (Phase 4). Metrics are
-	// the definition vocabulary; measurements are dated readings against them; the
-	// {name}/trend sub-resource returns one metric's series plus its summary numbers.
-	mux.HandleFunc("GET /api/v1/metrics", measurementH.ListMetrics)
-	mux.HandleFunc("POST /api/v1/metrics", measurementH.DefineMetric)
-	mux.HandleFunc("DELETE /api/v1/metrics/{name}", measurementH.DeleteMetric)
-	mux.HandleFunc("GET /api/v1/metrics/{name}/trend", measurementH.Trend)
-	mux.HandleFunc("GET /api/v1/measurements", measurementH.List)
-	mux.HandleFunc("POST /api/v1/measurements", measurementH.Record)
-	mux.HandleFunc("GET /api/v1/measurements/{id}", measurementH.Get)
-	mux.HandleFunc("PUT /api/v1/measurements/{id}", measurementH.Update)
-	mux.HandleFunc("DELETE /api/v1/measurements/{id}", measurementH.Delete)
-
-	// Stats — the aggregated stats-page payload in one read (Phase 4).
-	mux.HandleFunc("GET /api/v1/stats", statsH.Summary)
-
-	// Fitness log — the dated training journal, `meso review`'s substrate (Phase 5).
-	mux.HandleFunc("GET /api/v1/log", logH.List)
-	mux.HandleFunc("POST /api/v1/log", logH.Create)
-	mux.HandleFunc("GET /api/v1/log/{id}", logH.Get)
-	mux.HandleFunc("PUT /api/v1/log/{id}", logH.Update)
-	mux.HandleFunc("DELETE /api/v1/log/{id}", logH.Delete)
-
-	// Cycles — mesocycles: ordered sequences of workouts toward a goal (Phase 6).
-	// The sub-resource PATCH without an entry id reorders; with one it edits/swaps.
-	mux.HandleFunc("GET /api/v1/cycles", cycleH.List)
-	mux.HandleFunc("POST /api/v1/cycles", cycleH.Create)
-	mux.HandleFunc("GET /api/v1/cycles/{id}", cycleH.Get)
-	mux.HandleFunc("PUT /api/v1/cycles/{id}", cycleH.Update)
-	mux.HandleFunc("DELETE /api/v1/cycles/{id}", cycleH.Delete)
-	mux.HandleFunc("POST /api/v1/cycles/{id}/workouts", cycleH.AddWorkout)
-	mux.HandleFunc("PATCH /api/v1/cycles/{id}/workouts", cycleH.ReorderWorkouts)
-	mux.HandleFunc("PATCH /api/v1/cycles/{id}/workouts/{entryID}", cycleH.UpdateWorkout)
-	mux.HandleFunc("DELETE /api/v1/cycles/{id}/workouts/{entryID}", cycleH.RemoveWorkout)
-
-	// Review — the capstone read: active cycles + recent sessions/measurements/log
-	// in one payload, for Claude to draft the next cycle from real history (Phase 6).
-	mux.HandleFunc("GET /api/v1/review", reviewH.Review)
-
-	return mux
 }
