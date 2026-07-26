@@ -115,6 +115,8 @@ Exercises, stretches, and yoga poses are "the same concept." That's the design: 
 
 **The how-to fields are text, deliberately — no videos.** The need is "I forget exactly what a prisoner squat is, how to do it, what to watch for, and what commonly goes wrong." So a movement carries a written how-to, form cues, and common faults — enough to reconstruct the movement or explain a sequence I've built, nothing more. No instructional video, no GIF, no motivational framing (per the design philosophy). A prisoner-squat entry reads: _how-to_ — hands laced behind the head, elbows wide, squat to depth keeping the chest up; _form cues_ — elbows stay back, knees track over toes, weight mid-foot; _common faults_ — elbows collapse forward, chest drops, heels lift. That's the whole ambition of the field.
 
+**Author them as markdown, not as one run-on paragraph.** These are read on a phone, mid-set, and a how-to that packs execution, tempo, and progression into a single block reads as a wall no amount of typography can rescue. The seam is almost always the same: what to do, then why it works or how it differs from the movement next to it — two paragraphs. Where the prose enumerates a protocol (contract / relax / take up slack; a balance progression), make it a list.
+
 ### 2. Movement relationships — alternates, antagonists (self-ref)
 
 Alternates and antagonist exercises are wanted. Modeled as a directional self-referential join, `movement_relationships(movement_id, related_movement_id, relationship_kind)` where kind ∈ `alternate` | `antagonist` | `progression` | `regression` | `see_also`. (Here `progression`/`regression` are the standard strength terms for a harder/easier _variant_ of a movement — unrelated to the `Cycle` entity.)
