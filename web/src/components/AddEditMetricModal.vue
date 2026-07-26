@@ -30,6 +30,7 @@ const form = reactive({
   unit: props.metric?.unit ?? '',
   direction: (props.metric?.direction ?? 'higher_better') as MetricDirection,
   category: (props.metric?.category ?? 'strength') as MetricCategory,
+  howToMeasure: props.metric?.how_to_measure ?? '',
 })
 
 // On a new metric the key tracks the label until the user edits the key themselves,
@@ -70,6 +71,7 @@ async function save() {
           unit: form.unit.trim(),
           direction: form.direction,
           category: form.category,
+          how_to_measure: form.howToMeasure.trim(),
         })
       : await metricsApi.define({
           name: form.name.trim(),
@@ -77,6 +79,7 @@ async function save() {
           unit: form.unit.trim(),
           direction: form.direction,
           category: form.category,
+          how_to_measure: form.howToMeasure.trim(),
         })
     emit('saved', saved)
   } catch (e) {
@@ -184,6 +187,18 @@ async function remove() {
             <option value="higher_better">Higher is better</option>
             <option value="lower_better">Lower is better</option>
           </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">
+            How to measure
+            <em>(what it is and how to take the reading)</em>
+          </span>
+          <textarea
+            v-model="form.howToMeasure"
+            class="field__input field__area"
+            rows="4"
+            placeholder="Single-leg heel raises to failure on flat ground, knee straight, full range. Count reps." />
         </label>
 
         <p
@@ -301,6 +316,10 @@ async function remove() {
   &:disabled {
     opacity: 0.6;
   }
+}
+
+.field__area {
+  resize: vertical;
 }
 
 .modal__error {

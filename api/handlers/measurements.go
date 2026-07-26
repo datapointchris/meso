@@ -27,6 +27,22 @@ func (h *MeasurementHandler) ListMetrics(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, metrics)
 }
 
+// GetMetric handles GET /api/v1/metrics/{name} — one definition, including the
+// how-to-measure protocol that the list view has no room for.
+func (h *MeasurementHandler) GetMetric(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	metric, err := h.repo.GetMetric(r.Context(), name)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeNotFound(w, fmt.Sprintf("metric %q not found", name))
+			return
+		}
+		writeInternalError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, metric)
+}
+
 // DefineMetric handles POST /api/v1/metrics — define a metric. A duplicate name is
 // 409; an out-of-range direction/category (CHECK) is 400.
 func (h *MeasurementHandler) DefineMetric(w http.ResponseWriter, r *http.Request) {
@@ -44,8 +60,8 @@ func (h *MeasurementHandler) DefineMetric(w http.ResponseWriter, r *http.Request
 }
 
 // UpdateMetric handles PUT /api/v1/metrics/{name} — a partial update of a
-// definition's label, unit, direction, or category. The name is the natural key and
-// is not updatable; an unknown name is 404.
+// definition's label, unit, direction, category, or how-to-measure. The name is the
+// natural key and is not updatable; an unknown name is 404.
 func (h *MeasurementHandler) UpdateMetric(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 	var in models.MetricDefinitionUpdate

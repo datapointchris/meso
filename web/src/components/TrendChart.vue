@@ -9,8 +9,12 @@ import { changeVerdict, formatValue, type MetricTrend } from '@/api/measurements
 // The card renders for a defined-but-unmeasured metric too — no chart, a "record the
 // first reading" prompt instead. That is what makes the stats page a list of what
 // *can* be tracked rather than only what already has history.
+//
+// The name opens the about-modal, not the editor: seeing a name you don't recognize
+// raises "what is this and how do I measure it", never "what are its settings". Edit
+// lives one tap deeper, inside the answer.
 const props = defineProps<{ trend: MetricTrend }>()
-const emit = defineEmits<{ record: []; edit: []; readings: [] }>()
+const emit = defineEmits<{ record: []; about: []; readings: [] }>()
 
 // A fixed viewBox with default (aspect-preserving) scaling keeps the dots round while
 // the SVG stretches to the card width via width:100%.
@@ -60,8 +64,8 @@ const changeLabel = computed(() => {
       <button
         class="trend__name"
         type="button"
-        :aria-label="`Edit ${trend.label}`"
-        @click="emit('edit')">
+        :aria-label="`About ${trend.label}`"
+        @click="emit('about')">
         {{ trend.label }}
       </button>
       <div class="trend__summary">

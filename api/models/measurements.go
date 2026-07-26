@@ -11,34 +11,42 @@ import (
 // 5k both improve, with opposite signs), and a coarse category for grouping. It is
 // the lookup a Measurement references. Name is the slug-shaped natural key every
 // other surface addresses it by; Label is what a human reads.
+//
+// HowToMeasure is the protocol that produces the number, as markdown. Without it a
+// metric is a label over a series nobody can reproduce, and a reading taken a
+// different way silently ruins the trend.
 type MetricDefinition struct {
-	CreatedAt time.Time `json:"created_at"`
-	Name      string    `json:"name"`
-	Label     string    `json:"label"`
-	Unit      string    `json:"unit"`
-	Direction string    `json:"direction"`
-	Category  string    `json:"category"`
+	CreatedAt    time.Time `json:"created_at"`
+	Name         string    `json:"name"`
+	Label        string    `json:"label"`
+	Unit         string    `json:"unit"`
+	Direction    string    `json:"direction"`
+	Category     string    `json:"category"`
+	HowToMeasure string    `json:"how_to_measure"`
 }
 
 // MetricDefinitionCreate defines a metric. Direction ∈ higher_better|lower_better,
 // category ∈ strength|cardio|mobility|body — the DB CHECKs enforce both, so an
-// unknown value is a 400, not a silent write. An empty Label is derived from Name.
+// unknown value is a 400, not a silent write. An empty Label is derived from Name;
+// an empty HowToMeasure stays empty, since there is nothing to derive a protocol from.
 type MetricDefinitionCreate struct {
-	Name      string `json:"name"`
-	Label     string `json:"label"`
-	Unit      string `json:"unit"`
-	Direction string `json:"direction"`
-	Category  string `json:"category"`
+	Name         string `json:"name"`
+	Label        string `json:"label"`
+	Unit         string `json:"unit"`
+	Direction    string `json:"direction"`
+	Category     string `json:"category"`
+	HowToMeasure string `json:"how_to_measure"`
 }
 
 // MetricDefinitionUpdate is a partial update of a definition: a nil field is left
 // unchanged. Name is the natural key and is fixed — every measurement, cycle target,
 // and CLI invocation addresses the metric by it, so renaming is delete + redefine.
 type MetricDefinitionUpdate struct {
-	Label     *string `json:"label"`
-	Unit      *string `json:"unit"`
-	Direction *string `json:"direction"`
-	Category  *string `json:"category"`
+	Label        *string `json:"label"`
+	Unit         *string `json:"unit"`
+	Direction    *string `json:"direction"`
+	Category     *string `json:"category"`
+	HowToMeasure *string `json:"how_to_measure"`
 }
 
 // DeriveMetricLabel turns a slug-shaped metric name into a display label:
@@ -111,16 +119,17 @@ type TrendPoint struct {
 // color the change as good or bad without re-deriving the sign. Points is empty for
 // a defined-but-unmeasured metric.
 type MetricTrend struct {
-	Metric    string       `json:"metric"`
-	Label     string       `json:"label"`
-	Unit      string       `json:"unit"`
-	Direction string       `json:"direction"`
-	Category  string       `json:"category"`
-	Points    []TrendPoint `json:"points"`
-	First     *float64     `json:"first"`
-	Latest    *float64     `json:"latest"`
-	Change    *float64     `json:"change"`
-	Count     int          `json:"count"`
+	Metric       string       `json:"metric"`
+	Label        string       `json:"label"`
+	Unit         string       `json:"unit"`
+	Direction    string       `json:"direction"`
+	Category     string       `json:"category"`
+	HowToMeasure string       `json:"how_to_measure"`
+	Points       []TrendPoint `json:"points"`
+	First        *float64     `json:"first"`
+	Latest       *float64     `json:"latest"`
+	Change       *float64     `json:"change"`
+	Count        int          `json:"count"`
 }
 
 // KindCount is one bar of the movements-by-kind mix (exercise|stretch|yoga_pose).

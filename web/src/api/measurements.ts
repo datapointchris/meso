@@ -8,12 +8,15 @@ export type MetricCategory = 'strength' | 'cardio' | 'mobility' | 'body'
 // MetricDefinition names a tracked metric and carries the metadata a chart needs:
 // its unit, which direction is improvement, and a category for grouping. `name` is
 // the slug-shaped key the API and CLI address it by; `label` is what the UI shows.
+// `how_to_measure` is the protocol that produces the number, as markdown — empty
+// means undocumented, which the about-modal says out loud rather than hiding.
 export interface MetricDefinition {
   name: string
   label: string
   unit: string
   direction: MetricDirection
   category: MetricCategory
+  how_to_measure: string
   created_at: string
 }
 
@@ -24,6 +27,7 @@ export interface MetricDefinitionCreate {
   unit: string
   direction: MetricDirection
   category: MetricCategory
+  how_to_measure?: string
 }
 
 // A partial update — an omitted field is left unchanged. The name is immutable.
@@ -32,6 +36,7 @@ export interface MetricDefinitionUpdate {
   unit?: string
   direction?: MetricDirection
   category?: MetricCategory
+  how_to_measure?: string
 }
 
 // Measurement is one dated reading of a metric — a point in the time series.
@@ -73,6 +78,7 @@ export interface MetricTrend {
   unit: string
   direction: MetricDirection
   category: MetricCategory
+  how_to_measure: string
   points: TrendPoint[]
   first: number | null
   latest: number | null
@@ -126,6 +132,7 @@ function queryString(filter: MeasurementFilter): string {
 
 export const metricsApi = {
   list: () => http.get<MetricDefinition[]>('/metrics'),
+  get: (name: string) => http.get<MetricDefinition>(`/metrics/${encodeURIComponent(name)}`),
   define: (body: MetricDefinitionCreate) => http.post<MetricDefinition>('/metrics', body),
   update: (name: string, body: MetricDefinitionUpdate) => http.put<MetricDefinition>(`/metrics/${encodeURIComponent(name)}`, body),
   remove: (name: string) => http.del(`/metrics/${encodeURIComponent(name)}`),

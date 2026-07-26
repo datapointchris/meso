@@ -102,6 +102,63 @@ func TestMetric_ExplicitLabelAndUpdate(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, missing.Code)
 }
 
+// A metric's name says what to call the number, never what it is or how to produce
+// it. The protocol has to survive define, come back on the single-metric GET (the
+// list is a table with no room for a paragraph), and ride along on the stats payload
+// so the app can explain a stat without a second request per card.
+func TestMetric_HowToMeasure(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+
+	const protocol = "Single-leg heel raises to failure on flat ground.\n\nKnee straight, full range."
+	rr := postJSON(t, mux, "/api/v1/metrics", map[string]any{
+		"name": "heel-raise-capacity-right", "unit": "reps",
+		"direction": "higher_better", "category": "mobility",
+		"how_to_measure": protocol,
+	})
+	require.Equal(t, http.StatusCreated, rr.Code)
+
+	got := getJSON(t, mux, "/api/v1/metrics/heel-raise-capacity-right")
+	require.Equal(t, http.StatusOK, got.Code)
+	var definition models.MetricDefinition
+	require.NoError(t, json.Unmarshal(got.Body.Bytes(), &definition))
+	assert.Equal(t, protocol, definition.HowToMeasure)
+
+	assert.Equal(t, http.StatusNotFound, getJSON(t, mux, "/api/v1/metrics/nope").Code)
+
+	// Undocumented is a real state — empty, never derived from the name the way a
+	// label is, because there is nothing in "toe-reach" to derive a protocol from.
+	defineMetric(t, mux, "toe-reach", "cm", "higher_better", "mobility")
+	bare := getJSON(t, mux, "/api/v1/metrics/toe-reach")
+	require.NoError(t, json.Unmarshal(bare.Body.Bytes(), &definition))
+	assert.Equal(t, "", definition.HowToMeasure)
+
+	// Editable after the fact, and a partial update leaves it alone.
+	const revised = "Single-leg heel raises to failure, knee straight."
+	updated := putJSON(t, mux, "/api/v1/metrics/heel-raise-capacity-right",
+		map[string]any{"how_to_measure": revised})
+	require.Equal(t, http.StatusOK, updated.Code)
+	require.NoError(t, json.Unmarshal(updated.Body.Bytes(), &definition))
+	assert.Equal(t, revised, definition.HowToMeasure)
+
+	relabeled := putJSON(t, mux, "/api/v1/metrics/heel-raise-capacity-right",
+		map[string]any{"label": "Heel Raise Capacity (R)"})
+	require.NoError(t, json.Unmarshal(relabeled.Body.Bytes(), &definition))
+	assert.Equal(t, revised, definition.HowToMeasure)
+
+	// The stats payload carries it, so tapping a card explains itself offline of a
+	// second fetch — including for the metric that has no readings at all.
+	stats := getJSON(t, mux, "/api/v1/stats")
+	require.Equal(t, http.StatusOK, stats.Code)
+	var summary models.StatsSummary
+	require.NoError(t, json.Unmarshal(stats.Body.Bytes(), &summary))
+	byName := map[string]models.MetricTrend{}
+	for _, trend := range summary.Metrics {
+		byName[trend.Metric] = trend
+	}
+	assert.Equal(t, revised, byName["heel-raise-capacity-right"].HowToMeasure)
+	assert.Equal(t, "", byName["toe-reach"].HowToMeasure)
+}
+
 func TestMeasurement_RecordListFilterUpdateDelete(t *testing.T) {
 	mux := buildTestMux(setupTestDB(t))
 	defineMetric(t, mux, "deadlift-working-weight", "lb", "higher_better", "strength")

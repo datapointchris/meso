@@ -123,6 +123,41 @@ func TestPrintMetricsTable(t *testing.T) {
 	}
 }
 
+func TestPrintMetricDetail(t *testing.T) {
+	var documented bytes.Buffer
+	printMetricDetail(&documented, api.MetricDefinition{
+		Name: "heel-raise-capacity-right", Label: "Heel Raise Capacity Right",
+		Unit: "reps", Direction: "higher_better", Category: "mobility",
+		HowToMeasure: "Single-leg heel raises to failure on flat ground.",
+	})
+	out := documented.String()
+	for _, want := range []string{
+		"Heel Raise Capacity Right", "heel-raise-capacity-right", "reps",
+		"higher_better", "mobility", "How to measure",
+		"Single-leg heel raises to failure on flat ground.",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("metric detail missing %q:\n%s", want, out)
+		}
+	}
+
+	// An undocumented metric names the gap and the command that closes it — a blank
+	// section would read as the protocol failing to load rather than not existing.
+	var bare bytes.Buffer
+	printMetricDetail(&bare, api.MetricDefinition{
+		Name: "toe-reach", Label: "Toe Reach", Unit: "cm",
+		Direction: "higher_better", Category: "mobility",
+	})
+	for _, want := range []string{"No protocol recorded", "meso metrics edit toe-reach --how-to-measure"} {
+		if !strings.Contains(bare.String(), want) {
+			t.Errorf("undocumented metric missing %q:\n%s", want, bare.String())
+		}
+	}
+	if strings.Contains(bare.String(), "How to measure") {
+		t.Errorf("undocumented metric should not print an empty section:\n%s", bare.String())
+	}
+}
+
 func TestPrintStats(t *testing.T) {
 	var buf bytes.Buffer
 	printStats(&buf, api.Stats{

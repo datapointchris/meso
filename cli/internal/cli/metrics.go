@@ -21,6 +21,7 @@ func newMetricsCommand() *cobra.Command {
 	}
 	cmd.AddCommand(
 		newMetricsListCommand(),
+		newMetricsShowCommand(),
 		newMetricsDefineCommand(),
 		newMetricsEditCommand(),
 		newMetricsDeleteCommand(),
@@ -28,19 +29,50 @@ func newMetricsCommand() *cobra.Command {
 	return cmd
 }
 
+func newMetricsShowCommand() *cobra.Command {
+	var asJSON bool
+	cmd := &cobra.Command{
+		Use:   "show <name>",
+		Short: "Show a metric's full definition, including how to measure it",
+		Long: "The list is a table and a measurement protocol is a paragraph, so this is where\n" +
+			"the how-to-measure lives. Read it before recording a reading — the series is\n" +
+			"only comparable if every reading was taken the same way.",
+		Example: "  meso metrics show heel-raise-capacity-right",
+		Args:    usageArgs(cobra.ExactArgs(1)),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := newAPIClient(cmd.Context())
+			if err != nil {
+				return handleAPIError(err)
+			}
+			metric, err := client.GetMetric(cmd.Context(), args[0])
+			if err != nil {
+				return handleAPIError(err)
+			}
+			if asJSON {
+				return encodeJSON(cmd.OutOrStdout(), metric)
+			}
+			printMetricDetail(cmd.OutOrStdout(), metric)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the metric as JSON to stdout")
+	return cmd
+}
+
 func newMetricsEditCommand() *cobra.Command {
 	var (
-		label, unit, direction, category string
-		asJSON                           bool
+		label, unit, direction, category, howToMeasure string
+		asJSON                                         bool
 	)
 	cmd := &cobra.Command{
 		Use:   "edit <name> [flags]",
-		Short: "Change a metric's label, unit, direction, or category",
+		Short: "Change a metric's label, unit, direction, category, or protocol",
 		Long: "Update a metric definition in place. Only the flags you pass change. The name\n" +
 			"is the key measurements and cycles reference, so it can't be edited — rename by\n" +
 			"deleting and redefining.",
 		Example: "  meso metrics edit back-squat-working-weight --label \"Back Squat (working)\"\n" +
-			"  meso metrics edit row-machine-500m --unit seconds --direction lower_better",
+			"  meso metrics edit row-machine-500m --unit seconds --direction lower_better\n" +
+			"  meso metrics edit toe-reach --how-to-measure \"Seated, legs straight...\"",
 		Args: usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in := api.MetricDefinitionUpdate{}
@@ -57,8 +89,11 @@ func newMetricsEditCommand() *cobra.Command {
 			if f.Changed("category") {
 				in.Category = &category
 			}
-			if in.Label == nil && in.Unit == nil && in.Direction == nil && in.Category == nil {
-				return fmt.Errorf("nothing to change: pass at least one of --label, --unit, --direction, --category")
+			if f.Changed("how-to-measure") {
+				in.HowToMeasure = &howToMeasure
+			}
+			if in.Label == nil && in.Unit == nil && in.Direction == nil && in.Category == nil && in.HowToMeasure == nil {
+				return fmt.Errorf("nothing to change: pass at least one of --label, --unit, --direction, --category, --how-to-measure")
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -81,6 +116,7 @@ func newMetricsEditCommand() *cobra.Command {
 	f.StringVar(&unit, "unit", "", "Unit of measure (e.g. lb, seconds, cm, reps)")
 	f.StringVar(&direction, "direction", "", "higher_better | lower_better")
 	f.StringVar(&category, "category", "", "strength | cardio | mobility | body")
+	f.StringVar(&howToMeasure, "how-to-measure", "", "What the metric is and how to take the reading (markdown)")
 	f.BoolVar(&asJSON, "json", false, "Output the updated metric as JSON")
 	return cmd
 }
@@ -145,8 +181,8 @@ func newMetricsListCommand() *cobra.Command {
 
 func newMetricsDefineCommand() *cobra.Command {
 	var (
-		label, unit, direction, category string
-		asJSON                           bool
+		label, unit, direction, category, howToMeasure string
+		asJSON                                         bool
 	)
 	cmd := &cobra.Command{
 		Use:   "define <name> [flags]",
@@ -154,14 +190,18 @@ func newMetricsDefineCommand() *cobra.Command {
 		Long: "Define a metric. The name is the slug-shaped key everything addresses it by;\n" +
 			"--label is what the app displays, defaulting to the name title-cased. Direction\n" +
 			"is higher_better or lower_better (a heavier lift and a faster 5k both improve,\n" +
-			"with opposite signs); category is strength, cardio, mobility, or body.",
+			"with opposite signs); category is strength, cardio, mobility, or body.\n\n" +
+			"--how-to-measure is the protocol that produces the number. Without it the\n" +
+			"series is only reproducible from memory, and a reading taken a different way\n" +
+			"ruins the trend without ever looking wrong.",
 		Example: "  meso metrics define deadlift-working-weight --unit lb --direction higher_better --category strength\n" +
 			"  meso metrics define 5k-time --unit seconds --direction lower_better --category cardio\n" +
 			"  meso metrics define row-machine-500m --label \"Row 500m\" --unit seconds --direction lower_better --category cardio",
 		Args: usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in := api.MetricDefinitionCreate{
-				Name: args[0], Label: label, Unit: unit, Direction: direction, Category: category,
+				Name: args[0], Label: label, Unit: unit, Direction: direction,
+				Category: category, HowToMeasure: howToMeasure,
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -184,8 +224,22 @@ func newMetricsDefineCommand() *cobra.Command {
 	f.StringVar(&unit, "unit", "", "Unit of measure (e.g. lb, seconds, cm, reps)")
 	f.StringVar(&direction, "direction", "higher_better", "higher_better | lower_better")
 	f.StringVar(&category, "category", "", "strength | cardio | mobility | body")
+	f.StringVar(&howToMeasure, "how-to-measure", "", "What the metric is and how to take the reading (markdown)")
 	f.BoolVar(&asJSON, "json", false, "Output the defined metric as JSON")
 	return cmd
+}
+
+func printMetricDetail(out io.Writer, m api.MetricDefinition) {
+	fmt.Fprintf(out, "%s  (%s)\n", m.Label, m.Name)
+	fmt.Fprintf(out, "  %-11s %s\n", "unit:", m.Unit)
+	fmt.Fprintf(out, "  %-11s %s\n", "direction:", m.Direction)
+	fmt.Fprintf(out, "  %-11s %s\n", "category:", m.Category)
+	if m.HowToMeasure == "" {
+		fmt.Fprintf(out, "\nNo protocol recorded. Add one with:\n"+
+			"  meso metrics edit %s --how-to-measure \"...\"\n", m.Name)
+		return
+	}
+	fmt.Fprintf(out, "\nHow to measure:\n%s\n", m.HowToMeasure)
 }
 
 func printMetricsTable(out io.Writer, metrics []api.MetricDefinition) {

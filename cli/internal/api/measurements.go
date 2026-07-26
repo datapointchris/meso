@@ -9,32 +9,35 @@ import (
 // MetricDefinition mirrors the API's metric-definition JSON — the tracked-stat
 // vocabulary. Name is the slug-shaped key every command addresses it by; Label is
 // the display string. Direction ∈ higher_better|lower_better records which way
-// improves.
+// improves. HowToMeasure is the protocol that produces the number.
 type MetricDefinition struct {
-	Name      string `json:"name"`
-	Label     string `json:"label"`
-	Unit      string `json:"unit"`
-	Direction string `json:"direction"`
-	Category  string `json:"category"`
+	Name         string `json:"name"`
+	Label        string `json:"label"`
+	Unit         string `json:"unit"`
+	Direction    string `json:"direction"`
+	Category     string `json:"category"`
+	HowToMeasure string `json:"how_to_measure"`
 }
 
 // MetricDefinitionCreate is the body for POST /api/v1/metrics. An omitted Label is
 // derived from Name server-side.
 type MetricDefinitionCreate struct {
-	Name      string `json:"name"`
-	Label     string `json:"label,omitempty"`
-	Unit      string `json:"unit"`
-	Direction string `json:"direction"`
-	Category  string `json:"category"`
+	Name         string `json:"name"`
+	Label        string `json:"label,omitempty"`
+	Unit         string `json:"unit"`
+	Direction    string `json:"direction"`
+	Category     string `json:"category"`
+	HowToMeasure string `json:"how_to_measure,omitempty"`
 }
 
 // MetricDefinitionUpdate is the body for PUT /api/v1/metrics/{name} — a partial
 // update where an omitted field is left unchanged. Name is immutable.
 type MetricDefinitionUpdate struct {
-	Label     *string `json:"label,omitempty"`
-	Unit      *string `json:"unit,omitempty"`
-	Direction *string `json:"direction,omitempty"`
-	Category  *string `json:"category,omitempty"`
+	Label        *string `json:"label,omitempty"`
+	Unit         *string `json:"unit,omitempty"`
+	Direction    *string `json:"direction,omitempty"`
+	Category     *string `json:"category,omitempty"`
+	HowToMeasure *string `json:"how_to_measure,omitempty"`
 }
 
 // Measurement mirrors one dated reading in the API's measurement JSON.
@@ -138,6 +141,15 @@ func (c *Client) ListMetrics(ctx context.Context) ([]MetricDefinition, error) {
 		return nil, err
 	}
 	return metrics, nil
+}
+
+// GetMetric returns one metric definition (GET /api/v1/metrics/{name}).
+func (c *Client) GetMetric(ctx context.Context, name string) (MetricDefinition, error) {
+	var m MetricDefinition
+	if err := c.get(ctx, "/api/v1/metrics/"+url.PathEscape(name), &m); err != nil {
+		return MetricDefinition{}, err
+	}
+	return m, nil
 }
 
 // DefineMetric defines a metric (POST /api/v1/metrics).

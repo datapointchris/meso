@@ -14,6 +14,7 @@ import TrendChart from '@/components/TrendChart.vue'
 import AddMeasurementModal from '@/components/AddMeasurementModal.vue'
 import AddEditMetricModal from '@/components/AddEditMetricModal.vue'
 import MetricReadingsModal from '@/components/MetricReadingsModal.vue'
+import MetricAboutModal from '@/components/MetricAboutModal.vue'
 
 // The stats page: one GET assembles every *defined* metric's trend plus the library
 // and session summaries. Trends group by category so related charts sit together.
@@ -33,6 +34,9 @@ const editingMetric = ref<MetricDefinition | 'new' | null>(null)
 
 // The trend whose individual readings are open for correction, or null.
 const viewingReadings = ref<MetricTrend | null>(null)
+
+// The trend whose definition is being read — what it is and how to measure it.
+const about = ref<MetricTrend | null>(null)
 
 async function load() {
   loading.value = true
@@ -73,12 +77,11 @@ function onSaved() {
 }
 
 // The trend card carries the metric key, not the definition; editing needs the full
-// definition (unit/direction/category), so fetch the vocabulary and pick it out.
+// definition (unit/direction/category/how-to-measure), so fetch it by key.
 async function openMetricEditor(metricName: string) {
   try {
-    const metrics = await metricsApi.list()
-    const found = metrics.find((m) => m.name === metricName)
-    if (found) editingMetric.value = found
+    editingMetric.value = await metricsApi.get(metricName)
+    about.value = null
   } catch (e) {
     error.value = e instanceof ApiError ? e.message : 'Failed to load the metric'
   }
@@ -199,7 +202,7 @@ function onMetricSaved() {
             :key="trend.metric"
             :trend="trend"
             @record="recording = trend.metric"
-            @edit="openMetricEditor(trend.metric)"
+            @about="about = trend"
             @readings="viewingReadings = trend" />
         </div>
       </section>
@@ -218,6 +221,16 @@ function onMetricSaved() {
       @saved="onMetricSaved"
       @deleted="onMetricSaved"
       @close="editingMetric = null" />
+
+    <MetricAboutModal
+      v-if="about"
+      :trend="about"
+      @edit="openMetricEditor(about.metric)"
+      @record="
+        recording = about.metric
+        about = null
+      "
+      @close="about = null" />
 
     <MetricReadingsModal
       v-if="viewingReadings"

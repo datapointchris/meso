@@ -93,6 +93,7 @@ func NewRouter(pool *pgxpool.Pool) *http.ServeMux {
 	// {name}/trend sub-resource returns one metric's series plus its summary numbers.
 	mux.HandleFunc("GET /api/v1/metrics", measurementH.ListMetrics)
 	mux.HandleFunc("POST /api/v1/metrics", measurementH.DefineMetric)
+	mux.HandleFunc("GET /api/v1/metrics/{name}", measurementH.GetMetric)
 	mux.HandleFunc("PUT /api/v1/metrics/{name}", measurementH.UpdateMetric)
 	mux.HandleFunc("DELETE /api/v1/metrics/{name}", measurementH.DeleteMetric)
 	mux.HandleFunc("GET /api/v1/metrics/{name}/trend", measurementH.Trend)

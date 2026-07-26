@@ -49,7 +49,8 @@ func (r *StatsRepo) Summary(ctx context.Context) (models.StatsSummary, error) {
 // date makes the grouping below a single linear pass.
 func (r *StatsRepo) metricTrends(ctx context.Context) ([]models.MetricTrend, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT d.name, d.label, d.unit, d.direction, d.category, m.measured_on, m.value
+		SELECT d.name, d.label, d.unit, d.direction, d.category, d.how_to_measure,
+		       m.measured_on, m.value
 		FROM metric_definitions d
 		LEFT JOIN measurements m ON m.metric = d.name
 		ORDER BY d.category, d.label, m.measured_on, m.created_at`)
@@ -61,10 +62,11 @@ func (r *StatsRepo) metricTrends(ctx context.Context) ([]models.MetricTrend, err
 	trends := []models.MetricTrend{}
 	byName := map[string]int{}
 	for rows.Next() {
-		var name, label, unit, direction, category string
+		var name, label, unit, direction, category, howToMeasure string
 		var measuredOn *time.Time
 		var value *float64
-		if err := rows.Scan(&name, &label, &unit, &direction, &category, &measuredOn, &value); err != nil {
+		if err := rows.Scan(&name, &label, &unit, &direction, &category, &howToMeasure,
+			&measuredOn, &value); err != nil {
 			return nil, fmt.Errorf("scanning metric trend: %w", err)
 		}
 		idx, ok := byName[name]
@@ -72,7 +74,8 @@ func (r *StatsRepo) metricTrends(ctx context.Context) ([]models.MetricTrend, err
 			idx = len(trends)
 			byName[name] = idx
 			trends = append(trends, trendFromDefinition(models.MetricDefinition{
-				Name: name, Label: label, Unit: unit, Direction: direction, Category: category,
+				Name: name, Label: label, Unit: unit, Direction: direction,
+				Category: category, HowToMeasure: howToMeasure,
 			}))
 		}
 		// Null measurement columns mean the LEFT JOIN found no readings — the

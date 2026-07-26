@@ -21,11 +21,23 @@ func NewMeasurementRepo(pool *pgxpool.Pool) *MeasurementRepo {
 	return &MeasurementRepo{pool: pool}
 }
 
+// metricSelect is the shared read query; scanMetric stays in lockstep.
+const metricSelect = `SELECT name, label, unit, direction, category, how_to_measure, created_at
+FROM metric_definitions`
+
+func scanMetric(row pgx.Row) (models.MetricDefinition, error) {
+	var m models.MetricDefinition
+	if err := row.Scan(&m.Name, &m.Label, &m.Unit, &m.Direction, &m.Category,
+		&m.HowToMeasure, &m.CreatedAt); err != nil {
+		return models.MetricDefinition{}, err
+	}
+	return m, nil
+}
+
 // ListMetrics returns the metric-definition vocabulary, grouped by category then
 // name — the metrics a measurement can reference and the stats page groups by.
 func (r *MeasurementRepo) ListMetrics(ctx context.Context) ([]models.MetricDefinition, error) {
-	rows, err := r.pool.Query(ctx,
-		`SELECT name, label, unit, direction, category, created_at FROM metric_definitions ORDER BY category, label`)
+	rows, err := r.pool.Query(ctx, metricSelect+" ORDER BY category, label")
 	if err != nil {
 		return nil, fmt.Errorf("listing metrics: %w", err)
 	}
@@ -33,8 +45,8 @@ func (r *MeasurementRepo) ListMetrics(ctx context.Context) ([]models.MetricDefin
 
 	metrics := []models.MetricDefinition{}
 	for rows.Next() {
-		var m models.MetricDefinition
-		if err := rows.Scan(&m.Name, &m.Label, &m.Unit, &m.Direction, &m.Category, &m.CreatedAt); err != nil {
+		m, err := scanMetric(rows)
+		if err != nil {
 			return nil, fmt.Errorf("scanning metric: %w", err)
 		}
 		metrics = append(metrics, m)
@@ -44,10 +56,7 @@ func (r *MeasurementRepo) ListMetrics(ctx context.Context) ([]models.MetricDefin
 
 // GetMetric fetches one metric definition by name, ErrNotFound when absent.
 func (r *MeasurementRepo) GetMetric(ctx context.Context, name string) (models.MetricDefinition, error) {
-	var m models.MetricDefinition
-	err := r.pool.QueryRow(ctx,
-		`SELECT name, label, unit, direction, category, created_at FROM metric_definitions WHERE name = $1`, name).
-		Scan(&m.Name, &m.Label, &m.Unit, &m.Direction, &m.Category, &m.CreatedAt)
+	m, err := scanMetric(r.pool.QueryRow(ctx, metricSelect+" WHERE name = $1", name))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return models.MetricDefinition{}, fmt.Errorf("metric %q: %w", name, ErrNotFound)
@@ -67,8 +76,9 @@ func (r *MeasurementRepo) DefineMetric(ctx context.Context, in models.MetricDefi
 		label = models.DeriveMetricLabel(in.Name)
 	}
 	_, err := r.pool.Exec(ctx,
-		`INSERT INTO metric_definitions (name, label, unit, direction, category) VALUES ($1, $2, $3, $4, $5)`,
-		in.Name, label, in.Unit, in.Direction, in.Category)
+		`INSERT INTO metric_definitions (name, label, unit, direction, category, how_to_measure)
+		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		in.Name, label, in.Unit, in.Direction, in.Category, in.HowToMeasure)
 	if err != nil {
 		return models.MetricDefinition{}, mapWriteError("defining metric", err)
 	}
@@ -96,6 +106,9 @@ func (r *MeasurementRepo) UpdateMetric(ctx context.Context, name string, in mode
 	}
 	if in.Category != nil {
 		add("category = $%d", *in.Category)
+	}
+	if in.HowToMeasure != nil {
+		add("how_to_measure = $%d", *in.HowToMeasure)
 	}
 	if len(sets) == 0 {
 		return r.GetMetric(ctx, name)
@@ -331,12 +344,13 @@ func (r *MeasurementRepo) Trend(ctx context.Context, metric string, f models.Mea
 // non-nil point slice (so JSON emits [] not null for an unmeasured metric).
 func trendFromDefinition(def models.MetricDefinition) models.MetricTrend {
 	return models.MetricTrend{
-		Metric:    def.Name,
-		Label:     def.Label,
-		Unit:      def.Unit,
-		Direction: def.Direction,
-		Category:  def.Category,
-		Points:    []models.TrendPoint{},
+		Metric:       def.Name,
+		Label:        def.Label,
+		Unit:         def.Unit,
+		Direction:    def.Direction,
+		Category:     def.Category,
+		HowToMeasure: def.HowToMeasure,
+		Points:       []models.TrendPoint{},
 	}
 }
 

@@ -164,7 +164,9 @@ Three behaviors from the research make a cycle humane rather than a straightjack
 
 Lift numbers, 5k time, toe reach, bodyweight, BMI, ROM — "all of those I can track ... that show progress." A metric definition + a value time series.
 
-- `metric_definitions` (lookup + metadata): `name: Text PK` ("deadlift-working-weight", "5k-time", "knee-to-wall-left"), `label: Text` (the display string — "Deadlift Working Weight"; defaults to the name title-cased), `unit: Text` ("lb", "seconds", "cm"), `direction: Text` (`higher_better` | `lower_better`), `category: Text` (strength | cardio | mobility | body)
+- `metric_definitions` (lookup + metadata): `name: Text PK` ("deadlift-working-weight", "5k-time", "knee-to-wall-left"), `label: Text` (the display string — "Deadlift Working Weight"; defaults to the name title-cased), `unit: Text` ("lb", "seconds", "cm"), `direction: Text` (`higher_better` | `lower_better`), `category: Text` (strength | cardio | mobility | body), `how_to_measure: Text` (markdown — the protocol that produces the number)
+
+  **A metric carries its own protocol.** The unit/direction/category are what a chart needs; none of them says what the thing _is_. "Heel Raise Capacity Right" names a number without naming how to get one, and it deliberately does not match any movement in the library, so there is nowhere else to look it up. A series is only a series if every reading was taken the same way — an undocumented metric silently degrades into readings that aren't comparable. One field, not a description plus a how-to: for every metric in the vocabulary those are the same sentence.
 
 - `measurements` (time series): `id`, `metric: FK → metric_definitions.name`, `value: Numeric`, `measured_on: Date`, `source: Text` (`manual` | `session` — some derive from logged sessions later), `notes: Text`
 
@@ -231,7 +233,7 @@ snake_case tables, `Text` columns, lookup tables for all categoricals, goose mig
 movement_kinds(name PK)                                   -- exercise|stretch|yoga_pose
 relationship_kinds(name PK)                               -- alternate|antagonist|progression|regression|see_also
 cycle_statuses(name PK)                                   -- planned|active|paused|complete
-metric_definitions(name PK, label, unit, direction, category)
+metric_definitions(name PK, label, unit, direction, category, how_to_measure)
 muscles(name PK, region)                                  -- hamstrings→posterior, ... (region drives filtering)
 
 movements(id PK identity, name, movement_kind FK, favorite,
@@ -290,7 +292,7 @@ Go request/response structs per entity (Create / response / Update shapes) with 
 /api/v1/sessions/{id}/movements/{mid}   PATCH done/actuals
 /api/v1/cycles                    CRUD
 /api/v1/cycles/{id}/workouts      POST/PATCH/DELETE ordered workouts
-/api/v1/metrics                   list metric_definitions; POST define; PUT/DELETE {name}
+/api/v1/metrics                   list metric_definitions; POST define; GET/PUT/DELETE {name}
 /api/v1/measurements              CRUD + ?metric=&from=&to=
 /api/v1/log                       CRUD dated entries
 /api/v1/stats                     aggregations for the stats page
@@ -311,7 +313,7 @@ meso movements   list [--kind --favorite --tag --equipment --muscle --region --s
 meso workouts    list | show <id> | create | update | delete | movements add/reorder/rm
 meso sessions    log [--from-workout <id>] | list [--from --to] | show <id> | movement done <mid>
 meso cycles      list | show <id> | create | update | delete | workouts add/reorder/rm
-meso metrics     list | define | edit | delete
+meso metrics     list | show <name> | define | edit | delete
 meso measurements record | list [--metric --from --to] | trend <metric>
 meso log         add | list [--from --to --tag] | show <id>
 meso stats       [--json]
