@@ -91,3 +91,15 @@ repos:
         language: system
         pass_filenames: false
         files: '\.(vue|ts|mts)$'
+
+      # A malformed template expression is invisible to eslint, prettier and
+      # vitest — a view with no spec is never compiled by any of them — so it
+      # reached CI instead. `build` is vue-tsc plus vite, which is the only
+      # local gate that compiles every SFC.
+      - id: vue-build
+        name: vue build
+        description: Typecheck and compile every SFC
+        entry: bash -c 'cd web && npm run build'
+        language: system
+        pass_filenames: false
+        files: '\.(vue|ts|mts|scss)$'
