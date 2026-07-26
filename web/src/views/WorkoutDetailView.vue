@@ -605,20 +605,6 @@ async function startSession() {
   font-size: 1.05rem;
 }
 
-.prose {
-  color: var(--text);
-
-  :deep(p) {
-    margin: 0 0 var(--space-2);
-  }
-
-  :deep(ol),
-  :deep(ul) {
-    margin: 0 0 var(--space-2);
-    padding-left: var(--space-6);
-  }
-}
-
 .composition {
   display: flex;
   flex-direction: column;

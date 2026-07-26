@@ -93,3 +93,40 @@ button {
 #app {
   min-height: 100dvh;
 }
+
+// ─── Prose ──────────────────────────────────────────────────────────────────
+// Rendered markdown — a movement's how-to and form cues, a workout's or cycle's
+// notes, a journal entry. Global rather than per-view: it was copied into four
+// scoped blocks, which is how all four ended up with paragraph margins and none
+// of them with reading typography.
+//
+// The measure is the whole point. Body copy is set for UI chrome — labels, list
+// rows, chips — where 1.5 and full column width are right. A paragraph is not
+// that: at --content-max the app column is ~930px, which runs a how-to past 110
+// characters a line, far outside the 45–75 the eye can track back from. Capping
+// the measure is what stops it reading as a block rather than as sentences.
+.prose {
+  max-width: 68ch;
+  line-height: 1.7;
+  color: var(--text);
+  text-wrap: pretty;
+
+  p,
+  ol,
+  ul {
+    margin: 0 0 var(--space-3);
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  ol,
+  ul {
+    padding-left: var(--space-6);
+  }
+
+  li + li {
+    margin-top: var(--space-1);
+  }
+}

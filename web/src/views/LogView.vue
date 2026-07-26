@@ -295,24 +295,6 @@ async function remove(entry: LogEntry) {
   font-size: 0.72rem;
 }
 
-.prose {
-  color: var(--text);
-
-  :deep(p) {
-    margin: 0 0 var(--space-2);
-
-    &:last-child {
-      margin-bottom: 0;
-    }
-  }
-
-  :deep(ol),
-  :deep(ul) {
-    margin: 0 0 var(--space-2);
-    padding-left: var(--space-6);
-  }
-}
-
 .btn {
   min-height: var(--touch-target);
   display: inline-flex;

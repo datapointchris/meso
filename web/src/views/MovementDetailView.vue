@@ -486,20 +486,6 @@ async function remove() {
   letter-spacing: 0.03em;
 }
 
-.prose {
-  color: var(--text);
-
-  :deep(p) {
-    margin: 0 0 var(--space-2);
-  }
-
-  :deep(ol),
-  :deep(ul) {
-    margin: 0 0 var(--space-2);
-    padding-left: var(--space-6);
-  }
-}
-
 .related {
   display: flex;
   flex-direction: column;
