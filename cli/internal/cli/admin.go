@@ -1,6 +1,10 @@
 package cli
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/datapointchris/goselfupdate"
+	"github.com/datapointchris/goselfupdate/cobracmd"
+	"github.com/spf13/cobra"
+)
 
 // newAdminCommand is the namespace for operating meso, as distinct from using it.
 // Every other top-level command is a training noun — movements, workouts, sessions,
@@ -25,5 +29,25 @@ func newAdminCommand() *cobra.Command {
 		RunE: requireSubcommand,
 	}
 	cmd.AddCommand(newAdminFeedbackCommand())
+	cmd.AddCommand(newAdminUpdateCommand())
 	return cmd
+}
+
+// newAdminUpdateCommand replaces this binary with the newest published one.
+//
+// TagPrefix is what makes it work here: the CLI is a nested module released
+// under cli/v1.2.3 so its tags never collide with the app's, and GitHub's
+// "latest release" endpoint is repository-wide — without the prefix it would
+// resolve whatever meso released most recently, which is not this program.
+//
+// Updating is about the software rather than the training, so it lives under
+// admin like everything else that is.
+func newAdminUpdateCommand() *cobra.Command {
+	return cobracmd.New(goselfupdate.Config{
+		Owner:     "datapointchris",
+		Repo:      "meso",
+		Binary:    "meso",
+		Version:   version,
+		TagPrefix: "cli/",
+	})
 }

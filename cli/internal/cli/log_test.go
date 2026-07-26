@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"meso/cli/internal/api"
+	"github.com/datapointchris/meso/cli/internal/api"
 )
 
 func strptr(s string) *string { return &s }

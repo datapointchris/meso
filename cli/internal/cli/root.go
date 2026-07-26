@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/datapointchris/goselfupdate/cobracmd"
 	"github.com/spf13/cobra"
 )
 
@@ -84,6 +85,12 @@ func Execute() int {
 	var ec exitCode
 	if errors.As(err, &ec) {
 		return int(ec)
+	}
+
+	// `admin update` writes its own ✓/✗ line, so printing here would report the
+	// same failure twice.
+	if errors.Is(err, cobracmd.ErrReported) {
+		return 1
 	}
 
 	fmt.Fprintln(os.Stderr, "error:", err)

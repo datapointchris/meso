@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"meso/cli/internal/api"
+	"github.com/datapointchris/meso/cli/internal/api"
 )
 
 func ptrFloat(v float64) *float64 { return &v }

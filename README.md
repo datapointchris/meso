@@ -320,6 +320,7 @@ meso stats       [--json]
 meso review      [--since 30d] [--json]      # the capstone read
 
 meso admin feedback list [--open --done --search] | show <id> | add | edit | done <id> | delete
+meso admin update [--check]       replace this binary with the newest cli/v* release
 ```
 
 **`admin` is the namespace for operating the app, as distinct from using it.** Every other top-level command is a training noun, which is what lets `meso --help` read as a description of the domain; commands about the software itself go under `admin` instead of diluting that. The convention is HashiCorp's (`vault operator`, `consul operator`, `nomad operator`), named `admin` because "operator" there means cluster and consensus lifecycle and meso has no cluster. There is no separate privilege today — meso is single-user and Authelia at the edge is the real check — but the namespace is where one would go.

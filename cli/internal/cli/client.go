@@ -7,9 +7,9 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"meso/cli/internal/api"
-	"meso/cli/internal/auth"
-	"meso/cli/internal/config"
+	"github.com/datapointchris/meso/cli/internal/api"
+	"github.com/datapointchris/meso/cli/internal/auth"
+	"github.com/datapointchris/meso/cli/internal/config"
 )
 
 // errNeedsLogin is returned by newAPIClient when there is no stored token. The

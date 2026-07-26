@@ -14,7 +14,7 @@ import (
 	"sync"
 	"testing"
 
-	"meso/cli/internal/config"
+	"github.com/datapointchris/meso/cli/internal/config"
 )
 
 // mockIDP is a minimal Authelia stand-in implementing the native bearer.authz

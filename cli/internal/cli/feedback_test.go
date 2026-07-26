@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"meso/cli/internal/api"
+	"github.com/datapointchris/meso/cli/internal/api"
 )
 
 func TestPrintFeedbackTable(t *testing.T) {
@@ -106,6 +106,28 @@ func TestAdminNamespaceOwnsFeedback(t *testing.T) {
 	}
 	if findCommand(admin.Commands(), "feedback") == nil {
 		t.Error("feedback not registered under admin")
+	}
+}
+
+// Updating the binary is about the software, not the training, so it belongs in
+// the same namespace as feedback rather than at the root next to movements.
+func TestAdminNamespaceOwnsUpdate(t *testing.T) {
+	root := NewRootCommand()
+
+	if findCommand(root.Commands(), "update") != nil {
+		t.Error("update is registered at the root; it belongs under `admin`")
+	}
+
+	admin := findCommand(root.Commands(), "admin")
+	if admin == nil {
+		t.Fatal("admin command not registered on root")
+	}
+	update := findCommand(admin.Commands(), "update")
+	if update == nil {
+		t.Fatal("update not registered under admin")
+	}
+	if update.Flags().Lookup("check") == nil {
+		t.Error("update should carry --check for reporting without installing")
 	}
 }
 

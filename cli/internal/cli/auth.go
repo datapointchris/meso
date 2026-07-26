@@ -10,8 +10,8 @@ import (
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 
-	"meso/cli/internal/auth"
-	"meso/cli/internal/config"
+	"github.com/datapointchris/meso/cli/internal/auth"
+	"github.com/datapointchris/meso/cli/internal/config"
 )
 
 // loginTimeout bounds how long the CLI waits for the browser round-trip before

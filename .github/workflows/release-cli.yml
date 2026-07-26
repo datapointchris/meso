@@ -43,7 +43,7 @@ jobs:
           version_num="${version#v}"
           mkdir -p ../dist
           go build -trimpath \
-            -ldflags "-s -w -X meso/cli/internal/cli.version=${version}" \
+            -ldflags "-s -w -X github.com/datapointchris/meso/cli/internal/cli.version=${version}" \
             -o ../dist/meso .
           tar -czf "../dist/meso_${version_num}_${GOOS}_${GOARCH}.tar.gz" -C ../dist meso
           rm ../dist/meso

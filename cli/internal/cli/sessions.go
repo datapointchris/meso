@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"meso/cli/internal/api"
+	"github.com/datapointchris/meso/cli/internal/api"
 )
 
 func newSessionsCommand() *cobra.Command {

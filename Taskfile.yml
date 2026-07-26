@@ -1,6 +1,12 @@
 version: '3'
 
 vars:
+  # git describe returns the prefixed tag (cli/v0.2.0-3-gabc1234), and that is
+  # what gets injected on purpose: it is not a semantic version, so a locally
+  # built binary reports itself as a development build and `admin update`
+  # refuses to replace it. Only CI strips the prefix, so only a released binary
+  # can self-update — which is the intended split. Run the dev version from the
+  # repo; install the released one.
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo dev
   # GOBIN wins when set; resolving GOPATH first would install somewhere that is
@@ -16,20 +22,20 @@ tasks:
       - task --list
 
   # ---------------------------------------------------------------------------
-  # CLI (meso) — module meso/cli
+  # CLI (meso) — module github.com/datapointchris/meso/cli
   # ---------------------------------------------------------------------------
 
   cli:build:
     desc: Build the meso CLI to bin/meso
     dir: cli
     cmds:
-      - go build -ldflags "-s -w -X meso/cli/internal/cli.version={{.VERSION}}" -o ../bin/meso .
+      - go build -ldflags "-s -w -X github.com/datapointchris/meso/cli/internal/cli.version={{.VERSION}}" -o ../bin/meso .
 
   cli:install:
     desc: Install the meso CLI to $GOBIN (falls back to $GOPATH/bin)
     dir: cli
     cmds:
-      - go build -ldflags "-s -w -X meso/cli/internal/cli.version={{.VERSION}}" -o {{.INSTALL_DIR}}/meso .
+      - go build -ldflags "-s -w -X github.com/datapointchris/meso/cli/internal/cli.version={{.VERSION}}" -o {{.INSTALL_DIR}}/meso .
       - 'echo "installed meso {{.VERSION}} -> {{.INSTALL_DIR}}/meso"'
 
   cli:test:

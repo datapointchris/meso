@@ -15,7 +15,7 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"meso/cli/internal/config"
+	"github.com/datapointchris/meso/cli/internal/config"
 )
 
 // providerMetadata is the subset of the OIDC discovery document the CLI needs.

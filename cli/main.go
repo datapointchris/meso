@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"meso/cli/internal/cli"
+	"github.com/datapointchris/meso/cli/internal/cli"
 )
 
 func main() {
