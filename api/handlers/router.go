@@ -27,6 +27,7 @@ func NewRouter(pool *pgxpool.Pool) *http.ServeMux {
 	logH := NewLogHandler(logRepo)
 	cycleRepo := repository.NewCycleRepo(pool)
 	cycleH := NewCycleHandler(cycleRepo)
+	feedbackH := NewFeedbackHandler(repository.NewFeedbackRepo(pool))
 	reviewH := NewReviewHandler(
 		repository.NewReviewRepo(sessionRepo, measurementRepo, logRepo, cycleRepo))
 
@@ -122,6 +123,16 @@ func NewRouter(pool *pgxpool.Pool) *http.ServeMux {
 	mux.HandleFunc("PATCH /api/v1/cycles/{id}/workouts", cycleH.ReorderWorkouts)
 	mux.HandleFunc("PATCH /api/v1/cycles/{id}/workouts/{entryID}", cycleH.UpdateWorkout)
 	mux.HandleFunc("DELETE /api/v1/cycles/{id}/workouts/{entryID}", cycleH.RemoveWorkout)
+
+	// Feedback — in-app capture of papercuts and ideas about meso itself. The only
+	// non-training resource here: the web app POSTs, and the reads/writes below serve
+	// the CLI's `meso admin feedback` namespace. meso owns this data outright and
+	// forwards it nowhere — whoever wants it reads it back out.
+	mux.HandleFunc("GET /api/v1/feedback", feedbackH.List)
+	mux.HandleFunc("POST /api/v1/feedback", feedbackH.Create)
+	mux.HandleFunc("GET /api/v1/feedback/{id}", feedbackH.Get)
+	mux.HandleFunc("PUT /api/v1/feedback/{id}", feedbackH.Update)
+	mux.HandleFunc("DELETE /api/v1/feedback/{id}", feedbackH.Delete)
 
 	// Review — the capstone read: active cycles + recent sessions/measurements/log
 	// in one payload, for Claude to draft the next cycle from real history (Phase 6).

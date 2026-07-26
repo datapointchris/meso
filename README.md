@@ -176,6 +176,16 @@ Feeds a stats page via the ported stats kit. The stats payload carries **every d
 
 - `FitnessLogEntry`: `id` (UUID7), `entry_date: Date`, `body: Text` (markdown), `tags: Text[]`, `mood: Text` (nullable), `created_at`, `updated_at`
 
+### 8. Feedback — captured papercuts and ideas about the app itself
+
+The one entity here that is not training data. A button on every screen captures a thought mid-session — at the gym, one-handed — so it survives the moment it was had. Triage happens in the CLI, under the `admin` namespace.
+
+- `Feedback`: `id` (UUID7), `status: Text` (`open` | `done`), `body: Text`, `context_path: Text` (the in-app route it was raised from), `created_at`, `updated_at`
+
+**meso owns this outright and forwards it nowhere.** No row here refers to another system, and no other system needs to be reachable for a capture to succeed. Whoever wants this data comes and reads it (`meso admin feedback list --json`) — the dependency points inward, at meso, never sideways from meso at something else. That is what keeps the app standalone: it can be copied into another product, or run by someone with no ichrisbirch at all, unchanged.
+
+There is deliberately **no kind/category** (bug vs. idea vs. improvement). It costs a tap at capture time and changes nothing at read time — the body says what it is, and the response is the same either way. The app's exclusion list applies to its own internals.
+
 ## Settled decisions
 
 - **Full nomad product model** — Go API + Go CLI + Vue, Authelia edge auth (web cookie / CLI PKCE), registry-pull deploy. Copy the reference build rather than reinvent; consolidates the product tier (learning, nomad, meso) on Go.
@@ -253,6 +263,8 @@ measurements(id PK, metric FK, value Numeric, measured_on, source, notes)
 
 fitness_log_entries(id PK uuid7, entry_date, body, tags Text[],
           mood, created_at, updated_at)
+
+feedback(id PK uuid7, status, body, context_path, created_at, updated_at)
 ```
 
 ## API request/response types
@@ -281,6 +293,7 @@ Go request/response structs per entity (Create / response / Update shapes) with 
 /api/v1/log                       CRUD dated entries
 /api/v1/stats                     aggregations for the stats page
 /api/v1/review                    GET structured recent history (sessions+measurements+log) for `meso review`
+/api/v1/feedback                  CRUD + ?status=&search= — the web app POSTs, `meso admin feedback` reads
 /health                           unauthenticated liveness (exempt from edge auth)
 ```
 
@@ -301,7 +314,11 @@ meso measurements record | list [--metric --from --to] | trend <metric>
 meso log         add | list [--from --to --tag] | show <id>
 meso stats       [--json]
 meso review      [--since 30d] [--json]      # the capstone read
+
+meso admin feedback list [--open --done --search] | show <id> | add | edit | done <id> | delete
 ```
+
+**`admin` is the namespace for operating the app, as distinct from using it.** Every other top-level command is a training noun, which is what lets `meso --help` read as a description of the domain; commands about the software itself go under `admin` instead of diluting that. The convention is HashiCorp's (`vault operator`, `consul operator`, `nomad operator`), named `admin` because "operator" there means cluster and consensus lifecycle and meso has no cluster. There is no separate privilege today — meso is single-user and Authelia at the edge is the real check — but the namespace is where one would go.
 
 **The AI capstone is a read plus ordinary writes — no server-side LLM.** `meso review --json` pulls recent sessions + measurements + log into one structured payload. Claude reads it via Bash, reasons about the next block _in the conversation_, and persists the drafted cycle with ordinary writes (`meso cycles create`, `meso cycles workouts add …`). This is strictly simpler than an MCP `draft_cycle` tool: the CLI only needs solid read + write primitives; Claude is the reasoning.
 

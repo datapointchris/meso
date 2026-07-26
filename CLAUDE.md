@@ -35,6 +35,12 @@ token store) → `internal/api` (typed REST client over the wire contract) →
 `internal/cli` (cobra command tree). Resource commands live one file per resource
 under `internal/cli`, each with a matching `internal/api/<resource>.go` client.
 
+Top-level commands are **training nouns only** — that is what lets `meso --help` read
+as a description of the domain. Anything about the software rather than the training
+goes under the `admin` namespace (`internal/cli/admin.go`), following HashiCorp's
+`vault operator` / `consul operator` convention. `admin feedback` is its first
+inhabitant; a new non-domain command belongs there, not at the root.
+
 ## Conventions specific to meso
 
 - **Lookup tables, never enum types** — categoricals (`movement_kinds`, `muscles`, `relationship_kinds`, `cycle_statuses`) are `TEXT PRIMARY KEY` + FK. A _bounded sub-attribute_ of a join (e.g. `movement_muscles.role ∈ primary|secondary`) uses a `CHECK`, not a 2-row lookup — a CHECK is not an enum type.
@@ -42,6 +48,7 @@ under `internal/cli`, each with a matching `internal/api/<resource>.go` client.
 - **All text columns are `TEXT`** (never `varchar(n)`); array columns are `NOT NULL DEFAULT '{}'` and normalized nil→`[]` on write so reads are branch-free.
 - **Filtering is server-side** — list endpoints own their query params and build the `WHERE` in SQL, so the CLI and web share one filter definition rather than each re-implementing it.
 - **Seed carries only the FK-backbone lookups** (`movement_kinds`, `relationship_kinds`, `cycle_statuses`, `muscles`) via direct idempotent upsert — the minimum a blank DB needs to accept writes. It runs on **every deploy** so no fresh environment ever comes up write-dead. All content (metrics, movements, workouts, cycles, measurements, journal) is loaded through the `meso` CLI, which exercises the real API write path. Anything with a CLI verb behind it stays out of the seed.
+- **meso depends on no other product** — nothing here may know about ichrisbirch, icb, or any sibling app: no foreign ids in the schema, no cross-service credentials, no outbound pushes. Data leaves only by being read (`--json`), so the dependency always points inward at meso. `feedback` is the live example — it is stored and triaged here, never forwarded.
 - **No MCP, ever** — the `meso` CLI is the sole programmatic/agent surface.
 
 ## Local development

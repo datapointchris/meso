@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from 'vue-router'
 import { useTheme } from '@/composables/useTheme'
+import FeedbackButton from '@/components/FeedbackButton.vue'
 
 const { theme, toggle } = useTheme()
 
@@ -40,6 +41,8 @@ const tabs = [
     <main class="content">
       <RouterView />
     </main>
+
+    <FeedbackButton />
 
     <nav
       class="tabbar"
