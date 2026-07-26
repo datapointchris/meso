@@ -10,7 +10,7 @@ import { changeVerdict, formatValue, type MetricTrend } from '@/api/measurements
 // first reading" prompt instead. That is what makes the stats page a list of what
 // *can* be tracked rather than only what already has history.
 const props = defineProps<{ trend: MetricTrend }>()
-const emit = defineEmits<{ record: []; edit: [] }>()
+const emit = defineEmits<{ record: []; edit: []; readings: [] }>()
 
 // A fixed viewBox with default (aspect-preserving) scaling keeps the dots round while
 // the SVG stretches to the card width via width:100%.
@@ -107,7 +107,13 @@ const changeLabel = computed(() => {
     <footer class="trend__foot">
       <template v-if="geometry">
         <span>{{ trend.points[0]?.measured_on }}</span>
-        <span class="trend__count">{{ trend.count }} reading{{ trend.count === 1 ? '' : 's' }}</span>
+        <button
+          class="trend__count"
+          type="button"
+          :aria-label="`View and edit ${trend.label} readings`"
+          @click="emit('readings')">
+          {{ trend.count }} reading{{ trend.count === 1 ? '' : 's' }}
+        </button>
         <span>{{ trend.points[trend.points.length - 1]?.measured_on }}</span>
       </template>
       <span v-else />
@@ -249,7 +255,16 @@ const changeLabel = computed(() => {
   font-variant-numeric: tabular-nums;
 }
 
+// The reading count doubles as the way into the readings list, where a number that
+// went in wrong gets corrected.
 .trend__count {
+  padding: 0;
+  border: none;
+  background: none;
   color: var(--text-muted);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
 }
 </style>

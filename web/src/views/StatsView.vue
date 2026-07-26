@@ -13,6 +13,7 @@ import { ApiError } from '@/api/client'
 import TrendChart from '@/components/TrendChart.vue'
 import AddMeasurementModal from '@/components/AddMeasurementModal.vue'
 import AddEditMetricModal from '@/components/AddEditMetricModal.vue'
+import MetricReadingsModal from '@/components/MetricReadingsModal.vue'
 
 // The stats page: one GET assembles every *defined* metric's trend plus the library
 // and session summaries. Trends group by category so related charts sit together.
@@ -29,6 +30,9 @@ const recording = ref<string | null>(null)
 
 // Metric editing: null (closed), 'new', or the definition being edited.
 const editingMetric = ref<MetricDefinition | 'new' | null>(null)
+
+// The trend whose individual readings are open for correction, or null.
+const viewingReadings = ref<MetricTrend | null>(null)
 
 async function load() {
   loading.value = true
@@ -195,7 +199,8 @@ function onMetricSaved() {
             :key="trend.metric"
             :trend="trend"
             @record="recording = trend.metric"
-            @edit="openMetricEditor(trend.metric)" />
+            @edit="openMetricEditor(trend.metric)"
+            @readings="viewingReadings = trend" />
         </div>
       </section>
     </template>
@@ -213,6 +218,14 @@ function onMetricSaved() {
       @saved="onMetricSaved"
       @deleted="onMetricSaved"
       @close="editingMetric = null" />
+
+    <MetricReadingsModal
+      v-if="viewingReadings"
+      :metric="viewingReadings.metric"
+      :label="viewingReadings.label"
+      :unit="viewingReadings.unit"
+      @changed="load"
+      @close="viewingReadings = null" />
   </section>
 </template>
 
