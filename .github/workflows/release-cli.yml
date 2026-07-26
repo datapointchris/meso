@@ -66,7 +66,10 @@ jobs:
           merge-multiple: true
 
       - name: Generate checksums
-        run: cd dist && sha256sum ./*.tar.gz > checksums.txt
+        # `--` rather than `./*`: both stop a leading-dash filename being read as an
+        # option, but sha256sum echoes its argument verbatim, so `./*` writes every
+        # entry as ./name while the release asset is named name.
+        run: cd dist && sha256sum -- *.tar.gz > checksums.txt
 
       - uses: softprops/action-gh-release@v2
         with:
