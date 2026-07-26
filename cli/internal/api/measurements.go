@@ -7,20 +7,34 @@ import (
 )
 
 // MetricDefinition mirrors the API's metric-definition JSON — the tracked-stat
-// vocabulary. Direction ∈ higher_better|lower_better records which way improves.
+// vocabulary. Name is the slug-shaped key every command addresses it by; Label is
+// the display string. Direction ∈ higher_better|lower_better records which way
+// improves.
 type MetricDefinition struct {
 	Name      string `json:"name"`
+	Label     string `json:"label"`
 	Unit      string `json:"unit"`
 	Direction string `json:"direction"`
 	Category  string `json:"category"`
 }
 
-// MetricDefinitionCreate is the body for POST /api/v1/metrics.
+// MetricDefinitionCreate is the body for POST /api/v1/metrics. An omitted Label is
+// derived from Name server-side.
 type MetricDefinitionCreate struct {
 	Name      string `json:"name"`
+	Label     string `json:"label,omitempty"`
 	Unit      string `json:"unit"`
 	Direction string `json:"direction"`
 	Category  string `json:"category"`
+}
+
+// MetricDefinitionUpdate is the body for PUT /api/v1/metrics/{name} — a partial
+// update where an omitted field is left unchanged. Name is immutable.
+type MetricDefinitionUpdate struct {
+	Label     *string `json:"label,omitempty"`
+	Unit      *string `json:"unit,omitempty"`
+	Direction *string `json:"direction,omitempty"`
+	Category  *string `json:"category,omitempty"`
 }
 
 // Measurement mirrors one dated reading in the API's measurement JSON.
@@ -55,6 +69,7 @@ type MetricTrend struct {
 	Latest    *float64     `json:"latest"`
 	Change    *float64     `json:"change"`
 	Metric    string       `json:"metric"`
+	Label     string       `json:"label"`
 	Unit      string       `json:"unit"`
 	Direction string       `json:"direction"`
 	Category  string       `json:"category"`
@@ -129,6 +144,15 @@ func (c *Client) ListMetrics(ctx context.Context) ([]MetricDefinition, error) {
 func (c *Client) DefineMetric(ctx context.Context, in MetricDefinitionCreate) (MetricDefinition, error) {
 	var m MetricDefinition
 	if err := c.send(ctx, http.MethodPost, "/api/v1/metrics", in, &m); err != nil {
+		return MetricDefinition{}, err
+	}
+	return m, nil
+}
+
+// UpdateMetric applies a partial update to a definition (PUT /api/v1/metrics/{name}).
+func (c *Client) UpdateMetric(ctx context.Context, name string, in MetricDefinitionUpdate) (MetricDefinition, error) {
+	var m MetricDefinition
+	if err := c.send(ctx, http.MethodPut, "/api/v1/metrics/"+url.PathEscape(name), in, &m); err != nil {
 		return MetricDefinition{}, err
 	}
 	return m, nil

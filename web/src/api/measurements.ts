@@ -6,20 +6,32 @@ export type MetricDirection = 'higher_better' | 'lower_better'
 export type MetricCategory = 'strength' | 'cardio' | 'mobility' | 'body'
 
 // MetricDefinition names a tracked metric and carries the metadata a chart needs:
-// its unit, which direction is improvement, and a category for grouping.
+// its unit, which direction is improvement, and a category for grouping. `name` is
+// the slug-shaped key the API and CLI address it by; `label` is what the UI shows.
 export interface MetricDefinition {
   name: string
+  label: string
   unit: string
   direction: MetricDirection
   category: MetricCategory
   created_at: string
 }
 
+// An omitted label is derived from the name server-side ("5k-time" → "5k Time").
 export interface MetricDefinitionCreate {
   name: string
+  label?: string
   unit: string
   direction: MetricDirection
   category: MetricCategory
+}
+
+// A partial update — an omitted field is left unchanged. The name is immutable.
+export interface MetricDefinitionUpdate {
+  label?: string
+  unit?: string
+  direction?: MetricDirection
+  category?: MetricCategory
 }
 
 // Measurement is one dated reading of a metric — a point in the time series.
@@ -57,6 +69,7 @@ export interface TrendPoint {
 // card shows. first/latest/change are null for a defined-but-unmeasured metric.
 export interface MetricTrend {
   metric: string
+  label: string
   unit: string
   direction: MetricDirection
   category: MetricCategory
@@ -114,6 +127,8 @@ function queryString(filter: MeasurementFilter): string {
 export const metricsApi = {
   list: () => http.get<MetricDefinition[]>('/metrics'),
   define: (body: MetricDefinitionCreate) => http.post<MetricDefinition>('/metrics', body),
+  update: (name: string, body: MetricDefinitionUpdate) => http.put<MetricDefinition>(`/metrics/${encodeURIComponent(name)}`, body),
+  remove: (name: string) => http.del(`/metrics/${encodeURIComponent(name)}`),
   trend: (name: string, window: { from?: string; to?: string } = {}) => {
     const params = new URLSearchParams()
     if (window.from) params.set('from', window.from)
@@ -140,6 +155,18 @@ export const CATEGORY_LABELS: Record<MetricCategory, string> = {
   cardio: 'Cardio',
   mobility: 'Mobility',
   body: 'Body',
+}
+
+// slugifyMetricName derives the API's slug-shaped key from a typed display label, so
+// the new-metric form can lead with the human name ("Row Machine 500m") and fill the
+// key ("row-machine-500m") behind it. It is the inverse of the server's label
+// derivation; the field stays editable because the key is permanent once measurements
+// reference it.
+export function slugifyMetricName(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
 }
 
 export type ChangeVerdict = 'improved' | 'worse' | 'flat'

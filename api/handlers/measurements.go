@@ -43,6 +43,28 @@ func (h *MeasurementHandler) DefineMetric(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusCreated, metric)
 }
 
+// UpdateMetric handles PUT /api/v1/metrics/{name} — a partial update of a
+// definition's label, unit, direction, or category. The name is the natural key and
+// is not updatable; an unknown name is 404.
+func (h *MeasurementHandler) UpdateMetric(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	var in models.MetricDefinitionUpdate
+	if err := decodeJSON(r, &in); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	metric, err := h.repo.UpdateMetric(r.Context(), name, in)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeNotFound(w, fmt.Sprintf("metric %q not found", name))
+			return
+		}
+		writeMetricWriteError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, metric)
+}
+
 // DeleteMetric handles DELETE /api/v1/metrics/{name}. A metric still referenced by a
 // recorded measurement is 409; an unknown name is 404. A cycle that targets it is
 // SET NULL by the FK, so cycle references do not block the delete.

@@ -25,7 +25,7 @@ func NewMeasurementRepo(pool *pgxpool.Pool) *MeasurementRepo {
 // name — the metrics a measurement can reference and the stats page groups by.
 func (r *MeasurementRepo) ListMetrics(ctx context.Context) ([]models.MetricDefinition, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT name, unit, direction, category, created_at FROM metric_definitions ORDER BY category, name`)
+		`SELECT name, label, unit, direction, category, created_at FROM metric_definitions ORDER BY category, label`)
 	if err != nil {
 		return nil, fmt.Errorf("listing metrics: %w", err)
 	}
@@ -34,7 +34,7 @@ func (r *MeasurementRepo) ListMetrics(ctx context.Context) ([]models.MetricDefin
 	metrics := []models.MetricDefinition{}
 	for rows.Next() {
 		var m models.MetricDefinition
-		if err := rows.Scan(&m.Name, &m.Unit, &m.Direction, &m.Category, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.Name, &m.Label, &m.Unit, &m.Direction, &m.Category, &m.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scanning metric: %w", err)
 		}
 		metrics = append(metrics, m)
@@ -46,8 +46,8 @@ func (r *MeasurementRepo) ListMetrics(ctx context.Context) ([]models.MetricDefin
 func (r *MeasurementRepo) GetMetric(ctx context.Context, name string) (models.MetricDefinition, error) {
 	var m models.MetricDefinition
 	err := r.pool.QueryRow(ctx,
-		`SELECT name, unit, direction, category, created_at FROM metric_definitions WHERE name = $1`, name).
-		Scan(&m.Name, &m.Unit, &m.Direction, &m.Category, &m.CreatedAt)
+		`SELECT name, label, unit, direction, category, created_at FROM metric_definitions WHERE name = $1`, name).
+		Scan(&m.Name, &m.Label, &m.Unit, &m.Direction, &m.Category, &m.CreatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return models.MetricDefinition{}, fmt.Errorf("metric %q: %w", name, ErrNotFound)
@@ -62,13 +62,56 @@ func (r *MeasurementRepo) GetMetric(ctx context.Context, name string) (models.Me
 // 23514 mapping). Metrics are the tracking vocabulary — POST creates, it does not
 // silently overwrite an existing definition.
 func (r *MeasurementRepo) DefineMetric(ctx context.Context, in models.MetricDefinitionCreate) (models.MetricDefinition, error) {
+	label := in.Label
+	if label == "" {
+		label = models.DeriveMetricLabel(in.Name)
+	}
 	_, err := r.pool.Exec(ctx,
-		`INSERT INTO metric_definitions (name, unit, direction, category) VALUES ($1, $2, $3, $4)`,
-		in.Name, in.Unit, in.Direction, in.Category)
+		`INSERT INTO metric_definitions (name, label, unit, direction, category) VALUES ($1, $2, $3, $4, $5)`,
+		in.Name, label, in.Unit, in.Direction, in.Category)
 	if err != nil {
 		return models.MetricDefinition{}, mapWriteError("defining metric", err)
 	}
 	return r.GetMetric(ctx, in.Name)
+}
+
+// UpdateMetric applies a partial update to a definition, leaving nil fields alone. An
+// unknown name is ErrNotFound; a direction/category outside its CHECK set is
+// ErrInvalid. The name itself is immutable — it is the key measurements reference.
+func (r *MeasurementRepo) UpdateMetric(ctx context.Context, name string, in models.MetricDefinitionUpdate) (models.MetricDefinition, error) {
+	sets := []string{}
+	args := []any{}
+	add := func(clause string, value any) {
+		args = append(args, value)
+		sets = append(sets, fmt.Sprintf(clause, len(args)))
+	}
+	if in.Label != nil {
+		add("label = $%d", *in.Label)
+	}
+	if in.Unit != nil {
+		add("unit = $%d", *in.Unit)
+	}
+	if in.Direction != nil {
+		add("direction = $%d", *in.Direction)
+	}
+	if in.Category != nil {
+		add("category = $%d", *in.Category)
+	}
+	if len(sets) == 0 {
+		return r.GetMetric(ctx, name)
+	}
+
+	args = append(args, name)
+	query := fmt.Sprintf("UPDATE metric_definitions SET %s WHERE name = $%d",
+		strings.Join(sets, ", "), len(args))
+	tag, err := r.pool.Exec(ctx, query, args...)
+	if err != nil {
+		return models.MetricDefinition{}, mapWriteError("updating metric", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return models.MetricDefinition{}, fmt.Errorf("metric %q: %w", name, ErrNotFound)
+	}
+	return r.GetMetric(ctx, name)
 }
 
 // DeleteMetric removes a metric definition by name. A metric still referenced by a
@@ -289,6 +332,7 @@ func (r *MeasurementRepo) Trend(ctx context.Context, metric string, f models.Mea
 func trendFromDefinition(def models.MetricDefinition) models.MetricTrend {
 	return models.MetricTrend{
 		Metric:    def.Name,
+		Label:     def.Label,
 		Unit:      def.Unit,
 		Direction: def.Direction,
 		Category:  def.Category,

@@ -57,14 +57,49 @@ func TestMetric_Define_ListAndValidation(t *testing.T) {
 	})
 	assert.Equal(t, http.StatusBadRequest, badCat.Code)
 
-	// Listed, grouped by category then name (cardio before strength).
+	// Listed, grouped by category then label (cardio before strength). An omitted
+	// label is derived from the name, so no metric ever reads as a raw slug.
 	rr := getJSON(t, mux, "/api/v1/metrics")
 	require.Equal(t, http.StatusOK, rr.Code)
 	var metrics []models.MetricDefinition
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &metrics))
 	require.Len(t, metrics, 2)
 	assert.Equal(t, "5k-time", metrics[0].Name)
+	assert.Equal(t, "5k Time", metrics[0].Label)
 	assert.Equal(t, "deadlift-working-weight", metrics[1].Name)
+	assert.Equal(t, "Deadlift Working Weight", metrics[1].Label)
+}
+
+func TestMetric_ExplicitLabelAndUpdate(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+
+	// An explicit label wins over the derivation.
+	rr := postJSON(t, mux, "/api/v1/metrics", map[string]any{
+		"name": "row-machine-500m", "label": "Row 500m",
+		"unit": "seconds", "direction": "lower_better", "category": "cardio",
+	})
+	require.Equal(t, http.StatusCreated, rr.Code)
+	var created models.MetricDefinition
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &created))
+	assert.Equal(t, "Row 500m", created.Label)
+
+	// A partial update touches only the fields it carries.
+	updated := putJSON(t, mux, "/api/v1/metrics/row-machine-500m", map[string]any{
+		"label": "Row (500m split)",
+	})
+	require.Equal(t, http.StatusOK, updated.Code)
+	var after models.MetricDefinition
+	require.NoError(t, json.Unmarshal(updated.Body.Bytes(), &after))
+	assert.Equal(t, "Row (500m split)", after.Label)
+	assert.Equal(t, "seconds", after.Unit)
+	assert.Equal(t, "lower_better", after.Direction)
+	assert.Equal(t, "cardio", after.Category)
+
+	// An out-of-range category is still a 400 on update, and an unknown name a 404.
+	bad := putJSON(t, mux, "/api/v1/metrics/row-machine-500m", map[string]any{"category": "vibes"})
+	assert.Equal(t, http.StatusBadRequest, bad.Code)
+	missing := putJSON(t, mux, "/api/v1/metrics/nope", map[string]any{"label": "Nope"})
+	assert.Equal(t, http.StatusNotFound, missing.Code)
 }
 
 func TestMeasurement_RecordListFilterUpdateDelete(t *testing.T) {

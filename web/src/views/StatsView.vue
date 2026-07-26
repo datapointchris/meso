@@ -1,16 +1,34 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { statsApi, CATEGORY_LABELS, type Stats, type MetricCategory, type MetricTrend } from '@/api/measurements'
+import {
+  statsApi,
+  metricsApi,
+  CATEGORY_LABELS,
+  type Stats,
+  type MetricCategory,
+  type MetricTrend,
+  type MetricDefinition,
+} from '@/api/measurements'
 import { ApiError } from '@/api/client'
 import TrendChart from '@/components/TrendChart.vue'
 import AddMeasurementModal from '@/components/AddMeasurementModal.vue'
+import AddEditMetricModal from '@/components/AddEditMetricModal.vue'
 
-// The stats page: one GET assembles every measured metric's trend plus the library
+// The stats page: one GET assembles every *defined* metric's trend plus the library
 // and session summaries. Trends group by category so related charts sit together.
+// Unmeasured metrics come back with no points and render as an empty card — this
+// page is the vocabulary as much as the history, so what can be recorded is visible
+// without opening the record sheet first.
 const stats = ref<Stats | null>(null)
 const loading = ref(true)
 const error = ref('')
-const recording = ref(false)
+
+// Recording is either null (closed) or the metric key to preselect; '' opens the
+// sheet with no preselection, which is what the header button does.
+const recording = ref<string | null>(null)
+
+// Metric editing: null (closed), 'new', or the definition being edited.
+const editingMetric = ref<MetricDefinition | 'new' | null>(null)
 
 async function load() {
   loading.value = true
@@ -46,7 +64,24 @@ const hasMetrics = computed(() => (stats.value?.metrics.length ?? 0) > 0)
 const maxWeekCount = computed(() => Math.max(1, ...(stats.value?.sessions.by_week ?? []).map((w) => w.count)))
 
 function onSaved() {
-  recording.value = false
+  recording.value = null
+  load()
+}
+
+// The trend card carries the metric key, not the definition; editing needs the full
+// definition (unit/direction/category), so fetch the vocabulary and pick it out.
+async function openMetricEditor(metricName: string) {
+  try {
+    const metrics = await metricsApi.list()
+    const found = metrics.find((m) => m.name === metricName)
+    if (found) editingMetric.value = found
+  } catch (e) {
+    error.value = e instanceof ApiError ? e.message : 'Failed to load the metric'
+  }
+}
+
+function onMetricSaved() {
+  editingMetric.value = null
   load()
 }
 </script>
@@ -55,12 +90,20 @@ function onSaved() {
   <section class="stats">
     <header class="stats__head">
       <h1 class="stats__title">Stats</h1>
-      <button
-        class="btn btn--accent"
-        type="button"
-        @click="recording = true">
-        Record
-      </button>
+      <div class="stats__actions">
+        <button
+          class="btn"
+          type="button"
+          @click="editingMetric = 'new'">
+          New metric
+        </button>
+        <button
+          class="btn btn--accent"
+          type="button"
+          @click="recording = ''">
+          Record
+        </button>
+      </div>
     </header>
 
     <p
@@ -133,11 +176,12 @@ function onSaved() {
         </ul>
       </section>
 
-      <!-- Metric trends, grouped by category -->
+      <!-- Metric trends, grouped by category. Every defined metric gets a card,
+           measured or not, so the page doubles as the list of what's trackable. -->
       <p
         v-if="!hasMetrics"
         class="stats__status">
-        No measurements yet. Tap “Record” to log a lift, a time, or a range of motion — the trend chart appears here.
+        No metrics defined yet. Tap “New metric” to start tracking a lift, a time, or a range of motion.
       </p>
 
       <section
@@ -149,15 +193,26 @@ function onSaved() {
           <TrendChart
             v-for="trend in group.trends"
             :key="trend.metric"
-            :trend="trend" />
+            :trend="trend"
+            @record="recording = trend.metric"
+            @edit="openMetricEditor(trend.metric)" />
         </div>
       </section>
     </template>
 
     <AddMeasurementModal
-      v-if="recording"
+      v-if="recording !== null"
+      :metric="recording || undefined"
       @saved="onSaved"
-      @close="recording = false" />
+      @close="recording = null" />
+
+    <AddEditMetricModal
+      v-if="editingMetric"
+      :key="editingMetric === 'new' ? 'new' : editingMetric.name"
+      :metric="editingMetric === 'new' ? undefined : editingMetric"
+      @saved="onMetricSaved"
+      @deleted="onMetricSaved"
+      @close="editingMetric = null" />
   </section>
 </template>
 
@@ -177,6 +232,11 @@ function onSaved() {
 .stats__title {
   margin: 0;
   font-size: 1.5rem;
+}
+
+.stats__actions {
+  display: flex;
+  gap: var(--space-2);
 }
 
 .stats__status {

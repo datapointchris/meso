@@ -162,10 +162,13 @@ Three behaviors from the research make a cycle humane rather than a straightjack
 
 Lift numbers, 5k time, toe reach, bodyweight, BMI, ROM — "all of those I can track ... that show progress." A metric definition + a value time series.
 
-- `metric_definitions` (lookup + metadata): `name: Text PK` ("deadlift-working-weight", "5k-time", "knee-to-wall-left"), `unit: Text` ("lb", "seconds", "cm"), `direction: Text` (`higher_better` | `lower_better`), `category: Text` (strength | cardio | mobility | body)
+- `metric_definitions` (lookup + metadata): `name: Text PK` ("deadlift-working-weight", "5k-time", "knee-to-wall-left"), `label: Text` (the display string — "Deadlift Working Weight"; defaults to the name title-cased), `unit: Text` ("lb", "seconds", "cm"), `direction: Text` (`higher_better` | `lower_better`), `category: Text` (strength | cardio | mobility | body)
+
 - `measurements` (time series): `id`, `metric: FK → metric_definitions.name`, `value: Numeric`, `measured_on: Date`, `source: Text` (`manual` | `session` — some derive from logged sessions later), `notes: Text`
 
-Feeds a stats page via the ported stats kit.
+The `name` is the slug-shaped natural key the API, CLI, and cycle targets all address a metric by, which makes it permanent and a poor thing to show a human. `label` is edited independently so the app never displays a raw key; renaming a metric is delete + redefine.
+
+Feeds a stats page via the ported stats kit. The stats payload carries **every defined metric**, measured or not — an unmeasured one comes back with no points and renders as an empty card, so the page shows what can be tracked rather than only what already has history.
 
 ### 7. FitnessLogEntry — the journal
 
@@ -216,7 +219,7 @@ snake_case tables, `Text` columns, lookup tables for all categoricals, goose mig
 movement_kinds(name PK)                                   -- exercise|stretch|yoga_pose
 relationship_kinds(name PK)                               -- alternate|antagonist|progression|regression|see_also
 cycle_statuses(name PK)                                   -- planned|active|paused|complete
-metric_definitions(name PK, unit, direction, category)
+metric_definitions(name PK, label, unit, direction, category)
 muscles(name PK, region)                                  -- hamstrings→posterior, ... (region drives filtering)
 
 movements(id PK identity, name, movement_kind FK, favorite,
@@ -273,7 +276,7 @@ Go request/response structs per entity (Create / response / Update shapes) with 
 /api/v1/sessions/{id}/movements/{mid}   PATCH done/actuals
 /api/v1/cycles                    CRUD
 /api/v1/cycles/{id}/workouts      POST/PATCH/DELETE ordered workouts
-/api/v1/metrics                   list metric_definitions; POST define; DELETE {name}
+/api/v1/metrics                   list metric_definitions; POST define; PUT/DELETE {name}
 /api/v1/measurements              CRUD + ?metric=&from=&to=
 /api/v1/log                       CRUD dated entries
 /api/v1/stats                     aggregations for the stats page
@@ -293,7 +296,7 @@ meso movements   list [--kind --favorite --tag --equipment --muscle --region --s
 meso workouts    list | show <id> | create | update | delete | movements add/reorder/rm
 meso sessions    log [--from-workout <id>] | list [--from --to] | show <id> | movement done <mid>
 meso cycles      list | show <id> | create | update | delete | workouts add/reorder/rm
-meso metrics     list | define | delete
+meso metrics     list | define | edit | delete
 meso measurements record | list [--metric --from --to] | trend <metric>
 meso log         add | list [--from --to --tag] | show <id>
 meso stats       [--json]

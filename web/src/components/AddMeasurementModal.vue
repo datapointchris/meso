@@ -92,7 +92,7 @@ async function save() {
               v-for="m in metrics"
               :key="m.name"
               :value="m.name">
-              {{ m.name }} ({{ m.unit }} · {{ CATEGORY_LABELS[m.category] }})
+              {{ m.label }} ({{ m.unit }} · {{ CATEGORY_LABELS[m.category] }})
             </option>
           </select>
         </label>
@@ -100,9 +100,9 @@ async function save() {
         <p
           v-if="!loadingMetrics && metrics.length === 0"
           class="modal__hint">
-          No metrics defined yet. Define one with
+          No metrics defined yet. Add one with “New metric” on the stats page (or
           <code>meso metrics define</code>
-          , then record against it.
+          ), then record against it.
         </p>
 
         <label class="field">

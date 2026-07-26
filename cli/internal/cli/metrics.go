@@ -22,8 +22,66 @@ func newMetricsCommand() *cobra.Command {
 	cmd.AddCommand(
 		newMetricsListCommand(),
 		newMetricsDefineCommand(),
+		newMetricsEditCommand(),
 		newMetricsDeleteCommand(),
 	)
+	return cmd
+}
+
+func newMetricsEditCommand() *cobra.Command {
+	var (
+		label, unit, direction, category string
+		asJSON                           bool
+	)
+	cmd := &cobra.Command{
+		Use:   "edit <name> [flags]",
+		Short: "Change a metric's label, unit, direction, or category",
+		Long: "Update a metric definition in place. Only the flags you pass change. The name\n" +
+			"is the key measurements and cycles reference, so it can't be edited — rename by\n" +
+			"deleting and redefining.",
+		Example: "  meso metrics edit back-squat-working-weight --label \"Back Squat (working)\"\n" +
+			"  meso metrics edit row-machine-500m --unit seconds --direction lower_better",
+		Args: usageArgs(cobra.ExactArgs(1)),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			in := api.MetricDefinitionUpdate{}
+			f := cmd.Flags()
+			if f.Changed("label") {
+				in.Label = &label
+			}
+			if f.Changed("unit") {
+				in.Unit = &unit
+			}
+			if f.Changed("direction") {
+				in.Direction = &direction
+			}
+			if f.Changed("category") {
+				in.Category = &category
+			}
+			if in.Label == nil && in.Unit == nil && in.Direction == nil && in.Category == nil {
+				return fmt.Errorf("nothing to change: pass at least one of --label, --unit, --direction, --category")
+			}
+			client, err := newAPIClient(cmd.Context())
+			if err != nil {
+				return handleAPIError(err)
+			}
+			metric, err := client.UpdateMetric(cmd.Context(), args[0], in)
+			if err != nil {
+				return handleAPIError(err)
+			}
+			if asJSON {
+				return encodeJSON(cmd.OutOrStdout(), metric)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Updated %s — %s (%s, %s, %s)\n",
+				metric.Name, metric.Label, metric.Unit, metric.Direction, metric.Category)
+			return nil
+		},
+	}
+	f := cmd.Flags()
+	f.StringVar(&label, "label", "", "Display label shown in the app")
+	f.StringVar(&unit, "unit", "", "Unit of measure (e.g. lb, seconds, cm, reps)")
+	f.StringVar(&direction, "direction", "", "higher_better | lower_better")
+	f.StringVar(&category, "category", "", "strength | cardio | mobility | body")
+	f.BoolVar(&asJSON, "json", false, "Output the updated metric as JSON")
 	return cmd
 }
 
@@ -87,21 +145,23 @@ func newMetricsListCommand() *cobra.Command {
 
 func newMetricsDefineCommand() *cobra.Command {
 	var (
-		unit, direction, category string
-		asJSON                    bool
+		label, unit, direction, category string
+		asJSON                           bool
 	)
 	cmd := &cobra.Command{
 		Use:   "define <name> [flags]",
 		Short: "Define a metric to track",
-		Long: "Define a metric. Direction is higher_better or lower_better (a heavier lift and\n" +
-			"a faster 5k both improve, with opposite signs); category is strength, cardio,\n" +
-			"mobility, or body.",
+		Long: "Define a metric. The name is the slug-shaped key everything addresses it by;\n" +
+			"--label is what the app displays, defaulting to the name title-cased. Direction\n" +
+			"is higher_better or lower_better (a heavier lift and a faster 5k both improve,\n" +
+			"with opposite signs); category is strength, cardio, mobility, or body.",
 		Example: "  meso metrics define deadlift-working-weight --unit lb --direction higher_better --category strength\n" +
-			"  meso metrics define 5k-time --unit seconds --direction lower_better --category cardio",
+			"  meso metrics define 5k-time --unit seconds --direction lower_better --category cardio\n" +
+			"  meso metrics define row-machine-500m --label \"Row 500m\" --unit seconds --direction lower_better --category cardio",
 		Args: usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in := api.MetricDefinitionCreate{
-				Name: args[0], Unit: unit, Direction: direction, Category: category,
+				Name: args[0], Label: label, Unit: unit, Direction: direction, Category: category,
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -114,12 +174,13 @@ func newMetricsDefineCommand() *cobra.Command {
 			if asJSON {
 				return encodeJSON(cmd.OutOrStdout(), metric)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Defined %s (%s, %s, %s)\n",
-				metric.Name, metric.Unit, metric.Direction, metric.Category)
+			fmt.Fprintf(cmd.OutOrStdout(), "Defined %s — %s (%s, %s, %s)\n",
+				metric.Name, metric.Label, metric.Unit, metric.Direction, metric.Category)
 			return nil
 		},
 	}
 	f := cmd.Flags()
+	f.StringVar(&label, "label", "", "Display label shown in the app (default: the name, title-cased)")
 	f.StringVar(&unit, "unit", "", "Unit of measure (e.g. lb, seconds, cm, reps)")
 	f.StringVar(&direction, "direction", "higher_better", "higher_better | lower_better")
 	f.StringVar(&category, "category", "", "strength | cardio | mobility | body")
@@ -133,9 +194,9 @@ func printMetricsTable(out io.Writer, metrics []api.MetricDefinition) {
 		return
 	}
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "NAME\tUNIT\tDIRECTION\tCATEGORY")
+	fmt.Fprintln(tw, "NAME\tLABEL\tUNIT\tDIRECTION\tCATEGORY")
 	for _, m := range metrics {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", m.Name, m.Unit, m.Direction, m.Category)
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", m.Name, m.Label, m.Unit, m.Direction, m.Category)
 	}
 	_ = tw.Flush()
 }

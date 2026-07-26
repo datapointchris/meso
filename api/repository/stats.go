@@ -41,16 +41,18 @@ func (r *StatsRepo) Summary(ctx context.Context) (models.StatsSummary, error) {
 	return models.StatsSummary{Metrics: metrics, Library: library, Sessions: sessions}, nil
 }
 
-// metricTrends returns a trend per metric that has at least one reading, points
-// oldest-first. One query joins every measurement to its definition, ordered so the
-// grouping below is a single linear pass; a defined-but-unmeasured metric is omitted
-// (an empty chart is noise — the full vocabulary is at /metrics).
+// metricTrends returns a trend for every defined metric, points oldest-first. The
+// join is a LEFT JOIN from the definitions so a metric with no readings still comes
+// back — with an empty Points slice and null summary numbers. That is deliberate:
+// the stats page is where a reading gets recorded, so it has to show what *can* be
+// recorded, not only what already has history. Ordering by (category, label) then
+// date makes the grouping below a single linear pass.
 func (r *StatsRepo) metricTrends(ctx context.Context) ([]models.MetricTrend, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT d.name, d.unit, d.direction, d.category, m.measured_on, m.value
-		FROM measurements m
-		JOIN metric_definitions d ON d.name = m.metric
-		ORDER BY d.category, d.name, m.measured_on, m.created_at`)
+		SELECT d.name, d.label, d.unit, d.direction, d.category, m.measured_on, m.value
+		FROM metric_definitions d
+		LEFT JOIN measurements m ON m.metric = d.name
+		ORDER BY d.category, d.label, m.measured_on, m.created_at`)
 	if err != nil {
 		return nil, fmt.Errorf("loading metric trends: %w", err)
 	}
@@ -59,10 +61,10 @@ func (r *StatsRepo) metricTrends(ctx context.Context) ([]models.MetricTrend, err
 	trends := []models.MetricTrend{}
 	byName := map[string]int{}
 	for rows.Next() {
-		var name, unit, direction, category string
-		var measuredOn time.Time
-		var value float64
-		if err := rows.Scan(&name, &unit, &direction, &category, &measuredOn, &value); err != nil {
+		var name, label, unit, direction, category string
+		var measuredOn *time.Time
+		var value *float64
+		if err := rows.Scan(&name, &label, &unit, &direction, &category, &measuredOn, &value); err != nil {
 			return nil, fmt.Errorf("scanning metric trend: %w", err)
 		}
 		idx, ok := byName[name]
@@ -70,11 +72,16 @@ func (r *StatsRepo) metricTrends(ctx context.Context) ([]models.MetricTrend, err
 			idx = len(trends)
 			byName[name] = idx
 			trends = append(trends, trendFromDefinition(models.MetricDefinition{
-				Name: name, Unit: unit, Direction: direction, Category: category,
+				Name: name, Label: label, Unit: unit, Direction: direction, Category: category,
 			}))
 		}
+		// Null measurement columns mean the LEFT JOIN found no readings — the
+		// definition row is still wanted, just with no point to append.
+		if measuredOn == nil || value == nil {
+			continue
+		}
 		trends[idx].Points = append(trends[idx].Points, models.TrendPoint{
-			MeasuredOn: measuredOn.Format(dateLayout), Value: value,
+			MeasuredOn: measuredOn.Format(dateLayout), Value: *value,
 		})
 	}
 	if err := rows.Err(); err != nil {

@@ -68,10 +68,22 @@ func TestStats_Summary(t *testing.T) {
 	}
 	assert.Equal(t, 2, weekTotal)
 
-	// Only the measured metric appears in the trends; its summary is computed.
-	require.Len(t, stats.Metrics, 1)
-	dead := stats.Metrics[0]
+	// Every *defined* metric appears, measured or not — the stats payload is the
+	// vocabulary as well as the history, so the UI can offer an unmeasured metric to
+	// record against. Ordered by (category, label): mobility before strength.
+	require.Len(t, stats.Metrics, 2)
+	toes := stats.Metrics[0]
+	assert.Equal(t, "toe-reach", toes.Metric)
+	assert.Equal(t, "Toe Reach", toes.Label)
+	assert.Empty(t, toes.Points)
+	assert.Equal(t, 0, toes.Count)
+	assert.Nil(t, toes.First)
+	assert.Nil(t, toes.Latest)
+	assert.Nil(t, toes.Change)
+
+	dead := stats.Metrics[1]
 	assert.Equal(t, "deadlift-working-weight", dead.Metric)
+	assert.Equal(t, "Deadlift Working Weight", dead.Label)
 	require.Len(t, dead.Points, 2)
 	require.NotNil(t, dead.Change)
 	assert.Equal(t, 40.0, *dead.Change)

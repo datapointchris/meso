@@ -5,6 +5,7 @@ import {
   statsApi,
   changeVerdict,
   formatValue,
+  slugifyMetricName,
   type MetricTrend,
 } from './measurements'
 import { ApiError } from './client'
@@ -21,6 +22,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 function trend(partial: Partial<MetricTrend>): MetricTrend {
   return {
     metric: 'x',
+    label: 'X',
     unit: 'lb',
     direction: 'higher_better',
     category: 'strength',
@@ -84,6 +86,23 @@ describe('measurements api', () => {
     expect(init.method).toBe('POST')
   })
 
+  it('updates a metric via PUT with an encoded name', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ name: 'row-machine-500m' }))
+    await metricsApi.update('row-machine-500m', { label: 'Row 500m' })
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/v1/metrics/row-machine-500m')
+    expect(init.method).toBe('PUT')
+    expect(init.body).toBe(JSON.stringify({ label: 'Row 500m' }))
+  })
+
+  it('deletes a metric via DELETE', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({}, 204))
+    await metricsApi.remove('5k-time')
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/v1/metrics/5k-time')
+    expect(init.method).toBe('DELETE')
+  })
+
   it('fetches the stats summary', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ metrics: [], library: {}, sessions: {} }))
     await statsApi.get()
@@ -117,6 +136,15 @@ describe('changeVerdict', () => {
   it('is flat for zero change and null for an unmeasured metric', () => {
     expect(changeVerdict(trend({ change: 0 }))).toBe('flat')
     expect(changeVerdict(trend({ change: null }))).toBe(null)
+  })
+})
+
+describe('slugifyMetricName', () => {
+  it('derives the API key from a typed display label', () => {
+    expect(slugifyMetricName('Row Machine 500m')).toBe('row-machine-500m')
+  })
+  it('collapses punctuation and trims stray separators', () => {
+    expect(slugifyMetricName('  Back Squat — working weight!  ')).toBe('back-squat-working-weight')
   })
 })
 

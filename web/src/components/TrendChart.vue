@@ -5,7 +5,12 @@ import { changeVerdict, formatValue, type MetricTrend } from '@/api/measurements
 // A self-contained trend card: the metric's latest value, its direction-aware change
 // badge, and an inline SVG line chart of the series. All colors come from theme CSS
 // custom properties, so it tracks light/dark and the future design-style switcher.
+//
+// The card renders for a defined-but-unmeasured metric too — no chart, a "record the
+// first reading" prompt instead. That is what makes the stats page a list of what
+// *can* be tracked rather than only what already has history.
 const props = defineProps<{ trend: MetricTrend }>()
+const emit = defineEmits<{ record: []; edit: [] }>()
 
 // A fixed viewBox with default (aspect-preserving) scaling keeps the dots round while
 // the SVG stretches to the card width via width:100%.
@@ -52,7 +57,13 @@ const changeLabel = computed(() => {
     class="trend"
     :class="verdict ? `trend--${verdict}` : ''">
     <header class="trend__head">
-      <h3 class="trend__name">{{ trend.metric }}</h3>
+      <button
+        class="trend__name"
+        type="button"
+        :aria-label="`Edit ${trend.label}`"
+        @click="emit('edit')">
+        {{ trend.label }}
+      </button>
       <div class="trend__summary">
         <span class="trend__latest">
           {{ trend.latest !== null ? formatValue(trend.latest) : '—' }}
@@ -71,7 +82,7 @@ const changeLabel = computed(() => {
       class="trend__chart"
       :viewBox="`0 0 ${W} ${H}`"
       role="img"
-      :aria-label="`${trend.metric} trend, ${trend.count} readings`">
+      :aria-label="`${trend.label} trend, ${trend.count} readings`">
       <path
         class="trend__area"
         :d="geometry.area" />
@@ -87,10 +98,25 @@ const changeLabel = computed(() => {
         r="2.5" />
     </svg>
 
+    <p
+      v-else
+      class="trend__empty">
+      No readings yet
+    </p>
+
     <footer class="trend__foot">
-      <span>{{ trend.points[0]?.measured_on }}</span>
-      <span class="trend__count">{{ trend.count }} reading{{ trend.count === 1 ? '' : 's' }}</span>
-      <span>{{ trend.points[trend.points.length - 1]?.measured_on }}</span>
+      <template v-if="geometry">
+        <span>{{ trend.points[0]?.measured_on }}</span>
+        <span class="trend__count">{{ trend.count }} reading{{ trend.count === 1 ? '' : 's' }}</span>
+        <span>{{ trend.points[trend.points.length - 1]?.measured_on }}</span>
+      </template>
+      <span v-else />
+      <button
+        class="trend__record"
+        type="button"
+        @click="emit('record')">
+        Record
+      </button>
     </footer>
   </article>
 </template>
@@ -127,11 +153,36 @@ const changeLabel = computed(() => {
   gap: var(--space-2);
 }
 
+// The metric name doubles as the edit affordance — a button styled as the heading,
+// so the card keeps one obvious tap target per action without a row of icons.
 .trend__name {
-  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
   font-size: 0.95rem;
   font-weight: 600;
+  text-align: left;
   word-break: break-word;
+}
+
+.trend__empty {
+  margin: 0;
+  padding: var(--space-3) 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.trend__record {
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+  margin: calc(var(--space-2) * -1) calc(var(--space-2) * -1) calc(var(--space-2) * -1) 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .trend__summary {
@@ -190,6 +241,7 @@ const changeLabel = computed(() => {
 
 .trend__foot {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
   font-size: 0.72rem;

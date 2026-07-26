@@ -1,14 +1,20 @@
 package models
 
-import "time"
+import (
+	"strings"
+	"time"
+	"unicode"
+)
 
 // MetricDefinition names a tracked metric and carries the metadata a chart needs:
 // its unit, which direction counts as improvement (a heavier deadlift and a faster
 // 5k both improve, with opposite signs), and a coarse category for grouping. It is
-// the lookup a Measurement references.
+// the lookup a Measurement references. Name is the slug-shaped natural key every
+// other surface addresses it by; Label is what a human reads.
 type MetricDefinition struct {
 	CreatedAt time.Time `json:"created_at"`
 	Name      string    `json:"name"`
+	Label     string    `json:"label"`
 	Unit      string    `json:"unit"`
 	Direction string    `json:"direction"`
 	Category  string    `json:"category"`
@@ -16,12 +22,41 @@ type MetricDefinition struct {
 
 // MetricDefinitionCreate defines a metric. Direction ∈ higher_better|lower_better,
 // category ∈ strength|cardio|mobility|body — the DB CHECKs enforce both, so an
-// unknown value is a 400, not a silent write.
+// unknown value is a 400, not a silent write. An empty Label is derived from Name.
 type MetricDefinitionCreate struct {
 	Name      string `json:"name"`
+	Label     string `json:"label"`
 	Unit      string `json:"unit"`
 	Direction string `json:"direction"`
 	Category  string `json:"category"`
+}
+
+// MetricDefinitionUpdate is a partial update of a definition: a nil field is left
+// unchanged. Name is the natural key and is fixed — every measurement, cycle target,
+// and CLI invocation addresses the metric by it, so renaming is delete + redefine.
+type MetricDefinitionUpdate struct {
+	Label     *string `json:"label"`
+	Unit      *string `json:"unit"`
+	Direction *string `json:"direction"`
+	Category  *string `json:"category"`
+}
+
+// DeriveMetricLabel turns a slug-shaped metric name into a display label:
+// "back-squat-working-weight" → "Back Squat Working Weight". It is the default a
+// define with no explicit label gets, and it matches the SQL backfill in migration
+// 00008 (initcap over the de-hyphenated name), so a metric defined before and after
+// that migration reads the same.
+func DeriveMetricLabel(name string) string {
+	words := strings.Split(name, "-")
+	for i, word := range words {
+		if word == "" {
+			continue
+		}
+		runes := []rune(word)
+		runes[0] = unicode.ToUpper(runes[0])
+		words[i] = string(runes)
+	}
+	return strings.Join(words, " ")
 }
 
 // Measurement is one dated reading of a metric — a point in the time series. Value
@@ -77,6 +112,7 @@ type TrendPoint struct {
 // a defined-but-unmeasured metric.
 type MetricTrend struct {
 	Metric    string       `json:"metric"`
+	Label     string       `json:"label"`
 	Unit      string       `json:"unit"`
 	Direction string       `json:"direction"`
 	Category  string       `json:"category"`
