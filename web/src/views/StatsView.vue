@@ -87,6 +87,14 @@ async function openMetricEditor(metricName: string) {
   }
 }
 
+// Recording from inside the about-modal replaces it rather than stacking a second
+// sheet over it — you have just read how to take the reading, so the next thing on
+// screen should be the field to put it in.
+function recordFrom(metricName: string) {
+  recording.value = metricName
+  about.value = null
+}
+
 function onMetricSaved() {
   editingMetric.value = null
   load()
@@ -226,10 +234,7 @@ function onMetricSaved() {
       v-if="about"
       :trend="about"
       @edit="openMetricEditor(about.metric)"
-      @record="
-        recording = about.metric
-        about = null
-      "
+      @record="recordFrom(about.metric)"
       @close="about = null" />
 
     <MetricReadingsModal
