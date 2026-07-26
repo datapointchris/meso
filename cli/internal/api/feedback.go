@@ -8,18 +8,21 @@ import (
 
 // Feedback mirrors the API's feedback JSON — one captured papercut or idea about the
 // app itself. The id is a UUID7 string, treated opaquely by the CLI. Status is
-// open|done; ContextPath is the in-app route it was raised from.
+// open|done; ContextPath is the in-app route it was raised from and the viewport is
+// how wide the window was, both nil/empty for feedback captured from the CLI.
 type Feedback struct {
-	ID          string `json:"id"`
-	Status      string `json:"status"`
-	Body        string `json:"body"`
-	ContextPath string `json:"context_path"`
-	CreatedAt   string `json:"created_at"`
-	UpdatedAt   string `json:"updated_at"`
+	ID             string `json:"id"`
+	Status         string `json:"status"`
+	Body           string `json:"body"`
+	ContextPath    string `json:"context_path"`
+	ViewportWidth  *int   `json:"viewport_width"`
+	ViewportHeight *int   `json:"viewport_height"`
+	CreatedAt      string `json:"created_at"`
+	UpdatedAt      string `json:"updated_at"`
 }
 
 // FeedbackCreate is the body for POST /api/v1/feedback. Status defaults to open
-// server-side.
+// server-side. The viewport is omitted — a terminal has no window to measure.
 type FeedbackCreate struct {
 	Body        string `json:"body"`
 	ContextPath string `json:"context_path,omitempty"`

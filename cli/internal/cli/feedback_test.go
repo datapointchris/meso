@@ -56,6 +56,30 @@ func TestPrintFeedbackDetail(t *testing.T) {
 	}
 }
 
+func TestPrintFeedbackDetailViewport(t *testing.T) {
+	width := 390
+	height := 844
+
+	var phone bytes.Buffer
+	printFeedbackDetail(&phone, api.Feedback{
+		ID: "019f-a", Status: "open", ContextPath: "/movements/21",
+		Body: "wall of text", CreatedAt: "2026-07-26T17:15:10Z",
+		ViewportWidth: &width, ViewportHeight: &height,
+	})
+	if !strings.Contains(phone.String(), "390 × 844") {
+		t.Errorf("detail missing the viewport:\n%s", phone.String())
+	}
+
+	// A CLI capture has no window to measure — an em dash, not a bogus 0 × 0.
+	var terminal bytes.Buffer
+	printFeedbackDetail(&terminal, api.Feedback{
+		ID: "019f-b", Status: "open", Body: "filed from a shell", CreatedAt: "2026-07-26T17:15:10Z",
+	})
+	if !strings.Contains(terminal.String(), "viewport:  —") {
+		t.Errorf("absent viewport should render an em dash:\n%s", terminal.String())
+	}
+}
+
 func TestFeedbackDateOf(t *testing.T) {
 	if got := dateOf("2026-07-25T14:02:11Z"); got != "2026-07-25" {
 		t.Errorf("dateOf(timestamp) = %q", got)

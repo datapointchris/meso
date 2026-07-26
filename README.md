@@ -180,7 +180,7 @@ Feeds a stats page via the ported stats kit. The stats payload carries **every d
 
 The one entity here that is not training data. A button on every screen captures a thought mid-session — at the gym, one-handed — so it survives the moment it was had. Triage happens in the CLI, under the `admin` namespace.
 
-- `Feedback`: `id` (UUID7), `status: Text` (`open` | `done`), `body: Text`, `context_path: Text` (the in-app route it was raised from), `created_at`, `updated_at`
+- `Feedback`: `id` (UUID7), `status: Text` (`open` | `done`), `body: Text`, `context_path: Text` (the in-app route it was raised from), `viewport_width`/`viewport_height: Int?` (the window it was seen at, null for a CLI capture), `created_at`, `updated_at`
 
 **meso owns this outright and forwards it nowhere.** No row here refers to another system, and no other system needs to be reachable for a capture to succeed. Whoever wants this data comes and reads it (`meso admin feedback list --json`) — the dependency points inward, at meso, never sideways from meso at something else. That is what keeps the app standalone: it can be copied into another product, or run by someone with no ichrisbirch at all, unchanged.
 
@@ -264,7 +264,7 @@ measurements(id PK, metric FK, value Numeric, measured_on, source, notes)
 fitness_log_entries(id PK uuid7, entry_date, body, tags Text[],
           mood, created_at, updated_at)
 
-feedback(id PK uuid7, status, body, context_path, created_at, updated_at)
+feedback(id PK uuid7, status, body, context_path, viewport_width, viewport_height, created_at, updated_at)
 ```
 
 ## API request/response types

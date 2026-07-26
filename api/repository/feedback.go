@@ -22,11 +22,14 @@ func NewFeedbackRepo(pool *pgxpool.Pool) *FeedbackRepo {
 }
 
 // feedbackSelect is the shared read query; scanFeedback stays in lockstep.
-const feedbackSelect = `SELECT id, status, body, context_path, created_at, updated_at FROM feedback`
+const feedbackSelect = `SELECT id, status, body, context_path, viewport_width, viewport_height,
+       created_at, updated_at
+FROM feedback`
 
 func scanFeedback(row pgx.Row) (models.Feedback, error) {
 	var f models.Feedback
-	if err := row.Scan(&f.ID, &f.Status, &f.Body, &f.ContextPath, &f.CreatedAt, &f.UpdatedAt); err != nil {
+	if err := row.Scan(&f.ID, &f.Status, &f.Body, &f.ContextPath,
+		&f.ViewportWidth, &f.ViewportHeight, &f.CreatedAt, &f.UpdatedAt); err != nil {
 		return models.Feedback{}, err
 	}
 	return f, nil
@@ -99,12 +102,23 @@ func (r *FeedbackRepo) Create(ctx context.Context, in models.FeedbackCreate) (mo
 	}
 
 	_, err = r.pool.Exec(ctx,
-		`INSERT INTO feedback (id, body, context_path) VALUES ($1, $2, $3)`,
-		id, body, in.ContextPath)
+		`INSERT INTO feedback (id, body, context_path, viewport_width, viewport_height)
+		 VALUES ($1, $2, $3, $4, $5)`,
+		id, body, in.ContextPath, positiveOrNil(in.ViewportWidth), positiveOrNil(in.ViewportHeight))
 	if err != nil {
 		return models.Feedback{}, mapWriteError("capturing feedback", err)
 	}
 	return r.GetByID(ctx, id)
+}
+
+// positiveOrNil stores a non-positive viewport dimension as NULL. A width of 0 is not
+// a measurement, it is a client that failed to take one, and NULL is how the column
+// already says that.
+func positiveOrNil(dimension *int) *int {
+	if dimension == nil || *dimension <= 0 {
+		return nil
+	}
+	return dimension
 }
 
 // Update applies a partial update, leaving nil fields alone. An unknown id is

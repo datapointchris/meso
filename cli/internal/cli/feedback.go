@@ -272,9 +272,20 @@ func printFeedbackDetail(out io.Writer, f api.Feedback) {
 	fmt.Fprintf(out, "  %-10s %s\n", "status:", f.Status)
 	fmt.Fprintf(out, "  %-10s %s\n", "captured:", dateOf(f.CreatedAt))
 	fmt.Fprintf(out, "  %-10s %s\n", "where:", orDash(f.ContextPath))
+	fmt.Fprintf(out, "  %-10s %s\n", "viewport:", viewportOf(f))
 	if strings.TrimSpace(f.Body) != "" {
 		fmt.Fprintf(out, "\n%s\n", f.Body)
 	}
+}
+
+// viewportOf renders the capture-time window size. It stays off the list table on
+// purpose — triage scans that for what the feedback says, and the viewport only
+// matters once you are reading one item and deciding what the layout was doing.
+func viewportOf(f api.Feedback) string {
+	if f.ViewportWidth == nil || f.ViewportHeight == nil {
+		return "—"
+	}
+	return fmt.Sprintf("%d × %d", *f.ViewportWidth, *f.ViewportHeight)
 }
 
 // dateOf trims an RFC3339 timestamp to its calendar date for table display — the

@@ -6,8 +6,10 @@ import { ApiError } from '@/api/client'
 
 // One field and a button. The whole value of this is that a thought had mid-session
 // survives the moment, so anything that slows the capture — a category picker, a
-// title, a severity — defeats the point. The route is captured automatically because
-// it is the one piece of triage context that is free now and unreconstructable later.
+// title, a severity — defeats the point. The route and the viewport are captured
+// automatically because they are the triage context that is free now and
+// unreconstructable later: most feedback about a mobile-first app is about layout,
+// and "hard to read" is a different defect at 390px than at 1400px.
 const emit = defineEmits<{ saved: []; close: [] }>()
 
 const route = useRoute()
@@ -27,7 +29,12 @@ async function save() {
   saving.value = true
   error.value = ''
   try {
-    await feedbackApi.capture({ body: body.value.trim(), context_path: route.fullPath })
+    await feedbackApi.capture({
+      body: body.value.trim(),
+      context_path: route.fullPath,
+      viewport_width: window.innerWidth,
+      viewport_height: window.innerHeight,
+    })
     // Confirm before closing: at the gym on bad wifi, a sheet that vanishes gives no
     // evidence the thought actually landed.
     saved.value = true
