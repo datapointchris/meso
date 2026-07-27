@@ -43,12 +43,23 @@ inhabitant; a new non-domain command belongs there, not at the root.
 
 ## Conventions specific to meso
 
-- **Lookup tables, never enum types** — categoricals (`movement_kinds`, `muscles`, `relationship_kinds`, `cycle_statuses`) are `TEXT PRIMARY KEY` + FK. A _bounded sub-attribute_ of a join (e.g. `movement_muscles.role ∈ primary|secondary`) uses a `CHECK`, not a 2-row lookup — a CHECK is not an enum type.
-- **PK strategy** — catalog rows (`movements`, `workouts`) use Postgres `GENERATED ALWAYS AS IDENTITY`; user-generated rows (`workout_sessions`, `fitness_log_entries`) will use UUID7. Catalog rows carry a natural key (`movements.name`, `workouts.name` — both `UNIQUE`) so the CLI import can upsert idempotently. Ordered-join rows (`workout_movements`) get their own surrogate id plus a `DEFERRABLE UNIQUE(parent_id, position)` so a reorder can swap positions within one transaction without tripping the constraint.
-- **All text columns are `TEXT`** (never `varchar(n)`); array columns are `NOT NULL DEFAULT '{}'` and normalized nil→`[]` on write so reads are branch-free.
-- **Filtering is server-side** — list endpoints own their query params and build the `WHERE` in SQL, so the CLI and web share one filter definition rather than each re-implementing it.
-- **Seed carries only the FK-backbone lookups** (`movement_kinds`, `relationship_kinds`, `cycle_statuses`, `muscles`) via direct idempotent upsert — the minimum a blank DB needs to accept writes. It runs on **every deploy** so no fresh environment ever comes up write-dead. All content (metrics, movements, workouts, cycles, measurements, journal) is loaded through the `meso` CLI, which exercises the real API write path. Anything with a CLI verb behind it stays out of the seed.
-- **meso depends on no other product** — nothing here may know about ichrisbirch, icb, or any sibling app: no foreign ids in the schema, no cross-service credentials, no outbound pushes. Data leaves only by being read (`--json`), so the dependency always points inward at meso. `feedback` is the live example — it is stored and triaged here, never forwarded.
+Schema conventions (lookup tables not enums, `TEXT` columns, PK strategy, server-side filtering,
+seed-carries-only-the-FK-backbone) and product independence are fleet standards — see
+`~/dev/standards/data.md` and `~/dev/standards/api-design.md`. How they land here:
+
+- **Lookup tables**: `movement_kinds`, `muscles`, `relationship_kinds`, `cycle_statuses`.
+  `movement_muscles.role ∈ primary|secondary` is a bounded sub-attribute of a join, so it uses a
+  `CHECK` — a `CHECK` is not an enum type.
+- **PKs**: catalog rows (`movements`, `workouts`) use `GENERATED ALWAYS AS IDENTITY` with a
+  `UNIQUE` natural key on `.name` so the CLI import upserts idempotently. User-generated rows
+  (`workout_sessions`, `fitness_log_entries`) will use UUIDv7. `workout_movements` is the
+  ordered-join case: surrogate id plus `DEFERRABLE UNIQUE(parent_id, position)`.
+- **Seed**: `movement_kinds`, `relationship_kinds`, `cycle_statuses`, `muscles` only. Everything
+  else — metrics, movements, workouts, cycles, measurements, journal — loads through the `meso`
+  CLI.
+- **Product independence**: nothing here may know about ichrisbirch, icb, or any sibling app. No
+  foreign ids in the schema, no cross-service credentials, no outbound pushes. `feedback` is the
+  live example — stored and triaged here, never forwarded. Don't re-propose a push integration.
 - **No MCP, ever** — the `meso` CLI is the sole programmatic/agent surface.
 
 ## Local development
