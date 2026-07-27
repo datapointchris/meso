@@ -3,7 +3,7 @@ version: '3'
 vars:
   # git describe returns the prefixed tag (cli/v0.2.0-3-gabc1234), and that is
   # what gets injected on purpose: it is not a semantic version, so a locally
-  # built binary reports itself as a development build and `admin update`
+  # built binary reports itself as a development build and `meso update`
   # refuses to replace it. Only CI strips the prefix, so only a released binary
   # can self-update — which is the intended split. Run the dev version from the
   # repo; install the released one.

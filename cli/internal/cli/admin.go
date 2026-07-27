@@ -1,12 +1,6 @@
 package cli
 
 import (
-	"os"
-	"os/exec"
-	"strings"
-
-	"github.com/datapointchris/goselfupdate"
-	"github.com/datapointchris/goselfupdate/cobracmd"
 	"github.com/spf13/cobra"
 )
 
@@ -33,47 +27,18 @@ func newAdminCommand() *cobra.Command {
 		RunE: requireSubcommand,
 	}
 	cmd.AddCommand(newAdminFeedbackCommand())
-	cmd.AddCommand(newAdminUpdateCommand())
+	cmd.AddCommand(newAdminUpdateAlias())
 	return cmd
 }
 
-// newAdminUpdateCommand replaces this binary with the newest published one.
+// newAdminUpdateAlias keeps `meso admin update` working after the command moved
+// to the root, where the update notice points. Hidden, so help documents one
+// spelling while the old one still runs.
 //
-// TagPrefix is what makes it work here: the CLI is a nested module released
-// under cli/v1.2.3 so its tags never collide with the app's, and GitHub's
-// "latest release" endpoint is repository-wide — without the prefix it would
-// resolve whatever meso released most recently, which is not this program.
-//
-// Updating is about the software rather than the training, so it lives under
-// admin like everything else that is.
-func newAdminUpdateCommand() *cobra.Command {
-	return cobracmd.New(goselfupdate.Config{
-		Owner:     "datapointchris",
-		Repo:      "meso",
-		Binary:    "meso",
-		Version:   version,
-		TagPrefix: "cli/",
-		Token:     githubToken(),
-	})
-}
-
-// githubToken resolves a GitHub credential the way the dotfiles installer does:
-// the environment first, then the gh CLI's stored token.
-//
-// goselfupdate reads $GITHUB_TOKEN and $GH_TOKEN on its own, so this only adds
-// the third source. meso's repository is public, so this is not load-bearing
-// here — it lifts the 60-requests-per-hour unauthenticated rate limit, and it
-// keeps the four product CLIs resolving credentials identically rather than
-// each behaving differently the day one of them changes visibility.
-func githubToken() string {
-	for _, name := range []string{"GITHUB_TOKEN", "GH_TOKEN"} {
-		if token := os.Getenv(name); token != "" {
-			return token
-		}
-	}
-	out, err := exec.Command("gh", "auth", "token").Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
+// Delete it after one release. Its only job is that a user who learned the old
+// path does not hit "unknown command" the first time they follow a notice.
+func newAdminUpdateAlias() *cobra.Command {
+	cmd := newUpdateCommand()
+	cmd.Hidden = true
+	return cmd
 }

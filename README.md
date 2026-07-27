@@ -319,11 +319,14 @@ meso log         add | list [--from --to --tag] | show <id>
 meso stats       [--json]
 meso review      [--since 30d] [--json]      # the capstone read
 
+meso update [--check]            replace this binary with the newest cli/v* release
+
 meso admin feedback list [--open --done --search] | show <id> | add | edit | done <id> | delete
-meso admin update [--check]       replace this binary with the newest cli/v* release
 ```
 
 **`admin` is the namespace for operating the app, as distinct from using it.** Every other top-level command is a training noun, which is what lets `meso --help` read as a description of the domain; commands about the software itself go under `admin` instead of diluting that. The convention is HashiCorp's (`vault operator`, `consul operator`, `nomad operator`), named `admin` because "operator" there means cluster and consensus lifecycle and meso has no cluster. There is no separate privilege today — meso is single-user and Authelia at the edge is the real check — but the namespace is where one would go.
+
+`update` is the one exception, and it sits at the root rather than under `admin`. meso checks once a day for a newer release and prints a single line — `meso v0.4.0 available (running v0.3.3) — run \`meso update\`` — and that sentence is built from the binary name by the shared library, with no way to name a nested command. Under `admin` the notice would point at a command that does not exist. `meso admin update` still works for one release, hidden from help. The check never installs anything and never prints an error; set `NO_AUTO_UPDATE` or `MESO_NO_AUTO_UPDATE` to turn it off.
 
 **The AI capstone is a read plus ordinary writes — no server-side LLM.** `meso review --json` pulls recent sessions + measurements + log into one structured payload. Claude reads it via Bash, reasons about the next block _in the conversation_, and persists the drafted cycle with ordinary writes (`meso cycles create`, `meso cycles workouts add …`). This is strictly simpler than an MCP `draft_cycle` tool: the CLI only needs solid read + write primitives; Claude is the reasoning.
 

@@ -2,10 +2,12 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 
+	"github.com/datapointchris/goselfupdate/autoupdate"
 	"github.com/datapointchris/goselfupdate/cobracmd"
 	"github.com/spf13/cobra"
 )
@@ -71,13 +73,14 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(newCyclesCommand())
 	root.AddCommand(newReviewCommand())
 	root.AddCommand(newAdminCommand())
+	root.AddCommand(newUpdateCommand())
 	return root
 }
 
 // Execute runs the command tree and returns the process exit code.
 func Execute() int {
 	root := NewRootCommand()
-	err := root.Execute()
+	err := cobracmd.Execute(context.Background(), root, autoupdate.Config{Update: updateConfig()})
 	if err == nil {
 		return 0
 	}
@@ -87,8 +90,8 @@ func Execute() int {
 		return int(ec)
 	}
 
-	// `admin update` writes its own ✓/✗ line, so printing here would report the
-	// same failure twice.
+	// `update` writes its own ✓/✗ line, so printing here would report the same
+	// failure twice.
 	if errors.Is(err, cobracmd.ErrReported) {
 		return 1
 	}

@@ -109,25 +109,36 @@ func TestAdminNamespaceOwnsFeedback(t *testing.T) {
 	}
 }
 
-// Updating the binary is about the software, not the training, so it belongs in
-// the same namespace as feedback rather than at the root next to movements.
-func TestAdminNamespaceOwnsUpdate(t *testing.T) {
+// Update lives at the root, against the rule that top-level commands are
+// training nouns, because the daily update notice is a fixed sentence built
+// from the binary name — "run `meso update`" — with no way to name a nested
+// command. Under `admin` the notice directs the user somewhere that does not
+// exist. This test guards the placement in the direction the notice requires;
+// it previously guarded the opposite, and moving it back means either dropping
+// the notice or shipping one that lies.
+func TestUpdateIsAtTheRootWhereTheNoticePointsIt(t *testing.T) {
 	root := NewRootCommand()
 
-	if findCommand(root.Commands(), "update") != nil {
-		t.Error("update is registered at the root; it belongs under `admin`")
+	update := findCommand(root.Commands(), "update")
+	if update == nil {
+		t.Fatal("update is not registered at the root, where the update notice points")
+	}
+	if update.Flags().Lookup("check") == nil {
+		t.Error("update should carry --check for reporting without installing")
 	}
 
+	// The old path keeps working for one release, hidden so help documents one
+	// spelling. Delete both the alias and this assertion together.
 	admin := findCommand(root.Commands(), "admin")
 	if admin == nil {
 		t.Fatal("admin command not registered on root")
 	}
-	update := findCommand(admin.Commands(), "update")
-	if update == nil {
-		t.Fatal("update not registered under admin")
+	alias := findCommand(admin.Commands(), "update")
+	if alias == nil {
+		t.Fatal("admin update alias is gone; it should survive one release")
 	}
-	if update.Flags().Lookup("check") == nil {
-		t.Error("update should carry --check for reporting without installing")
+	if !alias.Hidden {
+		t.Error("admin update alias is visible in help; only the root spelling should be")
 	}
 }
 
