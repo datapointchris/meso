@@ -582,9 +582,11 @@ func printMovementDetail(out io.Writer, m api.Movement) {
 
 func writeMovementsCSV(out io.Writer, movements []api.Movement) error {
 	w := csv.NewWriter(out)
-	header := []string{"id", "name", "kind", "favorite", "rating", "tags", "equipment",
+	header := []string{
+		"id", "name", "kind", "favorite", "rating", "tags", "equipment",
 		"primary_muscles", "secondary_muscles", "default_sets", "default_reps",
-		"default_hold_seconds", "sanskrit_name", "measurable_rom", "source_name", "source_url"}
+		"default_hold_seconds", "sanskrit_name", "measurable_rom", "source_name", "source_url",
+	}
 	if err := w.Write(header); err != nil {
 		return err
 	}

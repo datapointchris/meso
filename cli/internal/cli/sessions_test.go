@@ -20,8 +20,10 @@ func sampleSession() api.Session {
 	return api.Session{
 		ID: "018f-aaa", WorkoutID: &wid, WorkoutName: &name, PerformedOn: "2026-07-24", Felt: &felt,
 		Movements: []api.SessionMovement{
-			{ID: 4, MovementID: 7, MovementName: "Bench Press", MovementKind: "exercise",
-				Position: 1, Done: true, ActualSets: &sets, ActualReps: &reps, ActualLoad: &load},
+			{
+				ID: 4, MovementID: 7, MovementName: "Bench Press", MovementKind: "exercise",
+				Position: 1, Done: true, ActualSets: &sets, ActualReps: &reps, ActualLoad: &load,
+			},
 			{ID: 5, MovementID: 9, MovementName: "Push-up", MovementKind: "exercise", Position: 2},
 		},
 	}

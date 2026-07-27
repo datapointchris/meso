@@ -23,8 +23,10 @@ func sampleCycle() api.Cycle {
 		ID: 1, Name: "Return to 5k", GoalSummary: "12-week run return", Status: "active",
 		TargetMetric: &metric, TargetValue: &value, StartDate: &start, TargetDate: &target,
 		Workouts: []api.CycleWorkout{
-			{ID: 4, WorkoutID: 7, WorkoutName: "Base Week", Position: 1,
-				Week: &week, Phase: &phase, Frequency: &freq, Intensity: &intensity},
+			{
+				ID: 4, WorkoutID: 7, WorkoutName: "Base Week", Position: 1,
+				Week: &week, Phase: &phase, Frequency: &freq, Intensity: &intensity,
+			},
 			{ID: 5, WorkoutID: 9, WorkoutName: "Build Week", Position: 2},
 		},
 	}

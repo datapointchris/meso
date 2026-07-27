@@ -101,7 +101,8 @@ func Login(ctx context.Context, cfg config.Config, opener func(string) error, pr
 	if err != nil {
 		return nil, err
 	}
-	authURL := fmt.Sprintf("%s?client_id=%s&request_uri=%s",
+	authURL := fmt.Sprintf(
+		"%s?client_id=%s&request_uri=%s",
 		meta.AuthorizationEndpoint,
 		url.QueryEscape(cfg.ClientID),
 		url.QueryEscape(requestURI),

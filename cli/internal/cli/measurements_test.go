@@ -162,8 +162,10 @@ func TestPrintStats(t *testing.T) {
 	var buf bytes.Buffer
 	printStats(&buf, api.Stats{
 		Metrics: []api.MetricTrend{
-			{Metric: "deadlift-working-weight", Unit: "lb", Direction: "higher_better", Category: "strength",
-				Latest: ptrFloat(225), Change: ptrFloat(40), Count: 2},
+			{
+				Metric: "deadlift-working-weight", Unit: "lb", Direction: "higher_better", Category: "strength",
+				Latest: ptrFloat(225), Change: ptrFloat(40), Count: 2,
+			},
 		},
 		Library:  api.LibraryStats{TotalMovements: 3, Favorites: 1, ByKind: []api.KindCount{{Kind: "exercise", Count: 3}}},
 		Sessions: api.SessionStats{Total: 2, Last30Days: 2},

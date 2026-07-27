@@ -19,8 +19,10 @@ func sampleWorkout() api.Workout {
 	return api.Workout{
 		ID: 1, Name: "Push Day", Theme: &theme, Favorite: true, Tags: []string{"upper", "strength"},
 		Movements: []api.WorkoutMovement{
-			{ID: 4, MovementID: 7, MovementName: "Bench Press", MovementKind: "exercise",
-				Position: 1, Sets: &sets, Reps: &reps, Load: &load, RestSeconds: &rest},
+			{
+				ID: 4, MovementID: 7, MovementName: "Bench Press", MovementKind: "exercise",
+				Position: 1, Sets: &sets, Reps: &reps, Load: &load, RestSeconds: &rest,
+			},
 			{ID: 5, MovementID: 9, MovementName: "Push-up", MovementKind: "exercise", Position: 2},
 		},
 	}
