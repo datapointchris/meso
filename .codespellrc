@@ -1,0 +1,8 @@
+# A .codespellrc rather than [tool.codespell], because this repo has no
+# pyproject.toml for codespell to read a config from.
+#
+# Hevy and Alo are product names — the workout logger this app imports from,
+# and an apparel brand — not misspellings of Heavy and Also.
+[codespell]
+ignore-words-list = hevy,alo
+check-filenames = true
