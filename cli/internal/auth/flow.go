@@ -39,7 +39,7 @@ func Discover(ctx context.Context, issuer string) (providerMetadata, error) {
 	if err != nil {
 		return providerMetadata{}, fmt.Errorf("reach identity provider at %s: %w", discoURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return providerMetadata{}, fmt.Errorf("identity provider discovery returned %s", resp.Status)
 	}
@@ -72,7 +72,7 @@ func oauthConfig(cfg config.Config, meta providerMetadata, redirectURL string) *
 // loopback redirect (RFC 8252) and response_mode=form_post. It binds the first
 // free port from config.LoopbackPorts, pushes the request to Authelia's PAR
 // endpoint, opens the browser to a short authorization URL, and blocks until
-// Authelia POSTs the code back to the loopback callback or ctx is cancelled.
+// Authelia POSTs the code back to the loopback callback or ctx is canceled.
 // Progress is written to progress (stderr), never stdout.
 func Login(ctx context.Context, cfg config.Config, opener func(string) error, progress io.Writer) (*oauth2.Token, error) {
 	meta, err := Discover(ctx, cfg.Issuer)
@@ -87,7 +87,7 @@ func Login(ctx context.Context, cfg config.Config, opener func(string) error, pr
 	if err != nil {
 		return nil, err
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	redirectURL := fmt.Sprintf("http://%s:%d/callback", config.RedirectHost, port)
 
 	verifier := oauth2.GenerateVerifier()
@@ -122,10 +122,10 @@ func Login(ctx context.Context, cfg config.Config, opener func(string) error, pr
 		_ = srv.Shutdown(shutCtx)
 	}()
 
-	fmt.Fprintf(progress, "Opening your browser to sign in as %s...\n", cfg.ClientID)
-	fmt.Fprintf(progress, "Approve the consent screen. If the browser does not open, visit:\n\n  %s\n\n", authURL)
+	_, _ = fmt.Fprintf(progress, "Opening your browser to sign in as %s...\n", cfg.ClientID)
+	_, _ = fmt.Fprintf(progress, "Approve the consent screen. If the browser does not open, visit:\n\n  %s\n\n", authURL)
 	if openErr := opener(authURL); openErr != nil {
-		fmt.Fprintf(progress, "(could not open a browser automatically: %v)\n", openErr)
+		_, _ = fmt.Fprintf(progress, "(could not open a browser automatically: %v)\n", openErr)
 	}
 
 	var code string
@@ -170,7 +170,7 @@ func pushAuthorizationRequest(ctx context.Context, cfg config.Config, meta provi
 	if err != nil {
 		return "", fmt.Errorf("push authorization request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
@@ -233,7 +233,7 @@ func writeResultPage(w http.ResponseWriter, ok bool, detail string) {
 		heading = "Sign-in failed"
 		body = detail
 	}
-	fmt.Fprintf(w, `<!doctype html><html><head><meta charset="utf-8"><title>meso</title>
+	_, _ = fmt.Fprintf(w, `<!doctype html><html><head><meta charset="utf-8"><title>meso</title>
 <style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:6rem auto;padding:0 1rem;color:#1a1a1a}
 h1{font-size:1.4rem}p{color:#555}</style></head>
 <body><h1>%s</h1><p>%s</p></body></html>`, heading, body)

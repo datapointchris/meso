@@ -42,7 +42,7 @@ func main() {
 		slog.Error("migrations", "err", err)
 		os.Exit(1)
 	}
-	migrateDB.Close()
+	_ = migrateDB.Close()
 	slog.Info("migrations applied")
 
 	pool, err := database.NewPool(ctx, cfg.DatabaseURL)

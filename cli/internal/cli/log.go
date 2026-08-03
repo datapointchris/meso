@@ -199,14 +199,14 @@ func newLogDeleteCommand() *cobra.Command {
 				}
 				if !confirm(cmd.InOrStdin(), cmd.OutOrStdout(),
 					fmt.Sprintf("Delete the entry from %s?", entry.EntryDate)) {
-					fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
 					return nil
 				}
 			}
 			if err := client.DeleteLogEntry(cmd.Context(), args[0]); err != nil {
 				return handleAPIError(err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Deleted log entry %s.\n", args[0])
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Deleted log entry %s.\n", args[0])
 			return nil
 		},
 	}
@@ -218,30 +218,30 @@ func echoLogEntry(out io.Writer, e api.LogEntry, asJSON bool, verb string) error
 	if asJSON {
 		return encodeJSON(out, e)
 	}
-	fmt.Fprintf(out, "%s log entry %s on %s\n", verb, e.ID, e.EntryDate)
+	_, _ = fmt.Fprintf(out, "%s log entry %s on %s\n", verb, e.ID, e.EntryDate)
 	return nil
 }
 
 func printLogTable(out io.Writer, entries []api.LogEntry) {
 	if len(entries) == 0 {
-		fmt.Fprintln(out, "No log entries match.")
+		_, _ = fmt.Fprintln(out, "No log entries match.")
 		return
 	}
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "DATE\tMOOD\tTAGS\tENTRY\tID")
+	_, _ = fmt.Fprintln(tw, "DATE\tMOOD\tTAGS\tENTRY\tID")
 	for _, e := range entries {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
 			e.EntryDate, orDashPtr(e.Mood), orDash(strings.Join(e.Tags, ", ")), preview(e.Body), e.ID)
 	}
 	_ = tw.Flush()
 }
 
 func printLogDetail(out io.Writer, e api.LogEntry) {
-	fmt.Fprintf(out, "Entry on %s  (%s)\n", e.EntryDate, e.ID)
-	fmt.Fprintf(out, "  %-8s %s\n", "mood:", orDashPtr(e.Mood))
-	fmt.Fprintf(out, "  %-8s %s\n", "tags:", orDash(strings.Join(e.Tags, ", ")))
+	_, _ = fmt.Fprintf(out, "Entry on %s  (%s)\n", e.EntryDate, e.ID)
+	_, _ = fmt.Fprintf(out, "  %-8s %s\n", "mood:", orDashPtr(e.Mood))
+	_, _ = fmt.Fprintf(out, "  %-8s %s\n", "tags:", orDash(strings.Join(e.Tags, ", ")))
 	if strings.TrimSpace(e.Body) != "" {
-		fmt.Fprintf(out, "\n%s\n", e.Body)
+		_, _ = fmt.Fprintf(out, "\n%s\n", e.Body)
 	}
 }
 

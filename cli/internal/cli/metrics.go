@@ -106,7 +106,7 @@ func newMetricsEditCommand() *cobra.Command {
 			if asJSON {
 				return encodeJSON(cmd.OutOrStdout(), metric)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Updated %s — %s (%s, %s, %s)\n",
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Updated %s — %s (%s, %s, %s)\n",
 				metric.Name, metric.Label, metric.Unit, metric.Direction, metric.Category)
 			return nil
 		},
@@ -134,7 +134,7 @@ func newMetricsDeleteCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 			if !yes && !confirm(cmd.InOrStdin(), cmd.OutOrStdout(), fmt.Sprintf("Delete metric %q?", name)) {
-				fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
 				return nil
 			}
 			client, err := newAPIClient(cmd.Context())
@@ -144,7 +144,7 @@ func newMetricsDeleteCommand() *cobra.Command {
 			if err := client.DeleteMetric(cmd.Context(), name); err != nil {
 				return handleAPIError(err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Deleted metric %s\n", name)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Deleted metric %s\n", name)
 			return nil
 		},
 	}
@@ -214,7 +214,7 @@ func newMetricsDefineCommand() *cobra.Command {
 			if asJSON {
 				return encodeJSON(cmd.OutOrStdout(), metric)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Defined %s — %s (%s, %s, %s)\n",
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Defined %s — %s (%s, %s, %s)\n",
 				metric.Name, metric.Label, metric.Unit, metric.Direction, metric.Category)
 			return nil
 		},
@@ -230,27 +230,27 @@ func newMetricsDefineCommand() *cobra.Command {
 }
 
 func printMetricDetail(out io.Writer, m api.MetricDefinition) {
-	fmt.Fprintf(out, "%s  (%s)\n", m.Label, m.Name)
-	fmt.Fprintf(out, "  %-11s %s\n", "unit:", m.Unit)
-	fmt.Fprintf(out, "  %-11s %s\n", "direction:", m.Direction)
-	fmt.Fprintf(out, "  %-11s %s\n", "category:", m.Category)
+	_, _ = fmt.Fprintf(out, "%s  (%s)\n", m.Label, m.Name)
+	_, _ = fmt.Fprintf(out, "  %-11s %s\n", "unit:", m.Unit)
+	_, _ = fmt.Fprintf(out, "  %-11s %s\n", "direction:", m.Direction)
+	_, _ = fmt.Fprintf(out, "  %-11s %s\n", "category:", m.Category)
 	if m.HowToMeasure == "" {
-		fmt.Fprintf(out, "\nNo protocol recorded. Add one with:\n"+
+		_, _ = fmt.Fprintf(out, "\nNo protocol recorded. Add one with:\n"+
 			"  meso metrics edit %s --how-to-measure \"...\"\n", m.Name)
 		return
 	}
-	fmt.Fprintf(out, "\nHow to measure:\n%s\n", m.HowToMeasure)
+	_, _ = fmt.Fprintf(out, "\nHow to measure:\n%s\n", m.HowToMeasure)
 }
 
 func printMetricsTable(out io.Writer, metrics []api.MetricDefinition) {
 	if len(metrics) == 0 {
-		fmt.Fprintln(out, "No metrics defined. Define one with `meso metrics define`.")
+		_, _ = fmt.Fprintln(out, "No metrics defined. Define one with `meso metrics define`.")
 		return
 	}
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "NAME\tLABEL\tUNIT\tDIRECTION\tCATEGORY")
+	_, _ = fmt.Fprintln(tw, "NAME\tLABEL\tUNIT\tDIRECTION\tCATEGORY")
 	for _, m := range metrics {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", m.Name, m.Label, m.Unit, m.Direction, m.Category)
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", m.Name, m.Label, m.Unit, m.Direction, m.Category)
 	}
 	_ = tw.Flush()
 }

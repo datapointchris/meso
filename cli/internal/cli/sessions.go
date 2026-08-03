@@ -179,14 +179,14 @@ func newSessionsDeleteCommand() *cobra.Command {
 				}
 				if !confirm(cmd.InOrStdin(), cmd.OutOrStdout(),
 					fmt.Sprintf("Delete the session on %s?", session.PerformedOn)) {
-					fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
 					return nil
 				}
 			}
 			if err := client.DeleteSession(cmd.Context(), args[0]); err != nil {
 				return handleAPIError(err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Deleted session %s.\n", args[0])
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Deleted session %s.\n", args[0])
 			return nil
 		},
 	}
@@ -324,18 +324,18 @@ func echoSession(out io.Writer, s api.Session, asJSON bool, verb string) error {
 			done++
 		}
 	}
-	fmt.Fprintf(out, "%s session %s on %s (%d/%d movement%s done)\n",
+	_, _ = fmt.Fprintf(out, "%s session %s on %s (%d/%d movement%s done)\n",
 		verb, s.ID, s.PerformedOn, done, len(s.Movements), plural(len(s.Movements)))
 	return nil
 }
 
 func printSessionsTable(out io.Writer, sessions []api.Session) {
 	if len(sessions) == 0 {
-		fmt.Fprintln(out, "No sessions match.")
+		_, _ = fmt.Fprintln(out, "No sessions match.")
 		return
 	}
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "DATE\tWORKOUT\tDONE\tFELT\tID")
+	_, _ = fmt.Fprintln(tw, "DATE\tWORKOUT\tDONE\tFELT\tID")
 	for _, s := range sessions {
 		done := 0
 		for _, m := range s.Movements {
@@ -343,33 +343,33 @@ func printSessionsTable(out io.Writer, sessions []api.Session) {
 				done++
 			}
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%d/%d\t%s\t%s\n",
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%d/%d\t%s\t%s\n",
 			s.PerformedOn, orDashPtr(s.WorkoutName), done, len(s.Movements), orDashPtr(s.Felt), s.ID)
 	}
 	_ = tw.Flush()
 }
 
 func printSessionDetail(out io.Writer, s api.Session) {
-	fmt.Fprintf(out, "Session on %s  (%s)\n", s.PerformedOn, s.ID)
-	row := func(label, value string) { fmt.Fprintf(out, "  %-16s %s\n", label+":", value) }
+	_, _ = fmt.Fprintf(out, "Session on %s  (%s)\n", s.PerformedOn, s.ID)
+	row := func(label, value string) { _, _ = fmt.Fprintf(out, "  %-16s %s\n", label+":", value) }
 	row("workout", orDashPtr(s.WorkoutName))
 	row("felt", orDashPtr(s.Felt))
 	if s.DurationMinutes != nil {
 		row("duration", strconv.Itoa(*s.DurationMinutes)+" min")
 	}
 	if strings.TrimSpace(s.OverallNotes) != "" {
-		fmt.Fprintf(out, "\nNotes:\n%s\n", s.OverallNotes)
+		_, _ = fmt.Fprintf(out, "\nNotes:\n%s\n", s.OverallNotes)
 	}
 
 	if len(s.Movements) == 0 {
-		fmt.Fprintln(out, "\nNo movements logged.")
+		_, _ = fmt.Fprintln(out, "\nNo movements logged.")
 		return
 	}
-	fmt.Fprintln(out, "\nMovements:")
+	_, _ = fmt.Fprintln(out, "\nMovements:")
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "  #\tENTRY\tDONE\tMOVEMENT\tSETS\tREPS\tLOAD\tPREVIOUS")
+	_, _ = fmt.Fprintln(tw, "  #\tENTRY\tDONE\tMOVEMENT\tSETS\tREPS\tLOAD\tPREVIOUS")
 	for _, m := range s.Movements {
-		fmt.Fprintf(tw, "  %d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(tw, "  %d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			m.Position, m.ID, doneGlyph(m.Done), m.MovementName,
 			orDashIntPtr(m.ActualSets), orDashPtr(m.ActualReps), orDashPtr(m.ActualLoad),
 			formatPrevious(m.Previous))

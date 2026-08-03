@@ -92,7 +92,7 @@ func runMigrations(url string) error {
 	if err != nil {
 		return fmt.Errorf("opening migration handle: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	if err := goose.SetDialect("postgres"); err != nil {
 		return fmt.Errorf("setting goose dialect: %w", err)
@@ -111,7 +111,7 @@ func seedTestLookups(url string) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	kinds := []string{"exercise", "stretch", "yoga_pose"}
 	for _, k := range kinds {

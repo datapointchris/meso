@@ -87,7 +87,7 @@ func (c *Client) send(ctx context.Context, method, path string, body, out any) e
 	if err != nil {
 		return fmt.Errorf("reach meso API at %s: %w", c.baseURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return decodeAPIError(resp)

@@ -17,6 +17,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -42,29 +43,37 @@ var lookups = []lookupSeed{
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
 
+	if err := run(); err != nil {
+		slog.Error("seed", "err", err)
+		os.Exit(1)
+	}
+}
+
+// run holds the body so os.Exit happens in main, once run has returned and its
+// defers have unwound. Calling os.Exit beside `defer pool.Close()` skipped the
+// close on both seeding error paths, the ones that most need it.
+func run() error {
 	cfg := config.Load()
 	ctx := context.Background()
 
 	pool, err := database.NewPool(ctx, cfg.DatabaseURL)
 	if err != nil {
-		slog.Error("database pool", "err", err)
-		os.Exit(1)
+		return fmt.Errorf("database pool: %w", err)
 	}
 	defer pool.Close()
 
 	total, err := seedLookups(ctx, pool, lookups)
 	if err != nil {
-		slog.Error("seeding lookups", "seeded", total, "err", err)
-		os.Exit(1)
+		return fmt.Errorf("seeding lookups after %d: %w", total, err)
 	}
 	slog.Info("seeded lookups", "count", total)
 
 	muscleCount, err := seedMuscles(ctx, pool, muscleCatalog)
 	if err != nil {
-		slog.Error("seeding muscles", "seeded", muscleCount, "err", err)
-		os.Exit(1)
+		return fmt.Errorf("seeding muscles after %d: %w", muscleCount, err)
 	}
 	slog.Info("seeded muscles", "count", muscleCount)
+	return nil
 }
 
 // seedMuscles upserts the muscle lookup (name + region), returning the count

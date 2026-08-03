@@ -67,7 +67,7 @@ func yesNo(b bool) string {
 // confirm prompts for a yes/no answer on the given reader, defaulting to no. Used
 // by destructive commands unless --yes is passed.
 func confirm(in io.Reader, out io.Writer, prompt string) bool {
-	fmt.Fprintf(out, "%s [y/N]: ", prompt)
+	_, _ = fmt.Fprintf(out, "%s [y/N]: ", prompt)
 	scanner := bufio.NewScanner(in)
 	if !scanner.Scan() {
 		return false

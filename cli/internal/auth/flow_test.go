@@ -104,7 +104,7 @@ func (m *mockIDP) authorize(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "callback failed: "+err.Error(), http.StatusBadGateway)
 		return
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -238,7 +238,7 @@ func TestBindLoopback_PicksFreePort(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bindLoopback: %v", err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	if port != config.LoopbackPorts[0] {
 		t.Fatalf("expected first free port %d, got %d", config.LoopbackPorts[0], port)
 	}

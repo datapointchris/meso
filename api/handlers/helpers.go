@@ -42,7 +42,7 @@ func decodeJSON(r *http.Request, v any) error {
 	if r.Body == nil {
 		return fmt.Errorf("request body is empty")
 	}
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
 		return fmt.Errorf("invalid JSON: %w", err)
 	}

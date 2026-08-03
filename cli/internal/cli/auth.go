@@ -56,7 +56,7 @@ func newAuthLoginCommand() *cobra.Command {
 				return fmt.Errorf("save token to keychain: %w", err)
 			}
 
-			fmt.Fprintf(cmd.ErrOrStderr(), "\n✓ Logged in (%s)\n", cfg.ClientID)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\n✓ Logged in (%s)\n", cfg.ClientID)
 			return nil
 		},
 	}
@@ -74,12 +74,12 @@ func newAuthLogoutCommand() *cobra.Command {
 
 			if err := store.Delete(cfg.ClientID); err != nil {
 				if errors.Is(err, auth.ErrNotLoggedIn) {
-					fmt.Fprintln(cmd.ErrOrStderr(), "Not logged in — nothing to remove.")
+					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Not logged in — nothing to remove.")
 					return nil
 				}
 				return fmt.Errorf("remove token from keychain: %w", err)
 			}
-			fmt.Fprintf(cmd.ErrOrStderr(), "Logged out (%s).\n", cfg.ClientID)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Logged out (%s).\n", cfg.ClientID)
 			return nil
 		},
 	}
@@ -100,7 +100,7 @@ func newAuthTokenCommand() *cobra.Command {
 
 			source, err := auth.TokenSource(cmd.Context(), cfg, store)
 			if errors.Is(err, auth.ErrNotLoggedIn) {
-				fmt.Fprintf(cmd.ErrOrStderr(), "Not logged in as %s. Run `meso auth login`.\n", cfg.ClientID)
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Not logged in as %s. Run `meso auth login`.\n", cfg.ClientID)
 				return exitCode(1)
 			}
 			if err != nil {
@@ -110,7 +110,7 @@ func newAuthTokenCommand() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("obtain a valid token (refresh may have failed — try `meso auth login`): %w", err)
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), token.AccessToken)
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), token.AccessToken)
 			return nil
 		},
 	}
@@ -178,18 +178,18 @@ func newAuthStatusCommand() *cobra.Command {
 func printStatus(cmd *cobra.Command, r statusReport) {
 	out := cmd.OutOrStdout()
 	if !r.LoggedIn {
-		fmt.Fprintf(out, "Not logged in as %s.\nRun `meso auth login` to authenticate.\n", r.ClientID)
+		_, _ = fmt.Fprintf(out, "Not logged in as %s.\nRun `meso auth login` to authenticate.\n", r.ClientID)
 		return
 	}
-	fmt.Fprintf(out, "Logged in\n")
-	fmt.Fprintf(out, "  client:   %s\n", r.ClientID)
-	fmt.Fprintf(out, "  issuer:   %s\n", r.Issuer)
-	fmt.Fprintf(out, "  audience: %s\n", r.Audience)
+	_, _ = fmt.Fprintf(out, "Logged in\n")
+	_, _ = fmt.Fprintf(out, "  client:   %s\n", r.ClientID)
+	_, _ = fmt.Fprintf(out, "  issuer:   %s\n", r.Issuer)
+	_, _ = fmt.Fprintf(out, "  audience: %s\n", r.Audience)
 	if r.ExpiresAt != "" {
 		state := "valid"
 		if r.Expired {
 			state = "expired — will refresh on next use"
 		}
-		fmt.Fprintf(out, "  token:    %s (expires %s)\n", state, r.ExpiresAt)
+		_, _ = fmt.Fprintf(out, "  token:    %s (expires %s)\n", state, r.ExpiresAt)
 	}
 }

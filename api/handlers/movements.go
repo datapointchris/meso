@@ -20,7 +20,7 @@ func NewMovementHandler(movements *repository.MovementRepo) *MovementHandler {
 
 // List handles GET /api/v1/movements with optional filters:
 // ?kind=&favorite=&tag=&equipment=&muscle=&region=&search=. Unknown params are
-// ignored; an unparseable favorite is a bad request.
+// ignored; an unparsable favorite is a bad request.
 func (h *MovementHandler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	filter := models.MovementFilter{

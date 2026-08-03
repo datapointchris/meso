@@ -31,7 +31,7 @@ const defaultReviewWindow = "30d"
 
 // Review pulls the active cycles plus the sessions, measurements, and log entries
 // within the window into one payload. since is a relative duration ("30d", "12w",
-// "6m"); empty means the default window. An unparseable since is ErrInvalid (400).
+// "6m"); empty means the default window. An unparsable since is ErrInvalid (400).
 func (r *ReviewRepo) Review(ctx context.Context, since string) (models.Review, error) {
 	if since == "" {
 		since = defaultReviewWindow

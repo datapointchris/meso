@@ -105,7 +105,7 @@ func TestMovement_List_Filters(t *testing.T) {
 	assert.Equal(t, "Deadlift", list("?region=posterior")[0].Name)
 	assert.Len(t, list("?search=couch"), 1)
 	assert.Empty(t, list("?kind=yoga_pose"))
-	// An unparseable favorite is a bad request.
+	// An unparsable favorite is a bad request.
 	assert.Equal(t, http.StatusBadRequest, getJSON(t, mux, "/api/v1/movements?favorite=maybe").Code)
 }
 

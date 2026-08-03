@@ -73,7 +73,8 @@ func TestMovement_Relationships_Validation(t *testing.T) {
 	// Adding a relationship to a nonexistent source movement -> 404.
 	assert.Equal(t, http.StatusNotFound,
 		postJSON(t, mux, "/api/v1/movements/999999/related", map[string]any{
-			"related_movement_id": other, "relationship_kind": "alternate"}).Code)
+			"related_movement_id": other, "relationship_kind": "alternate",
+		}).Code)
 
 	// Removing a relationship that doesn't exist -> 404.
 	assert.Equal(t, http.StatusNotFound, deleteReq(t, mux, base+"/"+itoa(other)).Code)

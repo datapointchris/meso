@@ -59,7 +59,7 @@ func newMeasurementsRecordCommand() *cobra.Command {
 			if asJSON {
 				return encodeJSON(cmd.OutOrStdout(), m)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Recorded %s = %s on %s\n", m.Metric, formatValue(m.Value), m.MeasuredOn)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Recorded %s = %s on %s\n", m.Metric, formatValue(m.Value), m.MeasuredOn)
 			return nil
 		},
 	}
@@ -141,35 +141,35 @@ func newMeasurementsTrendCommand() *cobra.Command {
 
 func printMeasurementsTable(out io.Writer, measurements []api.Measurement) {
 	if len(measurements) == 0 {
-		fmt.Fprintln(out, "No measurements match.")
+		_, _ = fmt.Fprintln(out, "No measurements match.")
 		return
 	}
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "DATE\tMETRIC\tVALUE\tSOURCE\tNOTES\tID")
+	_, _ = fmt.Fprintln(tw, "DATE\tMETRIC\tVALUE\tSOURCE\tNOTES\tID")
 	for _, m := range measurements {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%d\n",
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%d\n",
 			m.MeasuredOn, m.Metric, formatValue(m.Value), m.Source, orDash(m.Notes), m.ID)
 	}
 	_ = tw.Flush()
 }
 
 func printTrend(out io.Writer, t api.MetricTrend) {
-	fmt.Fprintf(out, "%s  (%s, %s, %s)\n", t.Metric, t.Unit, t.Direction, t.Category)
+	_, _ = fmt.Fprintf(out, "%s  (%s, %s, %s)\n", t.Metric, t.Unit, t.Direction, t.Category)
 	if t.Count == 0 {
-		fmt.Fprintln(out, "No readings yet. Record one with `meso measurements record`.")
+		_, _ = fmt.Fprintln(out, "No readings yet. Record one with `meso measurements record`.")
 		return
 	}
 
-	fmt.Fprintf(out, "%d reading%s: first %s → latest %s   %s\n",
+	_, _ = fmt.Fprintf(out, "%d reading%s: first %s → latest %s   %s\n",
 		t.Count, plural(t.Count), formatValue(*t.First), formatValue(*t.Latest), changeSummary(t))
 	if spark := sparkline(t.Points); spark != "" {
-		fmt.Fprintf(out, "%s\n", spark)
+		_, _ = fmt.Fprintf(out, "%s\n", spark)
 	}
 
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "  DATE\tVALUE")
+	_, _ = fmt.Fprintln(tw, "  DATE\tVALUE")
 	for _, p := range t.Points {
-		fmt.Fprintf(tw, "  %s\t%s\n", p.MeasuredOn, formatValue(p.Value))
+		_, _ = fmt.Fprintf(tw, "  %s\t%s\n", p.MeasuredOn, formatValue(p.Value))
 	}
 	_ = tw.Flush()
 }

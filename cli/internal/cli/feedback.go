@@ -230,14 +230,14 @@ func newFeedbackDeleteCommand() *cobra.Command {
 				}
 				if !confirm(cmd.InOrStdin(), cmd.OutOrStdout(),
 					fmt.Sprintf("Delete %q?", preview(item.Body))) {
-					fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
 					return nil
 				}
 			}
 			if err := client.DeleteFeedback(cmd.Context(), args[0]); err != nil {
 				return handleAPIError(err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Deleted feedback %s.\n", args[0])
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Deleted feedback %s.\n", args[0])
 			return nil
 		},
 	}
@@ -249,32 +249,32 @@ func echoFeedback(out io.Writer, f api.Feedback, asJSON bool, verb string) error
 	if asJSON {
 		return encodeJSON(out, f)
 	}
-	fmt.Fprintf(out, "%s feedback %s\n", verb, f.ID)
+	_, _ = fmt.Fprintf(out, "%s feedback %s\n", verb, f.ID)
 	return nil
 }
 
 func printFeedbackTable(out io.Writer, items []api.Feedback) {
 	if len(items) == 0 {
-		fmt.Fprintln(out, "No feedback matches.")
+		_, _ = fmt.Fprintln(out, "No feedback matches.")
 		return
 	}
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "STATUS\tCAPTURED\tWHERE\tFEEDBACK\tID")
+	_, _ = fmt.Fprintln(tw, "STATUS\tCAPTURED\tWHERE\tFEEDBACK\tID")
 	for _, f := range items {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
 			f.Status, dateOf(f.CreatedAt), orDash(f.ContextPath), preview(f.Body), f.ID)
 	}
 	_ = tw.Flush()
 }
 
 func printFeedbackDetail(out io.Writer, f api.Feedback) {
-	fmt.Fprintf(out, "Feedback %s\n", f.ID)
-	fmt.Fprintf(out, "  %-10s %s\n", "status:", f.Status)
-	fmt.Fprintf(out, "  %-10s %s\n", "captured:", dateOf(f.CreatedAt))
-	fmt.Fprintf(out, "  %-10s %s\n", "where:", orDash(f.ContextPath))
-	fmt.Fprintf(out, "  %-10s %s\n", "viewport:", viewportOf(f))
+	_, _ = fmt.Fprintf(out, "Feedback %s\n", f.ID)
+	_, _ = fmt.Fprintf(out, "  %-10s %s\n", "status:", f.Status)
+	_, _ = fmt.Fprintf(out, "  %-10s %s\n", "captured:", dateOf(f.CreatedAt))
+	_, _ = fmt.Fprintf(out, "  %-10s %s\n", "where:", orDash(f.ContextPath))
+	_, _ = fmt.Fprintf(out, "  %-10s %s\n", "viewport:", viewportOf(f))
 	if strings.TrimSpace(f.Body) != "" {
-		fmt.Fprintf(out, "\n%s\n", f.Body)
+		_, _ = fmt.Fprintf(out, "\n%s\n", f.Body)
 	}
 }
 

@@ -82,7 +82,7 @@ func newMovementsRelatedAddCommand() *cobra.Command {
 			if asJSON {
 				return encodeJSON(cmd.OutOrStdout(), movement)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Related movement %d --%s--> %d.\n", id, kind, relatedID)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Related movement %d --%s--> %d.\n", id, kind, relatedID)
 			return nil
 		},
 	}
@@ -120,7 +120,7 @@ func newMovementsRelatedRemoveCommand() *cobra.Command {
 			if asJSON {
 				return encodeJSON(cmd.OutOrStdout(), movement)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Removed relationship from movement %d to %d.\n", id, relatedID)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Removed relationship from movement %d to %d.\n", id, relatedID)
 			return nil
 		},
 	}
@@ -442,14 +442,14 @@ func newMovementsDeleteCommand() *cobra.Command {
 					return handleAPIError(err)
 				}
 				if !confirm(cmd.InOrStdin(), cmd.OutOrStdout(), fmt.Sprintf("Delete %q (id %d)?", movement.Name, id)) {
-					fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
 					return nil
 				}
 			}
 			if err := client.DeleteMovement(cmd.Context(), id); err != nil {
 				return handleAPIError(err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Deleted movement %d.\n", id)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Deleted movement %d.\n", id)
 			return nil
 		},
 	}
@@ -511,19 +511,19 @@ func echoMovement(out io.Writer, m api.Movement, asJSON bool, verb string) error
 	if asJSON {
 		return encodeJSON(out, m)
 	}
-	fmt.Fprintf(out, "%s movement %d: %s\n", verb, m.ID, m.Name)
+	_, _ = fmt.Fprintf(out, "%s movement %d: %s\n", verb, m.ID, m.Name)
 	return nil
 }
 
 func printMovementsTable(out io.Writer, movements []api.Movement) {
 	if len(movements) == 0 {
-		fmt.Fprintln(out, "No movements match.")
+		_, _ = fmt.Fprintln(out, "No movements match.")
 		return
 	}
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tNAME\tKIND\tFAV\tPRIMARY MUSCLES\tTAGS")
+	_, _ = fmt.Fprintln(tw, "ID\tNAME\tKIND\tFAV\tPRIMARY MUSCLES\tTAGS")
 	for _, m := range movements {
-		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%s\t%s\n",
 			m.ID, m.Name, m.MovementKind, yesNo(m.Favorite),
 			orDash(strings.Join(m.PrimaryMuscles(), ", ")), orDash(strings.Join(m.Tags, ", ")))
 	}
@@ -531,8 +531,8 @@ func printMovementsTable(out io.Writer, movements []api.Movement) {
 }
 
 func printMovementDetail(out io.Writer, m api.Movement) {
-	fmt.Fprintf(out, "%s  (#%d)\n", m.Name, m.ID)
-	row := func(label, value string) { fmt.Fprintf(out, "  %-15s %s\n", label+":", value) }
+	_, _ = fmt.Fprintf(out, "%s  (#%d)\n", m.Name, m.ID)
+	row := func(label, value string) { _, _ = fmt.Fprintf(out, "  %-15s %s\n", label+":", value) }
 	row("kind", m.MovementKind)
 	row("favorite", map[bool]string{true: "yes", false: "no"}[m.Favorite])
 	if m.Rating != nil {
@@ -566,16 +566,16 @@ func printMovementDetail(out io.Writer, m api.Movement) {
 		if strings.TrimSpace(body) == "" {
 			return
 		}
-		fmt.Fprintf(out, "\n%s:\n%s\n", title, body)
+		_, _ = fmt.Fprintf(out, "\n%s:\n%s\n", title, body)
 	}
 	section("How to", m.HowTo)
 	section("Form cues", m.FormCues)
 	section("Common faults", m.CommonFaults)
 
 	if len(m.Related) > 0 {
-		fmt.Fprintln(out, "\nRelated:")
+		_, _ = fmt.Fprintln(out, "\nRelated:")
 		for _, rel := range m.Related {
-			fmt.Fprintf(out, "  %-12s %s (#%d)\n", rel.RelationshipKind, rel.Name, rel.ID)
+			_, _ = fmt.Fprintf(out, "  %-12s %s (#%d)\n", rel.RelationshipKind, rel.Name, rel.ID)
 		}
 	}
 }

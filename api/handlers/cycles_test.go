@@ -174,7 +174,7 @@ func TestCycle_ComposeWorkouts_AddSwapReorderRemove(t *testing.T) {
 	base := "/api/v1/cycles/" + itoa(c.ID) + "/workouts"
 
 	// Add two workouts — each POST returns the refreshed cycle.
-	c = decodeCycle(t, postJSON(t, mux, base, map[string]any{"workout_id": wA, "week": 1, "phase": "base"}).Body)
+	_ = decodeCycle(t, postJSON(t, mux, base, map[string]any{"workout_id": wA, "week": 1, "phase": "base"}).Body)
 	c = decodeCycle(t, postJSON(t, mux, base, map[string]any{"workout_id": wB, "week": 2, "phase": "build"}).Body)
 	require.Len(t, c.Workouts, 2)
 	entryA := c.Workouts[0].ID

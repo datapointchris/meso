@@ -41,28 +41,28 @@ func newStatsCommand() *cobra.Command {
 }
 
 func printStats(out io.Writer, s api.Stats) {
-	fmt.Fprintf(out, "Library: %d movement%s (%d favorite%s)\n",
+	_, _ = fmt.Fprintf(out, "Library: %d movement%s (%d favorite%s)\n",
 		s.Library.TotalMovements, plural(s.Library.TotalMovements),
 		s.Library.Favorites, plural(s.Library.Favorites))
 	for _, kc := range s.Library.ByKind {
-		fmt.Fprintf(out, "  %-12s %d\n", kc.Kind, kc.Count)
+		_, _ = fmt.Fprintf(out, "  %-12s %d\n", kc.Kind, kc.Count)
 	}
 
-	fmt.Fprintf(out, "\nSessions: %d total, %d in the last 30 days\n", s.Sessions.Total, s.Sessions.Last30Days)
+	_, _ = fmt.Fprintf(out, "\nSessions: %d total, %d in the last 30 days\n", s.Sessions.Total, s.Sessions.Last30Days)
 
-	fmt.Fprintln(out, "\nMetrics:")
+	_, _ = fmt.Fprintln(out, "\nMetrics:")
 	if len(s.Metrics) == 0 {
-		fmt.Fprintln(out, "  No measured metrics yet. Record one with `meso measurements record`.")
+		_, _ = fmt.Fprintln(out, "  No measured metrics yet. Record one with `meso measurements record`.")
 		return
 	}
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "  METRIC\tCATEGORY\tLATEST\tCHANGE\tREADINGS")
+	_, _ = fmt.Fprintln(tw, "  METRIC\tCATEGORY\tLATEST\tCHANGE\tREADINGS")
 	for _, m := range s.Metrics {
 		latest := "—"
 		if m.Latest != nil {
 			latest = formatValue(*m.Latest) + " " + m.Unit
 		}
-		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%d\n", m.Metric, m.Category, latest, changeSummary(m), m.Count)
+		_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%d\n", m.Metric, m.Category, latest, changeSummary(m), m.Count)
 	}
 	_ = tw.Flush()
 }

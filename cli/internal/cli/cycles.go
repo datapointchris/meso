@@ -248,14 +248,14 @@ func newCyclesDeleteCommand() *cobra.Command {
 					return handleAPIError(err)
 				}
 				if !confirm(cmd.InOrStdin(), cmd.OutOrStdout(), fmt.Sprintf("Delete %q (id %d)?", cycle.Name, id)) {
-					fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
 					return nil
 				}
 			}
 			if err := client.DeleteCycle(cmd.Context(), id); err != nil {
 				return handleAPIError(err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Deleted cycle %d.\n", id)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Deleted cycle %d.\n", id)
 			return nil
 		},
 	}
@@ -489,46 +489,46 @@ func echoCycle(out io.Writer, c api.Cycle, asJSON bool, verb string) error {
 	if asJSON {
 		return encodeJSON(out, c)
 	}
-	fmt.Fprintf(out, "%s cycle %d: %s [%s] (%d workout%s)\n",
+	_, _ = fmt.Fprintf(out, "%s cycle %d: %s [%s] (%d workout%s)\n",
 		verb, c.ID, c.Name, c.Status, len(c.Workouts), plural(len(c.Workouts)))
 	return nil
 }
 
 func printCyclesTable(out io.Writer, cycles []api.Cycle) {
 	if len(cycles) == 0 {
-		fmt.Fprintln(out, "No cycles match.")
+		_, _ = fmt.Fprintln(out, "No cycles match.")
 		return
 	}
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tNAME\tSTATUS\tTARGET\tWORKOUTS\tGOAL")
+	_, _ = fmt.Fprintln(tw, "ID\tNAME\tSTATUS\tTARGET\tWORKOUTS\tGOAL")
 	for _, c := range cycles {
-		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%d\t%s\n",
+		_, _ = fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%d\t%s\n",
 			c.ID, c.Name, c.Status, cycleTargetLabel(c), len(c.Workouts), orDash(c.GoalSummary))
 	}
 	_ = tw.Flush()
 }
 
 func printCycleDetail(out io.Writer, c api.Cycle) {
-	fmt.Fprintf(out, "%s  (#%d)\n", c.Name, c.ID)
-	row := func(label, value string) { fmt.Fprintf(out, "  %-14s %s\n", label+":", value) }
+	_, _ = fmt.Fprintf(out, "%s  (#%d)\n", c.Name, c.ID)
+	row := func(label, value string) { _, _ = fmt.Fprintf(out, "  %-14s %s\n", label+":", value) }
 	row("status", c.Status)
 	row("goal", orDash(c.GoalSummary))
 	row("target", cycleTargetLabel(c))
 	row("start", orDashPtr(c.StartDate))
 	row("target date", orDashPtr(c.TargetDate))
 	if strings.TrimSpace(c.Notes) != "" {
-		fmt.Fprintf(out, "\nNotes:\n%s\n", c.Notes)
+		_, _ = fmt.Fprintf(out, "\nNotes:\n%s\n", c.Notes)
 	}
 
 	if len(c.Workouts) == 0 {
-		fmt.Fprintln(out, "\nNo workouts yet — add one with `meso cycles workouts add`.")
+		_, _ = fmt.Fprintln(out, "\nNo workouts yet — add one with `meso cycles workouts add`.")
 		return
 	}
-	fmt.Fprintln(out, "\nWorkouts:")
+	_, _ = fmt.Fprintln(out, "\nWorkouts:")
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "  #\tENTRY\tWORKOUT\tWEEK\tPHASE\tFREQ\tINTENSITY\tCONDITIONS")
+	_, _ = fmt.Fprintln(tw, "  #\tENTRY\tWORKOUT\tWEEK\tPHASE\tFREQ\tINTENSITY\tCONDITIONS")
 	for _, cw := range c.Workouts {
-		fmt.Fprintf(tw, "  %d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(tw, "  %d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			cw.Position, cw.ID, cw.WorkoutName,
 			orDashIntPtr(cw.Week), orDashPtr(cw.Phase), orDashPtr(cw.Frequency),
 			orDashPtr(cw.Intensity), orDashPtr(cw.Conditions))

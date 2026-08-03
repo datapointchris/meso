@@ -248,14 +248,14 @@ func newWorkoutsDeleteCommand() *cobra.Command {
 					return handleAPIError(err)
 				}
 				if !confirm(cmd.InOrStdin(), cmd.OutOrStdout(), fmt.Sprintf("Delete %q (id %d)?", workout.Name, id)) {
-					fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
 					return nil
 				}
 			}
 			if err := client.DeleteWorkout(cmd.Context(), id); err != nil {
 				return handleAPIError(err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Deleted workout %d.\n", id)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Deleted workout %d.\n", id)
 			return nil
 		},
 	}
@@ -493,27 +493,27 @@ func echoWorkout(out io.Writer, w api.Workout, asJSON bool, verb string) error {
 	if asJSON {
 		return encodeJSON(out, w)
 	}
-	fmt.Fprintf(out, "%s workout %d: %s (%d movement%s)\n", verb, w.ID, w.Name, len(w.Movements), plural(len(w.Movements)))
+	_, _ = fmt.Fprintf(out, "%s workout %d: %s (%d movement%s)\n", verb, w.ID, w.Name, len(w.Movements), plural(len(w.Movements)))
 	return nil
 }
 
 func printWorkoutsTable(out io.Writer, workouts []api.Workout) {
 	if len(workouts) == 0 {
-		fmt.Fprintln(out, "No workouts match.")
+		_, _ = fmt.Fprintln(out, "No workouts match.")
 		return
 	}
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tNAME\tTHEME\tFAV\tMOVES\tTAGS")
+	_, _ = fmt.Fprintln(tw, "ID\tNAME\tTHEME\tFAV\tMOVES\tTAGS")
 	for _, w := range workouts {
-		fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%d\t%s\n",
+		_, _ = fmt.Fprintf(tw, "%d\t%s\t%s\t%s\t%d\t%s\n",
 			w.ID, w.Name, orDashPtr(w.Theme), yesNo(w.Favorite), len(w.Movements), orDash(strings.Join(w.Tags, ", ")))
 	}
 	_ = tw.Flush()
 }
 
 func printWorkoutDetail(out io.Writer, w api.Workout) {
-	fmt.Fprintf(out, "%s  (#%d)\n", w.Name, w.ID)
-	row := func(label, value string) { fmt.Fprintf(out, "  %-16s %s\n", label+":", value) }
+	_, _ = fmt.Fprintf(out, "%s  (#%d)\n", w.Name, w.ID)
+	row := func(label, value string) { _, _ = fmt.Fprintf(out, "  %-16s %s\n", label+":", value) }
 	row("theme", orDashPtr(w.Theme))
 	row("favorite", map[bool]string{true: "yes", false: "no"}[w.Favorite])
 	row("tags", orDash(strings.Join(w.Tags, ", ")))
@@ -521,18 +521,18 @@ func printWorkoutDetail(out io.Writer, w api.Workout) {
 		row("estimated", strconv.Itoa(*w.EstimatedMinutes)+" min")
 	}
 	if strings.TrimSpace(w.Notes) != "" {
-		fmt.Fprintf(out, "\nNotes:\n%s\n", w.Notes)
+		_, _ = fmt.Fprintf(out, "\nNotes:\n%s\n", w.Notes)
 	}
 
 	if len(w.Movements) == 0 {
-		fmt.Fprintln(out, "\nNo movements yet — add one with `meso workouts movements add`.")
+		_, _ = fmt.Fprintln(out, "\nNo movements yet — add one with `meso workouts movements add`.")
 		return
 	}
-	fmt.Fprintln(out, "\nMovements:")
+	_, _ = fmt.Fprintln(out, "\nMovements:")
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, "  #\tENTRY\tMOVEMENT\tSETS\tREPS\tLOAD\tREST\tSUPERSET")
+	_, _ = fmt.Fprintln(tw, "  #\tENTRY\tMOVEMENT\tSETS\tREPS\tLOAD\tREST\tSUPERSET")
 	for _, m := range w.Movements {
-		fmt.Fprintf(tw, "  %d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(tw, "  %d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			m.Position, m.ID, m.MovementName,
 			orDashIntPtr(m.Sets), orDashPtr(m.Reps), orDashPtr(m.Load),
 			restLabel(m.RestSeconds), orDashPtr(m.SupersetGroup))

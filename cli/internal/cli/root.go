@@ -98,8 +98,8 @@ func Execute() int {
 
 	fmt.Fprintln(os.Stderr, "error:", err)
 
-	var ue usageError
-	if errors.As(err, &ue) {
+	var usageErr usageError
+	if errors.As(err, &usageErr) {
 		return 2
 	}
 	return 1

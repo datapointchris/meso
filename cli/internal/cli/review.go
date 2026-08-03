@@ -48,25 +48,25 @@ func newReviewCommand() *cobra.Command {
 }
 
 func printReview(out io.Writer, r api.Review) {
-	fmt.Fprintf(out, "Review since %s\n", r.Since)
+	_, _ = fmt.Fprintf(out, "Review since %s\n", r.Since)
 
-	fmt.Fprintf(out, "\nActive cycles: %d\n", len(r.ActiveCycles))
+	_, _ = fmt.Fprintf(out, "\nActive cycles: %d\n", len(r.ActiveCycles))
 	for _, c := range r.ActiveCycles {
-		fmt.Fprintf(out, "  #%d %s — %s\n", c.ID, c.Name, orDash(c.GoalSummary))
+		_, _ = fmt.Fprintf(out, "  #%d %s — %s\n", c.ID, c.Name, orDash(c.GoalSummary))
 	}
 
-	fmt.Fprintf(out, "\nSessions: %d   Measurements: %d   Log entries: %d\n",
+	_, _ = fmt.Fprintf(out, "\nSessions: %d   Measurements: %d   Log entries: %d\n",
 		len(r.Sessions), len(r.Measurements), len(r.LogEntries))
 
 	if len(r.Sessions) > 0 {
-		fmt.Fprintln(out, "\nRecent sessions:")
+		_, _ = fmt.Fprintln(out, "\nRecent sessions:")
 		tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-		fmt.Fprintln(tw, "  DATE\tWORKOUT\tFELT")
+		_, _ = fmt.Fprintln(tw, "  DATE\tWORKOUT\tFELT")
 		for _, s := range r.Sessions {
-			fmt.Fprintf(tw, "  %s\t%s\t%s\n", s.PerformedOn, orDashPtr(s.WorkoutName), orDashPtr(s.Felt))
+			_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\n", s.PerformedOn, orDashPtr(s.WorkoutName), orDashPtr(s.Felt))
 		}
 		_ = tw.Flush()
 	}
 
-	fmt.Fprintln(out, "\nRun `meso review --json` for the full payload (the surface Claude reads).")
+	_, _ = fmt.Fprintln(out, "\nRun `meso review --json` for the full payload (the surface Claude reads).")
 }

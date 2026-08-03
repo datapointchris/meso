@@ -119,7 +119,7 @@ func TestWorkout_ComposeMovements_AddSwapReorderRemove(t *testing.T) {
 	base := "/api/v1/workouts/" + itoa(w.ID) + "/movements"
 
 	// Add two movements — each POST returns the refreshed workout.
-	w = decodeWorkout(t, postJSON(t, mux, base, map[string]any{"movement_id": press, "sets": 5, "reps": "5", "load": "95lb"}).Body)
+	_ = decodeWorkout(t, postJSON(t, mux, base, map[string]any{"movement_id": press, "sets": 5, "reps": "5", "load": "95lb"}).Body)
 	w = decodeWorkout(t, postJSON(t, mux, base, map[string]any{"movement_id": pushup, "sets": 3, "reps": "AMRAP"}).Body)
 	require.Len(t, w.Movements, 2)
 	pressEntry := w.Movements[0].ID
