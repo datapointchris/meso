@@ -85,7 +85,7 @@ export interface SessionMovementInput {
 }
 
 // SessionPromote turns what was performed ad-hoc into a reusable workout: the logged
-// actuals become the prescription, so only the labelling is supplied here.
+// actuals become the prescription, so only the name and its labels are supplied here.
 export interface SessionPromote {
   name: string
   theme?: string | null

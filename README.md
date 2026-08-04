@@ -138,6 +138,9 @@ The "checkboxes that they are done" + "notes with a particular workout I do on a
 - `WorkoutSession`: `id` (UUID7 for user-created rows), `workout_id: FK` (nullable — allows an ad-hoc session), `performed_on: Date`, `duration_minutes`, `overall_notes: Text` (markdown), `felt: Text` (nullable energy/mood tag), `created_at`
 - `SessionMovement` (per-exercise actuals): `session_id`, `movement_id`, `position`, `done: bool` (the checkbox), `actual_sets`, `actual_reps: Text`, `actual_load: Text`, `notes: Text`
   - Seeded from the workout's `WorkoutMovement` rows when a session is started from a template, then edited in place as it's performed.
+  - Appended one at a time when there is no template, so `position` is the order things were actually done.
+
+**A session with no template is the unplanned-training path, and it is where new workouts come from.** Not everything is programmed in advance; requiring a workout to exist before anything can be recorded means either authoring a template mid-gym or not logging at all. So a session can start empty, gain movements as they happen, and then be **promoted** into a `Workout` — the logged actuals become the prescription, in the order performed, and the session is back-linked to the workout it produced so it reads as that template's first instance. Only an ad-hoc session can be promoted; one already backed by a template would silently fork it, which is an edit of that workout rather than a new one.
 
 The logging screen carries the features every strength user rewards (see Competitive landscape): the **previous session's actual weight/reps shown inline** next to each input so I know what to beat; and **set-type tags** (warmup / AMRAP / drop / failure). When a movement is swapped for an alternate mid-session, its target **carries over** to the substitute. This is the `ActiveSessionView` — the single most-used, most mobile-critical screen.
 
@@ -216,6 +219,7 @@ This is an iOS-in-the-gym app; mobile-first is the whole point, not a later pass
 - Touch targets ≥ 44px; the session-logging screen (check off a set, bump a weight) must be usable one-handed without zoom.
 - Responsive layouts from a phone viewport up — no horizontal scroll, no desktop-table-crammed-onto-phone.
 - The "active session" view is the highest-traffic screen: big checkboxes, inline +/- for actual load/reps, minimal navigation.
+- **Choosing anything is a search box over tap targets, never a native `<select>` or `<input type="date">`.** Both hand off to an OS picker whose density is fixed and small, and both cost several interactions where one would do. The library picker and the date field are in-app components for that reason.
 - Ships as an **installable PWA** so it opens like an app from the home screen — matching the mobile-PWA write-surface in `~/dev/vision.md` and the gym-mobile need. Full **offline session logging + sync is deferred past v1** (a large add); v1 is a responsive PWA that needs connectivity. UUID7 PKs keep offline-create possible when it's built.
 - The mobile patterns established here (breakpoints, touch components) should stay design-variable-driven so they compose with the design-style-switcher idea.
 
@@ -288,8 +292,10 @@ Go request/response structs per entity (Create / response / Update shapes) with 
 /api/v1/movements/{id}/related    POST {related_movement_id, relationship_kind}; DELETE .../{rid}
 /api/v1/workouts                  CRUD + ?theme=&tag=&favorite=
 /api/v1/workouts/{id}/movements   POST add movement; PATCH reorder/prescription; DELETE remove
-/api/v1/sessions                  CRUD; POST from ?workout_id= copies template into session
-/api/v1/sessions/{id}/movements/{mid}   PATCH done/actuals
+/api/v1/sessions                  CRUD; POST with workout_id copies template into session; without one it starts empty
+/api/v1/sessions/{id}/movements   POST append a movement mid-session (the ad-hoc path)
+/api/v1/sessions/{id}/movements/{mid}   PATCH done/actuals; DELETE remove the entry
+/api/v1/sessions/{id}/workout     POST promote an ad-hoc session into a workout template
 /api/v1/cycles                    CRUD
 /api/v1/cycles/{id}/workouts      POST/PATCH/DELETE ordered workouts
 /api/v1/metrics                   list metric_definitions; POST define; GET/PUT/DELETE {name}
@@ -309,9 +315,9 @@ Every endpoint group ships with its goose migration and a testcontainers-backed 
 
 ```bash
 meso auth        login | logout | status [--json] | token          # nomad's flow, verbatim
-meso movements   list [--kind --favorite --tag --equipment --muscle --region --search] | show <id> | create | update | delete | related add/rm | export [--csv]
+meso movements   list [--kind --favorite --tag --equipment --muscle --region --search] | show <id> | create | update | delete | muscles | related add/rm | export [--csv]
 meso workouts    list | show <id> | create | update | delete | movements add/reorder/rm
-meso sessions    log [--from-workout <id>] | list [--from --to] | show <id> | movement done <mid>
+meso sessions    log [--from-workout <id>] | list [--from --to] | show <id> | movement add/rm/done/update | promote <id> --name
 meso cycles      list | show <id> | create | update | delete | workouts add/reorder/rm
 meso metrics     list | show <name> | define | edit | delete
 meso measurements record | list [--metric --from --to] | trend <metric>
