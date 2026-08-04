@@ -3,17 +3,78 @@ name: Release CLI
 # Tagged `cli/v*` rather than a bare `v*`: the CLI is a nested module with its
 # own version, and a bare tag would collide with the app's tag namespace. The
 # dotfiles installer resolves the latest release carrying this prefix.
+#
+# That prefix is why svu computes the version rather than go-semantic-release,
+# which the single-module repos use: its provider hardcodes the tag prefix to
+# `v` and parses candidate tags as bare semver, so it can neither write
+# `cli/v0.4.0` nor read the `cli/v0.3.3` it would bump from. Monorepo support
+# there is closed wontfix.
 on:
   push:
-    tags: ['cli/v*']
+    branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  # Releasing a broken CLI is worse than not releasing: the tag is permanent and
+  # the dotfiles installer resolves the newest one.
+  #
+  # Called rather than keyed off `workflow_run: [CI]`, which would skip the
+  # re-run: `ci.yml` and the generated `validate.yml` are BOTH named CI, so
+  # workflow_run cannot say which one passed and would happily release on the
+  # wrong one. Calling it costs a duplicate run and buys an unambiguous answer
+  # about this exact commit.
+  validate:
+    uses: ./.github/workflows/validate.yml
+    secrets: inherit
+
+  version:
+    name: Resolve version
+    needs: validate
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      previous: ${{ steps.resolve.outputs.previous }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+
+      - run: go install github.com/caarlos0/svu/v3@v3.4.1
+
+      # --log.directory confines the bump to commits touching cli/, so an api/
+      # or web/ change never moves the CLI version.
+      #
+      # --v0 keeps a breaking change on a 0.x line as a minor bump. Reaching
+      # 1.0 states that the interface is stable, which is a decision to make
+      # deliberately rather than something the next `feat!:` does on its own.
+      #
+      # svu only prints a version; it returns the current one unchanged when
+      # nothing under cli/ is releasable, which is what gates the jobs below.
+      - name: Resolve the next version
+        id: resolve
+        run: |
+          previous=$(git tag --list 'cli/v*' --sort=-version:refname | head -1)
+          next=$(svu next --tag.pattern 'cli/v*' --tag.prefix 'cli/v' --log.directory cli --v0)
+          echo "previous=${previous}" >>"$GITHUB_OUTPUT"
+          if [ "$next" = "$previous" ]; then
+            echo "No releasable commits under cli/ since ${previous:-the first commit}"
+            exit 0
+          fi
+          echo "Releasing ${next} (previous: ${previous:-none})"
+          echo "tag=${next}" >>"$GITHUB_OUTPUT"
+
   build:
     name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: version
+    if: needs.version.outputs.tag != ''
     runs-on: ubuntu-latest
 
     strategy:
@@ -38,8 +99,9 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: '0'
+          TAG: ${{ needs.version.outputs.tag }}
         run: |
-          version="${GITHUB_REF_NAME#cli/}"
+          version="${TAG#cli/}"
           version_num="${version#v}"
           mkdir -p ../dist
           go build -trimpath \
@@ -56,10 +118,16 @@ jobs:
 
   release:
     name: Publish release
-    needs: build
+    needs: [version, build]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -71,7 +139,32 @@ jobs:
         # entry as ./name while the release asset is named name.
         run: cd dist && sha256sum -- *.tar.gz > checksums.txt
 
+      # Not `generate_release_notes` — that lists merged PRs since the last
+      # published release, and trunk-based development means there are none to
+      # list (cli/v0.1.0 surfaced a stale 2023 PR as its entire changelog).
+      - name: Build release notes
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+          PREVIOUS: ${{ needs.version.outputs.previous }}
+        run: |
+          range="${PREVIOUS:+${PREVIOUS}..}HEAD"
+          {
+            echo '## Changes'
+            echo
+            git log --no-merges --pretty='- %s (%h)' "$range" -- cli
+            if [ -n "$PREVIOUS" ]; then
+              echo
+              echo "**Full changelog**: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${PREVIOUS}...${TAG}"
+            fi
+          } >release-notes.md
+          cat release-notes.md
+
+      # Creates the tag as well as the release, at the commit being built. A
+      # tag pushed by GITHUB_TOKEN cannot trigger another workflow, so tagging
+      # in a separate job and firing this one on the tag would never run.
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           files: dist/*
-          generate_release_notes: true
+          body_path: release-notes.md
