@@ -120,6 +120,38 @@ func TestWriteMovementsCSV(t *testing.T) {
 
 // TestBuildMovementPatch checks the only-changed-fields contract: unset flags are
 // absent from the patch, and set flags (including a false bool) are present.
+// Rename is update-only: on create the name is the positional argument, so a --name
+// flag there would be two ways to say the same thing.
+func TestBuildMovementPatch_Rename(t *testing.T) {
+	cmd := newMovementsUpdateCommand()
+	cmd.SetArgs([]string{"1", "--name", "Straight-Arm Pulldown"})
+	if cmd.Flags().Lookup("name") == nil {
+		t.Fatal("update should expose --name")
+	}
+	if newMovementsCreateCommand().Flags().Lookup("name") != nil {
+		t.Error("create should not expose --name — the name is positional there")
+	}
+
+	var w movementWriteFlags
+	probe := &cobra.Command{Use: "update", RunE: func(*cobra.Command, []string) error { return nil }}
+	bindMovementWriteFlags(probe, &w)
+	probe.Flags().StringVar(&w.name, "name", "", "")
+	probe.SetArgs([]string{"--name", "Straight-Arm Pulldown"})
+	if err := probe.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	patch, err := buildMovementPatch(probe, &w)
+	if err != nil {
+		t.Fatalf("buildMovementPatch: %v", err)
+	}
+	if patch["name"] != "Straight-Arm Pulldown" {
+		t.Errorf("name patch = %v", patch["name"])
+	}
+	if len(patch) != 1 {
+		t.Errorf("only the changed flag belongs in the patch, got %v", patch)
+	}
+}
+
 func TestBuildMovementPatch(t *testing.T) {
 	var w movementWriteFlags
 	cmd := &cobra.Command{Use: "update", RunE: func(*cobra.Command, []string) error { return nil }}

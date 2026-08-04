@@ -262,6 +262,7 @@ func newMovementsShowCommand() *cobra.Command {
 // movementWriteFlags are the fields settable on create and update. Pointers stay
 // nil unless the flag was changed, so update sends only what the user touched.
 type movementWriteFlags struct {
+	name         string
 	kind         string
 	tags         []string
 	equipment    []string
@@ -371,10 +372,12 @@ func newMovementsUpdateCommand() *cobra.Command {
 	var w movementWriteFlags
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "update <id> [flags]",
-		Short:   "Update a movement (only the flags you pass change)",
-		Example: "  meso movements update 3 --favorite\n  meso movements update 3 --tag mobility --muscle glutes:primary",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Use:   "update <id> [flags]",
+		Short: "Update a movement (only the flags you pass change)",
+		Example: "  meso movements update 3 --favorite\n" +
+			"  meso movements update 3 --tag mobility --muscle glutes:primary\n" +
+			"  meso movements update 37 --name \"Straight-Arm Pulldown\"",
+		Args: usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseID(args[0])
 			if err != nil {
@@ -400,6 +403,10 @@ func newMovementsUpdateCommand() *cobra.Command {
 		},
 	}
 	bindMovementWriteFlags(cmd, &w)
+	// Only update takes --name; on create the name is the positional argument.
+	// Renaming matters because a movement's name can turn out to over-specify it —
+	// "Eccentric Straight-Arm Pulldown" named a prescription, not a movement.
+	cmd.Flags().StringVar(&w.name, "name", "", "Rename the movement (must stay unique)")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the updated movement as JSON")
 	return cmd
 }
@@ -409,6 +416,9 @@ func newMovementsUpdateCommand() *cobra.Command {
 func buildMovementPatch(cmd *cobra.Command, w *movementWriteFlags) (map[string]any, error) {
 	f := cmd.Flags()
 	patch := map[string]any{}
+	if f.Changed("name") {
+		patch["name"] = w.name
+	}
 	if f.Changed("kind") {
 		patch["movement_kind"] = w.kind
 	}
