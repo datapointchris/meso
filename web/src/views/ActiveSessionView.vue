@@ -1,14 +1,23 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { sessionsApi, doneCount, previousSummary, type Session, type SessionMovement, type SessionMovementPatch } from '@/api/sessions'
+import type { Movement } from '@/api/movements'
+import type { Workout } from '@/api/workouts'
 import { ApiError } from '@/api/client'
+import MovementPicker from '@/components/MovementPicker.vue'
+import PromoteSessionModal from '@/components/PromoteSessionModal.vue'
 
 // The mobile-critical logging screen: check off sets one-handed, bump actual
 // sets/reps/load against the plan the session was seeded with, and jot notes. Every
 // edit PATCHes immediately and the server returns the refreshed session, so state is
 // never lost on an app-switch (v1 is online; offline logging is deferred).
+//
+// A session with no template is the unplanned-training path: it opens empty and is
+// built up movement by movement while it happens, then saved as a workout if it is
+// worth doing again.
 const route = useRoute()
+const router = useRouter()
 const id = computed(() => String(route.params.id))
 
 const session = ref<Session | null>(null)
@@ -82,6 +91,42 @@ function saveEntryNotes(entry: SessionMovement, value: string) {
   patchEntry(entry, { notes: value })
 }
 
+// isAdHoc gates everything about composing the session. A session copied from a
+// template is edited by editing that workout, not by rearranging the log of what was
+// performed — and it has no template to produce, so there is nothing to promote.
+const isAdHoc = computed(() => session.value !== null && session.value.workout_id === null)
+
+const showPicker = ref(false)
+const adding = ref(false)
+const showPromote = ref(false)
+
+async function addMovement(movement: Movement) {
+  if (!session.value || adding.value) return
+  adding.value = true
+  try {
+    session.value = await sessionsApi.addMovement(session.value.id, { movement_id: movement.id })
+  } catch (e) {
+    error.value = e instanceof ApiError ? e.message : 'Failed to add movement.'
+  } finally {
+    adding.value = false
+  }
+}
+
+async function removeEntry(entry: SessionMovement) {
+  if (!session.value) return
+  if (!window.confirm(`Remove “${entry.movement_name}” from this session?`)) return
+  try {
+    session.value = await sessionsApi.removeMovement(session.value.id, entry.id)
+  } catch (e) {
+    error.value = e instanceof ApiError ? e.message : 'Failed to remove movement.'
+  }
+}
+
+function onPromoted(workout: Workout) {
+  showPromote.value = false
+  router.push({ name: 'workout-detail', params: { id: workout.id } })
+}
+
 // saveMeta persists the session-level fields (felt / duration / notes) on blur.
 async function saveMeta() {
   if (!session.value) return
@@ -138,7 +183,7 @@ async function saveMeta() {
       <p
         v-if="session.movements.length === 0"
         class="session__status">
-        No movements were logged for this session.
+        {{ isAdHoc ? 'Nothing logged yet. Add the first movement below.' : 'No movements were logged for this session.' }}
       </p>
 
       <ol
@@ -221,8 +266,42 @@ async function saveMeta() {
             placeholder="Notes for this movement…"
             :aria-label="`Notes for ${entry.movement_name}`"
             @change="saveEntryNotes(entry, ($event.target as HTMLInputElement).value)" />
+
+          <button
+            v-if="isAdHoc"
+            type="button"
+            class="log-entry__remove"
+            @click="removeEntry(entry)">
+            Remove
+          </button>
         </li>
       </ol>
+
+      <section
+        v-if="isAdHoc"
+        class="compose">
+        <button
+          v-if="!showPicker"
+          type="button"
+          class="btn btn--accent compose__open"
+          @click="showPicker = true">
+          + Add a movement
+        </button>
+        <template v-else>
+          <div class="compose__head">
+            <h2 class="section-title">Add a movement</h2>
+            <button
+              type="button"
+              class="link-btn"
+              @click="showPicker = false">
+              Done adding
+            </button>
+          </div>
+          <MovementPicker
+            :busy="adding"
+            @pick="addMovement" />
+        </template>
+      </section>
 
       <section class="meta">
         <h2 class="section-title">How it went</h2>
@@ -259,12 +338,26 @@ async function saveMeta() {
       </section>
 
       <div class="session__actions">
+        <button
+          v-if="isAdHoc && session.movements.length > 0"
+          type="button"
+          class="btn"
+          @click="showPromote = true">
+          Save as workout
+        </button>
         <RouterLink
           class="btn btn--accent"
           :to="{ name: 'sessions' }">
           Done
         </RouterLink>
       </div>
+
+      <PromoteSessionModal
+        v-if="showPromote"
+        :session-id="session.id"
+        :movement-count="session.movements.length"
+        @promoted="onPromoted"
+        @close="showPromote = false" />
     </template>
   </section>
 </template>
@@ -462,9 +555,53 @@ async function saveMeta() {
   font: inherit;
 }
 
+.log-entry__remove {
+  align-self: flex-start;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: #f87171;
+  font-size: 0.8rem;
+}
+
 .section-title {
   margin: 0 0 var(--space-2);
   font-size: 1.05rem;
+}
+
+.compose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+// Full-width so adding the next movement is a thumb-reachable target between sets.
+.compose__open {
+  width: 100%;
+  justify-content: center;
+}
+
+.compose__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+
+  .section-title {
+    margin: 0;
+  }
+}
+
+.link-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--accent);
+  font-size: 0.85rem;
 }
 
 .meta {
@@ -508,13 +645,14 @@ async function saveMeta() {
 .session__actions {
   display: flex;
   justify-content: flex-end;
+  gap: var(--space-2);
 }
 
 .btn {
   min-height: var(--touch-target);
   display: inline-flex;
   align-items: center;
-  padding: 0 var(--space-5);
+  padding: 0 var(--space-4);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-raised);
@@ -525,6 +663,10 @@ async function saveMeta() {
     background: var(--accent);
     border-color: var(--accent);
     color: var(--accent-contrast);
+  }
+
+  &:disabled {
+    opacity: 0.6;
   }
 }
 </style>

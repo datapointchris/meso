@@ -3,6 +3,7 @@
 // UUID7 session id (treated here as an opaque string).
 import { http } from './client'
 import type { MovementKind } from './movements'
+import type { Workout } from './workouts'
 
 // PreviousActuals is the last performed result for a movement before this session —
 // the number to beat. Null when never performed, and only sent on session detail; the
@@ -72,6 +73,27 @@ export interface SessionMovementPatch {
   movement_id?: number
 }
 
+// SessionMovementInput appends one movement to a session already underway — the
+// ad-hoc logging path, where the session starts empty and grows as things get done.
+export interface SessionMovementInput {
+  movement_id: number
+  done?: boolean
+  actual_sets?: number | null
+  actual_reps?: string | null
+  actual_load?: string | null
+  notes?: string
+}
+
+// SessionPromote turns what was performed ad-hoc into a reusable workout: the logged
+// actuals become the prescription, so only the labelling is supplied here.
+export interface SessionPromote {
+  name: string
+  theme?: string | null
+  tags?: string[]
+  notes?: string
+  estimated_minutes?: number | null
+}
+
 export interface SessionFilter {
   workout_id?: number
   from?: string
@@ -93,9 +115,16 @@ export const sessionsApi = {
   create: (body: SessionCreate) => http.post<Session>('/sessions', body),
   update: (id: string, body: SessionUpdate) => http.put<Session>(`/sessions/${encodeURIComponent(id)}`, body),
   remove: (id: string) => http.del(`/sessions/${encodeURIComponent(id)}`),
-  // Per-movement logging — each PATCH returns the refreshed session.
+  // Per-movement logging — each write returns the refreshed session, so the logging
+  // screen re-renders (including the new entry's previous actuals) from one response.
+  addMovement: (id: string, body: SessionMovementInput) =>
+    http.post<Session>(`/sessions/${encodeURIComponent(id)}/movements`, body),
   updateMovement: (id: string, entryId: number, body: SessionMovementPatch) =>
     http.patch<Session>(`/sessions/${encodeURIComponent(id)}/movements/${entryId}`, body),
+  removeMovement: (id: string, entryId: number) =>
+    http.delData<Session>(`/sessions/${encodeURIComponent(id)}/movements/${entryId}`),
+  // Promotion returns the created workout, not the session.
+  promote: (id: string, body: SessionPromote) => http.post<Workout>(`/sessions/${encodeURIComponent(id)}/workout`, body),
 }
 
 // doneCount reports how many of a session's movements are checked off.

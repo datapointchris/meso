@@ -5,13 +5,16 @@ import { sessionsApi, doneCount, type Session, type SessionFilter } from '@/api/
 import { ApiError } from '@/api/client'
 
 // The session history: past and in-progress sessions, newest first, so a session
-// started earlier can be resumed and completed ones reviewed. Sessions are started
-// from a workout (Workouts → a workout → Start session), not created here.
+// started earlier can be resumed and completed ones reviewed. Two ways in: from a
+// workout template (Workouts → Start session), or empty from here when the training
+// wasn't planned — that session is filled in as it happens and can become a template
+// afterwards.
 const router = useRouter()
 
 const sessions = ref<Session[]>([])
 const loading = ref(true)
 const error = ref('')
+const starting = ref(false)
 
 // Server-side date filtering (the API owns the params), one definition shared with
 // the CLI.
@@ -40,17 +43,40 @@ const isEmpty = computed(() => !loading.value && !error.value && sessions.value.
 function openSession(s: Session) {
   router.push({ name: 'session-detail', params: { id: s.id } })
 }
+
+// Start an empty session for today and go straight to logging — no template, no name,
+// nothing to fill in first.
+async function startAdHoc() {
+  if (starting.value) return
+  starting.value = true
+  try {
+    const session = await sessionsApi.create({})
+    router.push({ name: 'session-detail', params: { id: session.id } })
+  } catch (e) {
+    error.value = e instanceof ApiError ? e.message : 'Failed to start a session.'
+    starting.value = false
+  }
+}
 </script>
 
 <template>
   <section class="sessions">
     <header class="sessions__head">
       <h1 class="sessions__title">Sessions</h1>
-      <RouterLink
-        class="btn"
-        :to="{ name: 'workouts' }">
-        Start one
-      </RouterLink>
+      <div class="sessions__start">
+        <RouterLink
+          class="btn"
+          :to="{ name: 'workouts' }">
+          From workout
+        </RouterLink>
+        <button
+          type="button"
+          class="btn btn--accent"
+          :disabled="starting"
+          @click="startAdHoc">
+          {{ starting ? 'Starting…' : '+ Log a session' }}
+        </button>
+      </div>
     </header>
 
     <div class="sessions__filters">
@@ -83,7 +109,7 @@ function openSession(s: Session) {
     <p
       v-else-if="isEmpty"
       class="sessions__status">
-      No sessions yet. Open a workout and tap “Start session” to log one.
+      No sessions yet. Tap “Log a session” to record one as you go, or start from a workout.
     </p>
 
     <ul
@@ -125,6 +151,13 @@ function openSession(s: Session) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.sessions__start {
+  display: flex;
+  gap: var(--space-2);
 }
 
 .sessions__title {
@@ -243,6 +276,16 @@ function openSession(s: Session) {
   background: var(--surface-raised);
   color: var(--text);
   font-weight: 600;
+
+  &--accent {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-contrast);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+  }
 }
 
 @media (min-width: 720px) {

@@ -7,6 +7,7 @@ import { sessionsApi } from '@/api/sessions'
 import { ApiError } from '@/api/client'
 import { renderMarkdown } from '@/composables/useMarkdown'
 import AddEditWorkoutModal from '@/components/AddEditWorkoutModal.vue'
+import MovementPicker from '@/components/MovementPicker.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,12 +18,6 @@ const error = ref('')
 const showEdit = ref(false)
 
 const id = computed(() => Number(route.params.id))
-
-// The movement library, loaded once to populate the "add movement" picker.
-const library = ref<Movement[]>([])
-const pickMovement = ref<number | ''>('')
-const addForm = reactive({ sets: null as number | null, reps: '', load: '' })
-const librarySearch = ref('')
 
 // Inline prescription editing: which entry is open, and its edit buffer.
 const editingEntry = ref<number | null>(null)
@@ -51,37 +46,21 @@ async function load() {
   }
 }
 
-onMounted(async () => {
-  await load()
-  try {
-    library.value = await movementsApi.list()
-  } catch {
-    // A failed library load only disables the add picker; the rest works.
-  }
-})
+onMounted(load)
 
-const filteredLibrary = computed(() => {
-  const q = librarySearch.value.trim().toLowerCase()
-  if (!q) return library.value
-  return library.value.filter((m) => m.name.toLowerCase().includes(q))
-})
-
-async function addMovement() {
-  if (!workout.value || pickMovement.value === '') return
+// A picked movement is added straight away with no prescription — sets/reps/load are
+// filled afterwards with the inline editor each entry already has. Choosing first and
+// refining after is what makes adding several in a row one tap each.
+const adding = ref(false)
+async function addMovement(movement: Movement) {
+  if (!workout.value || adding.value) return
+  adding.value = true
   try {
-    workout.value = await workoutsApi.addMovement(workout.value.id, {
-      movement_id: pickMovement.value,
-      sets: addForm.sets || null,
-      reps: addForm.reps.trim() || null,
-      load: addForm.load.trim() || null,
-    })
-    pickMovement.value = ''
-    addForm.sets = null
-    addForm.reps = ''
-    addForm.load = ''
-    librarySearch.value = ''
+    workout.value = await workoutsApi.addMovement(workout.value.id, { movement_id: movement.id })
   } catch (e) {
     error.value = e instanceof ApiError ? e.message : 'Failed to add movement.'
+  } finally {
+    adding.value = false
   }
 }
 
@@ -465,57 +444,10 @@ async function startSession() {
 
         <div class="add-movement">
           <h3 class="add-movement__title">Add a movement</h3>
-          <input
-            v-model="librarySearch"
-            class="field__input"
-            type="search"
-            placeholder="Filter the library…"
-            aria-label="Filter movements" />
-          <select
-            v-model="pickMovement"
-            class="field__input"
-            aria-label="Movement to add">
-            <option value="">Choose a movement…</option>
-            <option
-              v-for="m in filteredLibrary"
-              :key="m.id"
-              :value="m.id">
-              {{ m.name }}
-            </option>
-          </select>
-          <div class="rx-grid">
-            <label class="field field--inline">
-              <span class="field__label">Sets</span>
-              <input
-                v-model.number="addForm.sets"
-                class="field__input"
-                type="number"
-                min="0" />
-            </label>
-            <label class="field field--inline">
-              <span class="field__label">Reps</span>
-              <input
-                v-model="addForm.reps"
-                class="field__input"
-                type="text"
-                placeholder="5, AMRAP" />
-            </label>
-            <label class="field field--inline">
-              <span class="field__label">Load</span>
-              <input
-                v-model="addForm.load"
-                class="field__input"
-                type="text"
-                placeholder="80% 1RM" />
-            </label>
-          </div>
-          <button
-            type="button"
-            class="btn btn--accent"
-            :disabled="pickMovement === ''"
-            @click="addMovement">
-            + Add to workout
-          </button>
+          <MovementPicker
+            :busy="adding"
+            @pick="addMovement" />
+          <p class="add-movement__hint">Tap to add; set the prescription with Edit on the entry.</p>
         </div>
       </section>
 
@@ -832,6 +764,12 @@ async function startSession() {
 .add-movement__title {
   margin: 0;
   font-size: 0.95rem;
+}
+
+.add-movement__hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
 }
 
 .detail__actions {
