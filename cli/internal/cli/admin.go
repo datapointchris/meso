@@ -27,18 +27,5 @@ func newAdminCommand() *cobra.Command {
 		RunE: requireSubcommand,
 	}
 	cmd.AddCommand(newAdminFeedbackCommand())
-	cmd.AddCommand(newAdminUpdateAlias())
-	return cmd
-}
-
-// newAdminUpdateAlias keeps `meso admin update` working after the command moved
-// to the root, where the update notice points. Hidden, so help documents one
-// spelling while the old one still runs.
-//
-// Delete it after one release. Its only job is that a user who learned the old
-// path does not hit "unknown command" the first time they follow a notice.
-func newAdminUpdateAlias() *cobra.Command {
-	cmd := newUpdateCommand()
-	cmd.Hidden = true
 	return cmd
 }

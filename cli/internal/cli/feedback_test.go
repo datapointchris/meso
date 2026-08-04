@@ -127,18 +127,16 @@ func TestUpdateIsAtTheRootWhereTheNoticePointsIt(t *testing.T) {
 		t.Error("update should carry --check for reporting without installing")
 	}
 
-	// The old path keeps working for one release, hidden so help documents one
-	// spelling. Delete both the alias and this assertion together.
+	// `admin update` was kept hidden for one release so a user following the old
+	// path did not hit "unknown command". That release shipped as cli/v0.4.0, and
+	// a hidden alias is exactly what let `upgrade` outlive the decision to drop
+	// it across nine CLIs, so there is one spelling now.
 	admin := findCommand(root.Commands(), "admin")
 	if admin == nil {
 		t.Fatal("admin command not registered on root")
 	}
-	alias := findCommand(admin.Commands(), "update")
-	if alias == nil {
-		t.Fatal("admin update alias is gone; it should survive one release")
-	}
-	if !alias.Hidden {
-		t.Error("admin update alias is visible in help; only the root spelling should be")
+	if findCommand(admin.Commands(), "update") != nil {
+		t.Error("admin update alias is back; update has one spelling, at the root")
 	}
 }
 
