@@ -109,6 +109,46 @@ func TestMovement_List_Filters(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, getJSON(t, mux, "/api/v1/movements?favorite=maybe").Code)
 }
 
+// Search has to survive how a movement's name is actually punctuated: the library
+// writes "Pulldown" and "Pull-up", and the search is typed as neither.
+func TestMovement_List_SearchIsPunctuationInsensitive(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+
+	pulldown := movementPayload("Eccentric Straight-Arm Pulldown", "exercise")
+	pulldown["tags"] = []string{"back-day"}
+	require.Equal(t, http.StatusCreated, postJSON(t, mux, "/api/v1/movements", pulldown).Code)
+	require.Equal(t, http.StatusCreated, postJSON(t, mux, "/api/v1/movements", movementPayload("Wide Grip Pull-up", "exercise")).Code)
+
+	names := func(query string) []string {
+		rr := getJSON(t, mux, "/api/v1/movements"+query)
+		require.Equal(t, http.StatusOK, rr.Code)
+		var out []models.Movement
+		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &out))
+		got := make([]string, 0, len(out))
+		for _, m := range out {
+			got = append(got, m.Name)
+		}
+		return got
+	}
+
+	// Separators are noise on both sides of the match.
+	for _, query := range []string{"?search=pull-down", "?search=pulldown", "?search=pull+down", "?search=PULLDOWN"} {
+		assert.Equal(t, []string{"Eccentric Straight-Arm Pulldown"}, names(query), query)
+	}
+	assert.Equal(t, []string{"Wide Grip Pull-up"}, names("?search=pullup"))
+
+	// Every token must match, so words can arrive in any order with anything between.
+	assert.Equal(t, []string{"Eccentric Straight-Arm Pulldown"}, names("?search=straight+arm+pull+down"))
+	assert.Equal(t, []string{"Eccentric Straight-Arm Pulldown"}, names("?search=pulldown+eccentric"))
+	assert.Empty(t, names("?search=cable+pulldown")) // "cable" matches nothing here
+
+	// Tags are searched the same way.
+	assert.Equal(t, []string{"Eccentric Straight-Arm Pulldown"}, names("?search=back+day"))
+
+	// A query of nothing but separators is no filter, not an empty result.
+	assert.Len(t, names("?search=+-+"), 2)
+}
+
 func TestMovement_Update_Partial(t *testing.T) {
 	mux := buildTestMux(setupTestDB(t))
 	created := decodeMovement(t, postJSON(t, mux, "/api/v1/movements", movementPayload("Deadlift", "exercise")).Body)

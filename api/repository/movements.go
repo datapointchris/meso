@@ -76,11 +76,11 @@ func (r *MovementRepo) List(ctx context.Context, f models.MovementFilter) ([]mod
 	if f.Equipment != "" {
 		add("$%d = ANY(equipment)", f.Equipment)
 	}
-	if f.Search != "" {
-		// Match the name or any tag, case-insensitively.
-		args = append(args, "%"+f.Search+"%")
+	for _, token := range searchTokens(f.Search) {
+		args = append(args, "%"+token+"%")
 		where = append(where, fmt.Sprintf(
-			"(name ILIKE $%d OR array_to_string(tags, ' ') ILIKE $%d)", len(args), len(args)))
+			"("+searchNormalize("name")+" LIKE $%d OR "+searchNormalize("array_to_string(tags, ' ')")+" LIKE $%d)",
+			len(args), len(args)))
 	}
 	if f.Muscle != "" {
 		add("EXISTS (SELECT 1 FROM movement_muscles mm WHERE mm.movement_id = movements.id AND mm.muscle = $%d)", f.Muscle)
@@ -449,6 +449,35 @@ func mapWriteError(op string, err error) error {
 		}
 	}
 	return fmt.Errorf("%s: %w", op, err)
+}
+
+// searchNormalize wraps a text expression so it matches the way searchTokens
+// normalizes the query: lowercased with every separator removed. Without it "pull-down"
+// cannot find "Pulldown" and "Pull-up" cannot be found by "pullup" — the library names
+// movements the way a coach writes them, and nobody types the hyphens back the same way.
+func searchNormalize(expr string) string {
+	return `regexp_replace(lower(` + expr + `), '[^a-z0-9]+', '', 'g')`
+}
+
+// searchTokens splits a free-text query into normalized terms, each of which must match
+// for a row to qualify. Token-AND rather than one substring means the words can be typed
+// in any order and with anything between them: "straight arm pull down" finds
+// "Eccentric Straight-Arm Pulldown". A query of only separators yields no tokens, which
+// correctly reads as no filter at all.
+func searchTokens(query string) []string {
+	tokens := []string{}
+	for _, field := range strings.Fields(query) {
+		var b strings.Builder
+		for _, r := range strings.ToLower(field) {
+			if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+				b.WriteRune(r)
+			}
+		}
+		if b.Len() > 0 {
+			tokens = append(tokens, b.String())
+		}
+	}
+	return tokens
 }
 
 // normalizeArray maps a nil slice to an empty one so it stores as '{}' rather than

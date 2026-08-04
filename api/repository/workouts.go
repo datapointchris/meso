@@ -62,10 +62,11 @@ func (r *WorkoutRepo) List(ctx context.Context, f models.WorkoutFilter) ([]model
 	if f.Tag != "" {
 		add("$%d = ANY(tags)", f.Tag)
 	}
-	if f.Search != "" {
-		args = append(args, "%"+f.Search+"%")
+	for _, token := range searchTokens(f.Search) {
+		args = append(args, "%"+token+"%")
 		where = append(where, fmt.Sprintf(
-			"(name ILIKE $%d OR coalesce(theme, '') ILIKE $%d OR array_to_string(tags, ' ') ILIKE $%d)",
+			"("+searchNormalize("name")+" LIKE $%d OR "+searchNormalize("coalesce(theme, '')")+" LIKE $%d"+
+				" OR "+searchNormalize("array_to_string(tags, ' ')")+" LIKE $%d)",
 			len(args), len(args), len(args)))
 	}
 

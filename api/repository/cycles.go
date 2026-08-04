@@ -57,10 +57,11 @@ func (r *CycleRepo) List(ctx context.Context, f models.CycleFilter) ([]models.Cy
 	if f.Status != "" {
 		add("status = $%d", f.Status)
 	}
-	if f.Search != "" {
-		args = append(args, "%"+f.Search+"%")
+	for _, token := range searchTokens(f.Search) {
+		args = append(args, "%"+token+"%")
 		where = append(where, fmt.Sprintf(
-			"(name ILIKE $%d OR goal_summary ILIKE $%d)", len(args), len(args)))
+			"("+searchNormalize("name")+" LIKE $%d OR "+searchNormalize("goal_summary")+" LIKE $%d)",
+			len(args), len(args)))
 	}
 
 	query := `SELECT ` + cycleCols + ` FROM cycles`
