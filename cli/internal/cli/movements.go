@@ -29,9 +29,53 @@ func newMovementsCommand() *cobra.Command {
 		newMovementsUpdateCommand(),
 		newMovementsDeleteCommand(),
 		newMovementsExportCommand(),
+		newMovementsMusclesCommand(),
 		newMovementsRelatedCommand(),
 	)
 	return cmd
+}
+
+// newMovementsMusclesCommand lists the muscle vocabulary. `create --muscle` and
+// `list --muscle` both address names from a fixed lookup, and without this the only
+// way to learn them is to read the API's seed source.
+func newMovementsMusclesCommand() *cobra.Command {
+	var asJSON bool
+	cmd := &cobra.Command{
+		Use:     "muscles",
+		Short:   "List the muscle vocabulary --muscle accepts",
+		Example: "  meso movements muscles\n  meso movements muscles --json",
+		Args:    usageArgs(cobra.NoArgs),
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := newAPIClient(cmd.Context())
+			if err != nil {
+				return handleAPIError(err)
+			}
+			muscles, err := client.ListMuscles(cmd.Context())
+			if err != nil {
+				return handleAPIError(err)
+			}
+			if asJSON {
+				return encodeJSON(cmd.OutOrStdout(), muscles)
+			}
+			printMusclesTable(cmd.OutOrStdout(), muscles)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Output muscles as JSON to stdout")
+	return cmd
+}
+
+func printMusclesTable(out io.Writer, muscles []api.Muscle) {
+	if len(muscles) == 0 {
+		_, _ = fmt.Fprintln(out, "No muscles defined.")
+		return
+	}
+	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintln(w, "MUSCLE\tREGION")
+	for _, m := range muscles {
+		_, _ = fmt.Fprintf(w, "%s\t%s\n", m.Name, m.Region)
+	}
+	_ = w.Flush()
 }
 
 // newMovementsRelatedCommand groups the relationship sub-commands: add / rm a

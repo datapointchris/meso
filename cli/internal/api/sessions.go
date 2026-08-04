@@ -58,6 +58,28 @@ type SessionCreate struct {
 	OverallNotes    string  `json:"overall_notes,omitempty"`
 }
 
+// SessionMovementInput appends one movement to a session already underway (POST
+// /api/v1/sessions/{id}/movements) — the ad-hoc path, where the session starts empty
+// and is filled in as the workout happens.
+type SessionMovementInput struct {
+	ActualSets *int    `json:"actual_sets,omitempty"`
+	ActualReps *string `json:"actual_reps,omitempty"`
+	ActualLoad *string `json:"actual_load,omitempty"`
+	Notes      string  `json:"notes,omitempty"`
+	MovementID int64   `json:"movement_id"`
+	Done       bool    `json:"done,omitempty"`
+}
+
+// SessionPromote turns a performed ad-hoc session into a workout template (POST
+// /api/v1/sessions/{id}/workout). The logged actuals become the prescription, so only
+// the name and its labels are sent.
+type SessionPromote struct {
+	Theme *string  `json:"theme,omitempty"`
+	Name  string   `json:"name"`
+	Notes string   `json:"notes,omitempty"`
+	Tags  []string `json:"tags,omitempty"`
+}
+
 // SessionFilter carries the optional list-endpoint query params.
 type SessionFilter struct {
 	WorkoutID *int64
@@ -122,6 +144,39 @@ func (c *Client) UpdateSession(ctx context.Context, id string, patch map[string]
 // DeleteSession removes a session (DELETE /api/v1/sessions/{id}).
 func (c *Client) DeleteSession(ctx context.Context, id string) error {
 	return c.send(ctx, http.MethodDelete, "/api/v1/sessions/"+url.PathEscape(id), nil, nil)
+}
+
+// AddSessionMovement appends a movement to a session (POST
+// /api/v1/sessions/{id}/movements), returning the refreshed session.
+func (c *Client) AddSessionMovement(ctx context.Context, sessionID string, in SessionMovementInput) (Session, error) {
+	var s Session
+	path := "/api/v1/sessions/" + url.PathEscape(sessionID) + "/movements"
+	if err := c.send(ctx, http.MethodPost, path, in, &s); err != nil {
+		return Session{}, err
+	}
+	return s, nil
+}
+
+// RemoveSessionMovement drops one logged entry (DELETE
+// /api/v1/sessions/{id}/movements/{entryID}), returning the refreshed session.
+func (c *Client) RemoveSessionMovement(ctx context.Context, sessionID string, entryID int64) (Session, error) {
+	var s Session
+	path := "/api/v1/sessions/" + url.PathEscape(sessionID) + "/movements/" + strconv.FormatInt(entryID, 10)
+	if err := c.send(ctx, http.MethodDelete, path, nil, &s); err != nil {
+		return Session{}, err
+	}
+	return s, nil
+}
+
+// PromoteSession turns an ad-hoc session into a workout template (POST
+// /api/v1/sessions/{id}/workout), returning the created workout.
+func (c *Client) PromoteSession(ctx context.Context, sessionID string, in SessionPromote) (Workout, error) {
+	var w Workout
+	path := "/api/v1/sessions/" + url.PathEscape(sessionID) + "/workout"
+	if err := c.send(ctx, http.MethodPost, path, in, &w); err != nil {
+		return Workout{}, err
+	}
+	return w, nil
 }
 
 // UpdateSessionMovement checks off / records actuals / swaps one entry (PATCH

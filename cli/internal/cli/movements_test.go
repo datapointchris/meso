@@ -69,6 +69,26 @@ func TestPrintMovementsTable(t *testing.T) {
 	}
 }
 
+func TestPrintMusclesTable(t *testing.T) {
+	var buf bytes.Buffer
+	printMusclesTable(&buf, []api.Muscle{
+		{Name: "lats", Region: "posterior"},
+		{Name: "front_delts", Region: "anterior"},
+	})
+	out := buf.String()
+	for _, want := range []string{"MUSCLE", "REGION", "lats", "posterior", "front_delts"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("table missing %q:\n%s", want, out)
+		}
+	}
+
+	var empty bytes.Buffer
+	printMusclesTable(&empty, nil)
+	if !strings.Contains(empty.String(), "No muscles defined") {
+		t.Errorf("empty message missing: %q", empty.String())
+	}
+}
+
 func TestPrintMovementDetail(t *testing.T) {
 	var buf bytes.Buffer
 	printMovementDetail(&buf, sampleMovements()[0])
