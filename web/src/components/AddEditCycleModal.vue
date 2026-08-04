@@ -3,6 +3,7 @@ import { reactive, ref, computed, onMounted } from 'vue'
 import { cyclesApi, CYCLE_STATUSES, type Cycle, type CycleWrite, type CycleStatus } from '@/api/cycles'
 import { metricsApi, type MetricDefinition } from '@/api/measurements'
 import { ApiError } from '@/api/client'
+import DateField from '@/components/DateField.vue'
 
 // When `cycle` is supplied the modal edits it (PUT); otherwise it creates (POST).
 const props = defineProps<{ cycle?: Cycle }>()
@@ -146,21 +147,21 @@ async function save() {
             :disabled="!form.target_metric" />
         </label>
 
-        <label class="field field--inline">
+        <div class="field field--inline">
           <span class="field__label">Start date</span>
-          <input
+          <DateField
             v-model="form.start_date"
-            class="field__input"
-            type="date" />
-        </label>
+            label="Start date"
+            clearable />
+        </div>
 
-        <label class="field field--inline">
+        <div class="field field--inline">
           <span class="field__label">Target date</span>
-          <input
+          <DateField
             v-model="form.target_date"
-            class="field__input"
-            type="date" />
-        </label>
+            label="Target date"
+            clearable />
+        </div>
 
         <label class="field">
           <span class="field__label">Notes</span>

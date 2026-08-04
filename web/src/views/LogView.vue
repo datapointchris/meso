@@ -4,6 +4,7 @@ import { logApi, type LogEntry, type LogFilter } from '@/api/log'
 import { ApiError } from '@/api/client'
 import { renderMarkdown } from '@/composables/useMarkdown'
 import AddEditLogModal from '@/components/AddEditLogModal.vue'
+import DateField from '@/components/DateField.vue'
 
 // The training journal: dated markdown entries, newest first — the substrate Claude
 // reviews when drafting the next cycle. Filter by date window or tag; add, edit, and
@@ -68,20 +69,20 @@ async function remove(entry: LogEntry) {
     </header>
 
     <div class="log__filters">
-      <label class="field">
+      <div class="field">
         <span class="field__label">From</span>
-        <input
+        <DateField
           v-model="filter.from"
-          class="field__input"
-          type="date" />
-      </label>
-      <label class="field">
+          label="From"
+          clearable />
+      </div>
+      <div class="field">
         <span class="field__label">To</span>
-        <input
+        <DateField
           v-model="filter.to"
-          class="field__input"
-          type="date" />
-      </label>
+          label="To"
+          clearable />
+      </div>
       <label class="field">
         <span class="field__label">Tag</span>
         <input

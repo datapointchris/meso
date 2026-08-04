@@ -2,6 +2,7 @@
 import { ref, reactive, computed } from 'vue'
 import { logApi, type LogEntry, type LogEntryCreate, type LogEntryUpdate } from '@/api/log'
 import { ApiError } from '@/api/client'
+import DateField from '@/components/DateField.vue'
 
 // When `entry` is supplied the modal edits it (PUT); otherwise it creates (POST).
 const props = defineProps<{ entry?: LogEntry }>()
@@ -99,16 +100,16 @@ async function save() {
         </label>
 
         <div class="field-row">
-          <label class="field">
+          <div class="field">
             <span class="field__label">
               Date
               <em>(defaults to today)</em>
             </span>
-            <input
+            <DateField
               v-model="form.entry_date"
-              class="field__input"
-              type="date" />
-          </label>
+              label="Entry date"
+              clearable />
+          </div>
           <label class="field">
             <span class="field__label">Mood</span>
             <input

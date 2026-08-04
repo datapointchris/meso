@@ -2,6 +2,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { metricsApi, measurementsApi, CATEGORY_LABELS, type Measurement, type MetricDefinition } from '@/api/measurements'
 import { ApiError } from '@/api/client'
+import DateField from '@/components/DateField.vue'
 
 // Records a reading against an existing metric. Metrics are the vocabulary (seeded,
 // or defined via the CLI/API); this modal is the fast in-app path to log a value.
@@ -116,16 +117,16 @@ async function save() {
             required />
         </label>
 
-        <label class="field">
+        <div class="field">
           <span class="field__label">
             Date
             <em>(defaults to today)</em>
           </span>
-          <input
+          <DateField
             v-model="form.measured_on"
-            class="field__input"
-            type="date" />
-        </label>
+            label="Measured on"
+            clearable />
+        </div>
 
         <label class="field">
           <span class="field__label">Notes</span>

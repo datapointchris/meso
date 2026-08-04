@@ -3,6 +3,7 @@ import { ref, reactive, watch, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { sessionsApi, doneCount, type Session, type SessionFilter } from '@/api/sessions'
 import { ApiError } from '@/api/client'
+import DateField from '@/components/DateField.vue'
 
 // The session history: past and in-progress sessions, newest first, so a session
 // started earlier can be resumed and completed ones reviewed. Two ways in: from a
@@ -80,20 +81,20 @@ async function startAdHoc() {
     </header>
 
     <div class="sessions__filters">
-      <label class="date-field">
+      <div class="date-field">
         <span class="date-field__label">From</span>
-        <input
+        <DateField
           v-model="filter.from"
-          class="date-field__input"
-          type="date" />
-      </label>
-      <label class="date-field">
+          label="From"
+          clearable />
+      </div>
+      <div class="date-field">
         <span class="date-field__label">To</span>
-        <input
+        <DateField
           v-model="filter.to"
-          class="date-field__input"
-          type="date" />
-      </label>
+          label="To"
+          clearable />
+      </div>
     </div>
 
     <p
@@ -180,16 +181,6 @@ async function startAdHoc() {
 .date-field__label {
   font-size: 0.75rem;
   color: var(--text-muted);
-}
-
-.date-field__input {
-  min-height: var(--touch-target);
-  padding: 0 var(--space-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
 }
 
 .sessions__status {

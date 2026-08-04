@@ -2,6 +2,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { measurementsApi, formatValue, type Measurement } from '@/api/measurements'
 import { ApiError } from '@/api/client'
+import DateField from '@/components/DateField.vue'
 
 // The readings behind one metric's trend, correctable in place. The trend card shows
 // a shape; this is where a number that went in wrong gets fixed. Without it the API
@@ -129,14 +130,12 @@ async function remove(reading: Measurement) {
                     inputmode="decimal"
                     required />
                 </label>
-                <label class="field">
+                <div class="field">
                   <span class="field__label">Date</span>
-                  <input
+                  <DateField
                     v-model="draft.measured_on"
-                    class="field__input"
-                    type="date"
-                    required />
-                </label>
+                    label="Measured on" />
+                </div>
                 <label class="field">
                   <span class="field__label">Notes</span>
                   <input
