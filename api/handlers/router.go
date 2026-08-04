@@ -19,7 +19,7 @@ func NewRouter(pool *pgxpool.Pool) *http.ServeMux {
 	workoutRepo := repository.NewWorkoutRepo(pool)
 	workoutH := NewWorkoutHandler(workoutRepo)
 	sessionRepo := repository.NewSessionRepo(pool)
-	sessionH := NewSessionHandler(sessionRepo)
+	sessionH := NewSessionHandler(sessionRepo, workoutRepo)
 	measurementRepo := repository.NewMeasurementRepo(pool)
 	measurementH := NewMeasurementHandler(measurementRepo)
 	statsH := NewStatsHandler(repository.NewStatsRepo(pool))
@@ -79,14 +79,20 @@ func NewRouter(pool *pgxpool.Pool) *http.ServeMux {
 	mux.HandleFunc("DELETE /api/v1/workouts/{id}/movements/{entryID}", workoutH.RemoveMovement)
 
 	// Sessions — workouts performed on a date, the logged instance (Phase 3).
-	// POST with a workout_id copies that template's movements in; the sub-resource
-	// PATCH checks off a set / records actuals / swaps an entry mid-session.
+	// POST with a workout_id copies that template's movements in; without one the
+	// session starts empty and grows through the sub-resource POST as the workout is
+	// performed. The sub-resource PATCH checks off a set / records actuals / swaps an
+	// entry mid-session; POST .../workout promotes what was performed ad-hoc into a
+	// reusable template.
 	mux.HandleFunc("GET /api/v1/sessions", sessionH.List)
 	mux.HandleFunc("POST /api/v1/sessions", sessionH.Create)
 	mux.HandleFunc("GET /api/v1/sessions/{id}", sessionH.Get)
 	mux.HandleFunc("PUT /api/v1/sessions/{id}", sessionH.Update)
 	mux.HandleFunc("DELETE /api/v1/sessions/{id}", sessionH.Delete)
+	mux.HandleFunc("POST /api/v1/sessions/{id}/movements", sessionH.AddMovement)
 	mux.HandleFunc("PATCH /api/v1/sessions/{id}/movements/{entryID}", sessionH.UpdateMovement)
+	mux.HandleFunc("DELETE /api/v1/sessions/{id}/movements/{entryID}", sessionH.RemoveMovement)
+	mux.HandleFunc("POST /api/v1/sessions/{id}/workout", sessionH.Promote)
 
 	// Metrics + measurements — the tracked stats time series (Phase 4). Metrics are
 	// the definition vocabulary; measurements are dated readings against them; the

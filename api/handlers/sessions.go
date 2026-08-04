@@ -12,12 +12,16 @@ import (
 	"meso/api/repository"
 )
 
+// SessionHandler owns the workout repo as well as the session one: promoting a session
+// creates a workout, and the response is that workout. The write itself is one
+// transaction inside SessionRepo; this only reads the result back.
 type SessionHandler struct {
 	sessions *repository.SessionRepo
+	workouts *repository.WorkoutRepo
 }
 
-func NewSessionHandler(sessions *repository.SessionRepo) *SessionHandler {
-	return &SessionHandler{sessions: sessions}
+func NewSessionHandler(sessions *repository.SessionRepo, workouts *repository.WorkoutRepo) *SessionHandler {
+	return &SessionHandler{sessions: sessions, workouts: workouts}
 }
 
 // List handles GET /api/v1/sessions with optional filters: ?workout_id=&from=&to=.
@@ -154,6 +158,103 @@ func (h *SessionHandler) UpdateMovement(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	writeJSON(w, http.StatusOK, session)
+}
+
+// AddMovement handles POST /api/v1/sessions/{id}/movements — append a movement to a
+// session already underway, the ad-hoc logging path. Returns the refreshed session so
+// the new entry arrives with its previous-actuals populated.
+func (h *SessionHandler) AddMovement(w http.ResponseWriter, r *http.Request) {
+	sessionID, err := parseSessionID(r.PathValue("id"))
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	var in models.SessionMovementInput
+	if err := decodeJSON(r, &in); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if in.MovementID == 0 {
+		writeBadRequest(w, "movement_id is required")
+		return
+	}
+
+	session, err := h.sessions.AddMovement(r.Context(), sessionID, in)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeNotFound(w, fmt.Sprintf("session %s not found", sessionID))
+			return
+		}
+		writeSessionWriteError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, session)
+}
+
+// RemoveMovement handles DELETE /api/v1/sessions/{id}/movements/{entryID} — drop an
+// entry added by mistake. Returns the refreshed session rather than 204 so the caller
+// re-renders from one response, matching the other composition endpoints.
+func (h *SessionHandler) RemoveMovement(w http.ResponseWriter, r *http.Request) {
+	sessionID, err := parseSessionID(r.PathValue("id"))
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	entryID, err := parseID(r.PathValue("entryID"))
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+
+	session, err := h.sessions.RemoveMovement(r.Context(), sessionID, entryID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeNotFound(w, fmt.Sprintf("session %s entry %d not found", sessionID, entryID))
+			return
+		}
+		writeSessionWriteError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, session)
+}
+
+// Promote handles POST /api/v1/sessions/{id}/workout — turn what was just performed
+// ad-hoc into a reusable workout template, and return the created workout.
+func (h *SessionHandler) Promote(w http.ResponseWriter, r *http.Request) {
+	sessionID, err := parseSessionID(r.PathValue("id"))
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	var in models.SessionPromote
+	if err := decodeJSON(r, &in); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	if in.Name == "" {
+		writeBadRequest(w, "name is required")
+		return
+	}
+
+	workoutID, err := h.sessions.PromoteToWorkout(r.Context(), sessionID, in)
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrNotFound):
+			writeNotFound(w, fmt.Sprintf("session %s not found", sessionID))
+		case errors.Is(err, repository.ErrConflict):
+			writeConflict(w, "cannot promote: the session already belongs to a workout, or that workout name is taken")
+		default:
+			writeSessionWriteError(w, err)
+		}
+		return
+	}
+
+	workout, err := h.workouts.GetByID(r.Context(), workoutID)
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, workout)
 }
 
 // parseSessionID reads a UUID path value (sessions use a UUID7 PK). A malformed uuid

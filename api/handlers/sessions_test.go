@@ -259,6 +259,159 @@ func TestSession_DeletePreservesMovementsAndFreesTemplate(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, deleteReq(t, mux, "/api/v1/movements/"+itoa(squat)).Code)
 }
 
+// An ad-hoc session starts empty and is built up as the workout happens — the path
+// that exists so an unplanned gym session can be recorded without authoring a template
+// first.
+func TestSession_AdHoc_GrowsThroughAddAndRemove(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+	pulldown := createMovement(t, mux, "Lat Pulldown", "exercise")
+	facePull := createMovement(t, mux, "Face Pull", "exercise")
+	mistake := createMovement(t, mux, "Toe Yoga", "exercise")
+
+	session := decodeSession(t, postJSON(t, mux, "/api/v1/sessions", map[string]any{"performed_on": "2026-08-04"}).Body)
+	require.Empty(t, session.Movements)
+	base := "/api/v1/sessions/" + session.ID.String() + "/movements"
+
+	rr := postJSON(t, mux, base, map[string]any{
+		"movement_id": pulldown, "done": true, "actual_sets": 3, "actual_reps": "12", "actual_load": "60lb",
+	})
+	require.Equal(t, http.StatusCreated, rr.Code)
+	grown := decodeSession(t, rr.Body)
+	require.Len(t, grown.Movements, 1)
+	assert.Equal(t, "Lat Pulldown", grown.Movements[0].MovementName)
+	assert.Equal(t, 1, grown.Movements[0].Position)
+	assert.True(t, grown.Movements[0].Done)
+
+	require.Equal(t, http.StatusCreated, postJSON(t, mux, base, map[string]any{"movement_id": mistake}).Code)
+	rr = postJSON(t, mux, base, map[string]any{"movement_id": facePull, "actual_reps": "15"})
+	require.Equal(t, http.StatusCreated, rr.Code)
+	grown = decodeSession(t, rr.Body)
+
+	// Appended in the order performed, each after every existing entry.
+	require.Len(t, grown.Movements, 3)
+	assert.Equal(t, []int{1, 2, 3}, []int{grown.Movements[0].Position, grown.Movements[1].Position, grown.Movements[2].Position})
+	assert.Equal(t, "Face Pull", grown.Movements[2].MovementName)
+
+	// Drop the one added by mistake; the others are untouched and keep their order.
+	rr = deleteReq(t, mux, base+"/"+itoa(grown.Movements[1].ID))
+	require.Equal(t, http.StatusOK, rr.Code)
+	trimmed := decodeSession(t, rr.Body)
+	require.Len(t, trimmed.Movements, 2)
+	assert.Equal(t, "Lat Pulldown", trimmed.Movements[0].MovementName)
+	assert.Equal(t, "Face Pull", trimmed.Movements[1].MovementName)
+
+	// Unknown movement (FK) -> 409; missing movement_id -> 400; absent entry -> 404.
+	assert.Equal(t, http.StatusConflict, postJSON(t, mux, base, map[string]any{"movement_id": 999999}).Code)
+	assert.Equal(t, http.StatusBadRequest, postJSON(t, mux, base, map[string]any{"actual_reps": "10"}).Code)
+	assert.Equal(t, http.StatusNotFound, deleteReq(t, mux, base+"/999999").Code)
+	assert.Equal(t, http.StatusNotFound, postJSON(t,
+		mux, "/api/v1/sessions/00000000-0000-0000-0000-000000000000/movements", map[string]any{"movement_id": facePull}).Code)
+}
+
+// A movement added mid-session arrives with its previous actuals, same as one copied
+// from a template — the number to beat is a property of the movement's history, not of
+// how the entry got into the session.
+func TestSession_AddMovement_CarriesPreviousActuals(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+	pulldown := createMovement(t, mux, "Lat Pulldown", "exercise")
+
+	earlier := decodeSession(t, postJSON(t, mux, "/api/v1/sessions", map[string]any{"performed_on": "2026-07-28"}).Body)
+	rr := postJSON(t, mux, "/api/v1/sessions/"+earlier.ID.String()+"/movements", map[string]any{
+		"movement_id": pulldown, "done": true, "actual_sets": 3, "actual_load": "55lb",
+	})
+	require.Equal(t, http.StatusCreated, rr.Code)
+
+	later := decodeSession(t, postJSON(t, mux, "/api/v1/sessions", map[string]any{"performed_on": "2026-08-04"}).Body)
+	rr = postJSON(t, mux, "/api/v1/sessions/"+later.ID.String()+"/movements", map[string]any{"movement_id": pulldown})
+	require.Equal(t, http.StatusCreated, rr.Code)
+
+	added := decodeSession(t, rr.Body).Movements[0]
+	require.NotNil(t, added.Previous)
+	assert.Equal(t, "2026-07-28", added.Previous.PerformedOn)
+	require.NotNil(t, added.Previous.ActualLoad)
+	assert.Equal(t, "55lb", *added.Previous.ActualLoad)
+}
+
+// Promotion is the point of the ad-hoc path: what got performed becomes the template
+// for next time, with the logged actuals as the prescription.
+func TestSession_PromoteToWorkout(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+	pulldown := createMovement(t, mux, "Lat Pulldown", "exercise")
+	facePull := createMovement(t, mux, "Face Pull", "exercise")
+
+	session := decodeSession(t, postJSON(t, mux, "/api/v1/sessions", map[string]any{"performed_on": "2026-08-04"}).Body)
+	base := "/api/v1/sessions/" + session.ID.String()
+	require.Equal(t, http.StatusCreated, postJSON(t, mux, base+"/movements", map[string]any{
+		"movement_id": pulldown, "actual_sets": 3, "actual_reps": "12", "actual_load": "60lb", "notes": "wide grip",
+	}).Code)
+	require.Equal(t, http.StatusCreated, postJSON(t, mux, base+"/movements", map[string]any{
+		"movement_id": facePull, "actual_sets": 3, "actual_reps": "15",
+	}).Code)
+
+	rr := postJSON(t, mux, base+"/workout", map[string]any{
+		"name": "Ad-hoc pull", "theme": "pull", "tags": []string{"upper"},
+	})
+	require.Equal(t, http.StatusCreated, rr.Code)
+	workout := decodeWorkout(t, rr.Body)
+
+	assert.Equal(t, "Ad-hoc pull", workout.Name)
+	require.NotNil(t, workout.Theme)
+	assert.Equal(t, "pull", *workout.Theme)
+	assert.Equal(t, []string{"upper"}, workout.Tags)
+
+	// The actuals land as the prescription, in the order performed.
+	require.Len(t, workout.Movements, 2)
+	assert.Equal(t, "Lat Pulldown", workout.Movements[0].MovementName)
+	require.NotNil(t, workout.Movements[0].Sets)
+	assert.Equal(t, 3, *workout.Movements[0].Sets)
+	require.NotNil(t, workout.Movements[0].Load)
+	assert.Equal(t, "60lb", *workout.Movements[0].Load)
+	assert.Equal(t, "wide grip", workout.Movements[0].Notes)
+	assert.Equal(t, "Face Pull", workout.Movements[1].MovementName)
+	assert.Nil(t, workout.Movements[1].Load)
+
+	// The session is back-linked, so it reads as the first instance of what it produced.
+	linked := decodeSession(t, getJSON(t, mux, base).Body)
+	require.NotNil(t, linked.WorkoutID)
+	assert.Equal(t, workout.ID, *linked.WorkoutID)
+	require.NotNil(t, linked.WorkoutName)
+	assert.Equal(t, "Ad-hoc pull", *linked.WorkoutName)
+
+	// And it now counts as that workout's history.
+	var byWorkout []models.WorkoutSession
+	require.NoError(t, json.Unmarshal(getJSON(t, mux, "/api/v1/sessions?workout_id="+itoa(workout.ID)).Body.Bytes(), &byWorkout))
+	assert.Len(t, byWorkout, 1)
+}
+
+func TestSession_Promote_Rejections(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+	squat := createMovement(t, mux, "Back Squat", "exercise")
+	template := createWorkoutWithMovements(t, mux, "Leg Day", []map[string]any{{"movement_id": squat}})
+
+	// A session already backed by a template would silently fork it -> 409.
+	fromTemplate := decodeSession(t, postJSON(t, mux, "/api/v1/sessions", map[string]any{"workout_id": template.ID}).Body)
+	assert.Equal(t, http.StatusConflict,
+		postJSON(t, mux, "/api/v1/sessions/"+fromTemplate.ID.String()+"/workout", map[string]any{"name": "Forked"}).Code)
+
+	adhoc := decodeSession(t, postJSON(t, mux, "/api/v1/sessions", map[string]any{}).Body)
+	base := "/api/v1/sessions/" + adhoc.ID.String() + "/workout"
+
+	// Nothing performed -> 400; no name -> 400.
+	assert.Equal(t, http.StatusBadRequest, postJSON(t, mux, base, map[string]any{"name": "Empty"}).Code)
+	assert.Equal(t, http.StatusBadRequest, postJSON(t, mux, base, map[string]any{}).Code)
+
+	// A name already taken by another workout -> 409 (workouts.name is the natural key).
+	require.Equal(t, http.StatusCreated,
+		postJSON(t, mux, "/api/v1/sessions/"+adhoc.ID.String()+"/movements", map[string]any{"movement_id": squat}).Code)
+	assert.Equal(t, http.StatusConflict, postJSON(t, mux, base, map[string]any{"name": "Leg Day"}).Code)
+
+	// The failed promotion left nothing behind — the session is still ad-hoc.
+	assert.Nil(t, decodeSession(t, getJSON(t, mux, "/api/v1/sessions/"+adhoc.ID.String()).Body).WorkoutID)
+
+	assert.Equal(t, http.StatusNotFound,
+		postJSON(t, mux, "/api/v1/sessions/00000000-0000-0000-0000-000000000000/workout", map[string]any{"name": "Ghost"}).Code)
+}
+
 func TestSession_Validation(t *testing.T) {
 	mux := buildTestMux(setupTestDB(t))
 

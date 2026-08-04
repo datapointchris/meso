@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"meso/api/models"
@@ -357,6 +358,107 @@ func (r *SessionRepo) UpdateMovement(ctx context.Context, sessionID uuid.UUID, e
 	return r.GetByID(ctx, sessionID)
 }
 
+// AddMovement appends one movement to an existing session and returns the refreshed
+// session. This is what makes an ad-hoc session usable: it starts empty and grows as
+// the workout is performed, so the entry order is the order things were actually done.
+// The new entry lands after every existing one; a concurrent add is not a concern for
+// a single-user app logging one session at a time.
+func (r *SessionRepo) AddMovement(ctx context.Context, sessionID uuid.UUID, in models.SessionMovementInput) (models.WorkoutSession, error) {
+	if _, err := r.GetByID(ctx, sessionID); err != nil {
+		return models.WorkoutSession{}, err
+	}
+
+	var position int
+	err := r.pool.QueryRow(ctx,
+		`SELECT COALESCE(MAX(position), 0) + 1 FROM session_movements WHERE session_id = $1`,
+		sessionID).Scan(&position)
+	if err != nil {
+		return models.WorkoutSession{}, fmt.Errorf("finding next session position: %w", err)
+	}
+
+	if err := insertSessionMovement(ctx, r.pool, sessionID, position, in); err != nil {
+		return models.WorkoutSession{}, err
+	}
+	return r.GetByID(ctx, sessionID)
+}
+
+// RemoveMovement drops one logged entry and returns the refreshed session. The
+// remaining positions are left alone: reads order by position, and unlike
+// workout_movements there is no UNIQUE(session_id, position) to satisfy, so a gap is
+// invisible.
+func (r *SessionRepo) RemoveMovement(ctx context.Context, sessionID uuid.UUID, entryID int64) (models.WorkoutSession, error) {
+	tag, err := r.pool.Exec(ctx,
+		`DELETE FROM session_movements WHERE id = $1 AND session_id = $2`, entryID, sessionID)
+	if err != nil {
+		return models.WorkoutSession{}, fmt.Errorf("removing session movement: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return models.WorkoutSession{}, fmt.Errorf("session %s entry %d: %w", sessionID, entryID, ErrNotFound)
+	}
+	return r.GetByID(ctx, sessionID)
+}
+
+// PromoteToWorkout turns a performed ad-hoc session into a reusable workout template:
+// what was actually logged (actual_sets/reps/load) becomes the prescription
+// (sets/reps/load), in the order performed. The session is then back-linked to the new
+// workout, so it reads as the first instance of the template it produced and its
+// movements count toward that workout's history.
+//
+// Only an ad-hoc session can be promoted — a session already backed by a template would
+// silently fork it, which is an edit of that workout, not a new one.
+func (r *SessionRepo) PromoteToWorkout(ctx context.Context, sessionID uuid.UUID, in models.SessionPromote) (int64, error) {
+	session, err := r.GetByID(ctx, sessionID)
+	if err != nil {
+		return 0, err
+	}
+	if session.WorkoutID != nil {
+		return 0, fmt.Errorf("session %s already belongs to workout %d: %w", sessionID, *session.WorkoutID, ErrConflict)
+	}
+	if len(session.Movements) == 0 {
+		return 0, fmt.Errorf("session %s has no movements to promote: %w", sessionID, ErrInvalid)
+	}
+
+	entries := make([]models.WorkoutMovementInput, 0, len(session.Movements))
+	for _, m := range session.Movements {
+		entries = append(entries, models.WorkoutMovementInput{
+			MovementID: m.MovementID,
+			Sets:       m.ActualSets,
+			Reps:       m.ActualReps,
+			Load:       m.ActualLoad,
+			Notes:      m.Notes,
+		})
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // rollback after a successful commit is a no-op
+
+	workoutID, err := insertWorkout(ctx, tx, models.WorkoutCreate{
+		Name:             in.Name,
+		Theme:            in.Theme,
+		Tags:             in.Tags,
+		Notes:            in.Notes,
+		EstimatedMinutes: in.EstimatedMinutes,
+	})
+	if err != nil {
+		return 0, err
+	}
+	if err := insertMovementsInOrder(ctx, tx, workoutID, entries); err != nil {
+		return 0, err
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE workout_sessions SET workout_id = $1 WHERE id = $2`, workoutID, sessionID); err != nil {
+		return 0, mapWriteError("linking session to promoted workout", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("commit: %w", err)
+	}
+	return workoutID, nil
+}
+
 // getMovementEntry fetches one logged entry scoped to its session, so an entry id
 // from a different session is a clean 404 rather than a cross-session edit.
 func (r *SessionRepo) getMovementEntry(ctx context.Context, sessionID uuid.UUID, entryID int64) (models.SessionMovement, error) {
@@ -375,19 +477,33 @@ func (r *SessionRepo) getMovementEntry(ctx context.Context, sessionID uuid.UUID,
 }
 
 // insertSessionMovementsInOrder inserts ad-hoc entries at positions 1..n in array
-// order, within the caller's tx. A movement referenced by an unknown id fails the FK
-// and surfaces as ErrReferenced.
+// order, within the caller's tx.
 func insertSessionMovementsInOrder(ctx context.Context, tx pgx.Tx, sessionID uuid.UUID, entries []models.SessionMovementInput) error {
 	for i, e := range entries {
-		_, err := tx.Exec(ctx, `
-			INSERT INTO session_movements (session_id, movement_id, position, done, actual_sets, actual_reps, actual_load, notes)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-			sessionID, e.MovementID, i+1, e.Done, e.ActualSets, e.ActualReps, e.ActualLoad, e.Notes)
-		if err != nil {
-			return mapWriteError("adding session movement", err)
+		if err := insertSessionMovement(ctx, tx, sessionID, i+1, e); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+// insertSessionMovement inserts one logged entry at an explicit position. A movement
+// referenced by an unknown id fails the FK and surfaces as ErrReferenced.
+func insertSessionMovement(ctx context.Context, db execer, sessionID uuid.UUID, position int, e models.SessionMovementInput) error {
+	_, err := db.Exec(ctx, `
+		INSERT INTO session_movements (session_id, movement_id, position, done, actual_sets, actual_reps, actual_load, notes)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		sessionID, e.MovementID, position, e.Done, e.ActualSets, e.ActualReps, e.ActualLoad, e.Notes)
+	if err != nil {
+		return mapWriteError("adding session movement", err)
+	}
+	return nil
+}
+
+// execer is the write subset shared by *pgxpool.Pool and pgx.Tx, so one insert serves
+// both the transactional create path and the single untransacted append.
+type execer interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
 // parseDate parses a "2006-01-02" wire date, returning ErrInvalid on a bad value so

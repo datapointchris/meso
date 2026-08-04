@@ -37,9 +37,10 @@ type PreviousActuals struct {
 	PerformedOn string  `json:"performed_on"`
 }
 
-// SessionMovementInput is the write shape for one logged movement when creating an
-// ad-hoc session (no template). A session started from a workout copies its entries
-// server-side instead, so this is only used for the template-less path.
+// SessionMovementInput is the write shape for one logged movement: the entries of an
+// ad-hoc session at create time, and every movement appended to a session afterwards.
+// A session started from a workout copies its entries server-side instead, so nothing
+// on the template path sends this.
 type SessionMovementInput struct {
 	ActualSets *int    `json:"actual_sets"`
 	ActualReps *string `json:"actual_reps"`
@@ -47,6 +48,18 @@ type SessionMovementInput struct {
 	Notes      string  `json:"notes"`
 	MovementID int64   `json:"movement_id"`
 	Done       bool    `json:"done"`
+}
+
+// SessionPromote is the write shape for turning an ad-hoc session into a reusable
+// workout template: the session's logged movements become the prescription, so the
+// only thing the caller supplies is how to label the workout. Name is required and
+// must be unique (workouts.name is the natural key).
+type SessionPromote struct {
+	Theme            *string  `json:"theme"`
+	EstimatedMinutes *int     `json:"estimated_minutes"`
+	Name             string   `json:"name"`
+	Notes            string   `json:"notes"`
+	Tags             []string `json:"tags"`
 }
 
 // SessionMovementUpdate is a partial update of one logged entry: a nil field is left
