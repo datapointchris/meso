@@ -177,11 +177,12 @@ func newMovementsRelatedRemoveCommand() *cobra.Command {
 // and returns a builder that reads them back (favorite is tri-state via Changed).
 func movementFilterFlags(cmd *cobra.Command) func() api.MovementFilter {
 	var (
-		kind, tag, equip, muscle, region, search string
-		favorite                                 bool
+		kind, loadMode, tag, equip, muscle, region, search string
+		favorite                                           bool
 	)
 	f := cmd.Flags()
 	f.StringVar(&kind, "kind", "", "Only this kind (exercise|stretch|yoga_pose)")
+	f.StringVar(&loadMode, "load-mode", "", "Only this load mode (weighted|bodyweight|timed|assisted)")
 	f.StringVar(&tag, "tag", "", "Only movements carrying this tag")
 	f.StringVar(&equip, "equipment", "", "Only movements using this equipment")
 	f.StringVar(&muscle, "muscle", "", "Only movements hitting this muscle")
@@ -191,7 +192,8 @@ func movementFilterFlags(cmd *cobra.Command) func() api.MovementFilter {
 
 	return func() api.MovementFilter {
 		filter := api.MovementFilter{
-			Kind: kind, Tag: tag, Equipment: equip, Muscle: muscle, Region: region, Search: search,
+			Kind: kind, LoadMode: loadMode, Tag: tag, Equipment: equip,
+			Muscle: muscle, Region: region, Search: search,
 		}
 		if cmd.Flags().Changed("favorite") {
 			filter.Favorite = &favorite
@@ -203,10 +205,12 @@ func movementFilterFlags(cmd *cobra.Command) func() api.MovementFilter {
 func newMovementsListCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "list [flags]",
-		Short:   "List movements, optionally filtered",
-		Example: "  meso movements list\n  meso movements list --kind stretch\n  meso movements list --region posterior --favorite --json",
-		Args:    usageArgs(cobra.NoArgs),
+		Use:   "list [flags]",
+		Short: "List movements, optionally filtered",
+		Example: "  meso movements list\n  meso movements list --kind stretch\n" +
+			"  meso movements list --load-mode bodyweight\n" +
+			"  meso movements list --region posterior --favorite --json",
+		Args: usageArgs(cobra.NoArgs),
 	}
 	readFilter := movementFilterFlags(cmd)
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output movements as JSON to stdout")
@@ -264,6 +268,7 @@ func newMovementsShowCommand() *cobra.Command {
 type movementWriteFlags struct {
 	name         string
 	kind         string
+	loadMode     string
 	tags         []string
 	equipment    []string
 	muscles      []string
@@ -284,6 +289,9 @@ type movementWriteFlags struct {
 func bindMovementWriteFlags(cmd *cobra.Command, w *movementWriteFlags) {
 	f := cmd.Flags()
 	f.StringVar(&w.kind, "kind", "", "Movement kind (exercise|stretch|yoga_pose)")
+	f.StringVar(&w.loadMode, "load-mode", "",
+		"How it is loaded: weighted|bodyweight|timed|assisted. Decides whether the\n"+
+			"logging screen asks for a weight. Inferred from --kind when omitted.")
 	f.StringArrayVar(&w.tags, "tag", nil, "A 'good for' tag (repeatable)")
 	f.StringArrayVar(&w.equipment, "equipment", nil, "Equipment used (repeatable)")
 	f.StringArrayVar(&w.muscles, "muscle", nil, "A muscle tag as name[:role] (role primary|secondary, default primary; repeatable)")
@@ -320,6 +328,7 @@ func newMovementsCreateCommand() *cobra.Command {
 			in := api.MovementCreate{
 				Name:          args[0],
 				MovementKind:  w.kind,
+				LoadMode:      w.loadMode,
 				Favorite:      w.favorite,
 				MeasurableROM: w.measurable,
 				Tags:          w.tags,
@@ -421,6 +430,9 @@ func buildMovementPatch(cmd *cobra.Command, w *movementWriteFlags) (map[string]a
 	}
 	if f.Changed("kind") {
 		patch["movement_kind"] = w.kind
+	}
+	if f.Changed("load-mode") {
+		patch["load_mode"] = w.loadMode
 	}
 	if f.Changed("favorite") {
 		patch["favorite"] = w.favorite
@@ -588,6 +600,7 @@ func printMovementDetail(out io.Writer, m api.Movement) {
 	_, _ = fmt.Fprintf(out, "%s  (#%d)\n", m.Name, m.ID)
 	row := func(label, value string) { _, _ = fmt.Fprintf(out, "  %-15s %s\n", label+":", value) }
 	row("kind", m.MovementKind)
+	row("load mode", m.LoadMode)
 	row("favorite", map[bool]string{true: "yes", false: "no"}[m.Favorite])
 	if m.Rating != nil {
 		row("rating", strconv.Itoa(*m.Rating)+"/5")

@@ -9,7 +9,7 @@ import (
 func TestListSessions_QueryAndDecode(t *testing.T) {
 	srv, got := recordingServer(t, http.StatusOK, `[
 		{"id":"018f-aaa","workout_id":1,"workout_name":"Push Day","performed_on":"2026-07-24","felt":"strong",
-		 "movements":[{"id":4,"movement_id":7,"movement_name":"Bench Press","movement_kind":"exercise","position":1,"done":true,"actual_load":"100lb"}]}
+		 "movements":[{"id":4,"movement_id":7,"movement_name":"Bench Press","movement_kind":"exercise","position":1,"done":true,"target_load":"100lb"}]}
 	]`)
 	client := New(srv.URL, staticTokenClient("t"))
 
@@ -75,5 +75,84 @@ func TestDeleteSession_Deletes(t *testing.T) {
 	}
 	if got.method != http.MethodDelete || got.path != "/api/v1/sessions/018f-ddd" {
 		t.Errorf("request = %s %s", got.method, got.path)
+	}
+}
+
+// A bare set POST is the carry-forward path: an empty body is what tells the server to
+// repeat the last set, so the client must not invent fields to fill it.
+func TestAddSessionSet_PostsAnEmptyBodyByDefault(t *testing.T) {
+	srv, got := recordingServer(t, http.StatusCreated,
+		`{"id":"018f-aaa","performed_on":"2026-07-24","movements":[
+			{"id":4,"movement_id":7,"movement_name":"Bench Press","position":1,"done":true,
+			 "sets":[{"id":11,"position":1,"reps":8,"load":"100lb","set_kind":"working"}]}]}`)
+	client := New(srv.URL, staticTokenClient("t"))
+
+	session, err := client.AddSessionSet(context.Background(), "018f-aaa", 4, SessionSetInput{})
+	if err != nil {
+		t.Fatalf("AddSessionSet: %v", err)
+	}
+	if got.method != http.MethodPost || got.path != "/api/v1/sessions/018f-aaa/movements/4/sets" {
+		t.Errorf("request = %s %s", got.method, got.path)
+	}
+	if len(got.body) != 0 {
+		t.Errorf("body = %v, want no fields at all", got.body)
+	}
+	if len(session.Movements) != 1 || len(session.Movements[0].Sets) != 1 {
+		t.Fatalf("decoded = %+v", session.Movements)
+	}
+	set := session.Movements[0].Sets[0]
+	if set.ID != 11 || set.Reps == nil || *set.Reps != 8 || set.SetKind != "working" {
+		t.Errorf("set = %+v", set)
+	}
+}
+
+func TestSessionSet_UpdateAndRemoveAddressTheSet(t *testing.T) {
+	body := `{"id":"018f-aaa","performed_on":"2026-07-24","movements":[]}`
+
+	srv, got := recordingServer(t, http.StatusOK, body)
+	client := New(srv.URL, staticTokenClient("t"))
+	if _, err := client.UpdateSessionSet(context.Background(), "018f-aaa", 4, 11, map[string]any{"reps": 6}); err != nil {
+		t.Fatalf("UpdateSessionSet: %v", err)
+	}
+	if got.method != http.MethodPatch || got.path != "/api/v1/sessions/018f-aaa/movements/4/sets/11" {
+		t.Errorf("request = %s %s", got.method, got.path)
+	}
+
+	srv, got = recordingServer(t, http.StatusOK, body)
+	client = New(srv.URL, staticTokenClient("t"))
+	if _, err := client.RemoveSessionSet(context.Background(), "018f-aaa", 4, 11); err != nil {
+		t.Fatalf("RemoveSessionSet: %v", err)
+	}
+	if got.method != http.MethodDelete || got.path != "/api/v1/sessions/018f-aaa/movements/4/sets/11" {
+		t.Errorf("request = %s %s", got.method, got.path)
+	}
+}
+
+func TestFinishSession_PostsToFinish(t *testing.T) {
+	srv, got := recordingServer(t, http.StatusOK,
+		`{"id":"018f-aaa","performed_on":"2026-07-24","finished_at":"2026-07-24T11:02:00Z","duration_minutes":47,"movements":[]}`)
+	client := New(srv.URL, staticTokenClient("t"))
+
+	session, err := client.FinishSession(context.Background(), "018f-aaa")
+	if err != nil {
+		t.Fatalf("FinishSession: %v", err)
+	}
+	if got.method != http.MethodPost || got.path != "/api/v1/sessions/018f-aaa/finish" {
+		t.Errorf("request = %s %s", got.method, got.path)
+	}
+	if session.FinishedAt == nil || session.DurationMinutes == nil || *session.DurationMinutes != 47 {
+		t.Errorf("decoded = %+v", session)
+	}
+}
+
+func TestListSessions_UnfinishedFilter(t *testing.T) {
+	srv, got := recordingServer(t, http.StatusOK, `[]`)
+	client := New(srv.URL, staticTokenClient("t"))
+
+	if _, err := client.ListSessions(context.Background(), SessionFilter{Unfinished: true}); err != nil {
+		t.Fatalf("ListSessions: %v", err)
+	}
+	if !containsParam(got.query, "unfinished=true") {
+		t.Errorf("query %q missing the unfinished filter", got.query)
 	}
 }

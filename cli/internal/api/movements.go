@@ -42,6 +42,7 @@ type Movement struct {
 	SourceName         *string           `json:"source_name"`
 	Name               string            `json:"name"`
 	MovementKind       string            `json:"movement_kind"`
+	LoadMode           string            `json:"load_mode"`
 	HowTo              string            `json:"how_to"`
 	FormCues           string            `json:"form_cues"`
 	CommonFaults       string            `json:"common_faults"`
@@ -77,6 +78,7 @@ type MovementCreate struct {
 	SourceName         *string       `json:"source_name,omitempty"`
 	Name               string        `json:"name"`
 	MovementKind       string        `json:"movement_kind"`
+	LoadMode           string        `json:"load_mode,omitempty"`
 	HowTo              string        `json:"how_to"`
 	FormCues           string        `json:"form_cues"`
 	CommonFaults       string        `json:"common_faults"`
@@ -90,6 +92,7 @@ type MovementCreate struct {
 // MovementFilter carries the optional list-endpoint query params.
 type MovementFilter struct {
 	Kind      string
+	LoadMode  string
 	Tag       string
 	Equipment string
 	Muscle    string
@@ -106,6 +109,7 @@ func (f MovementFilter) query() string {
 		}
 	}
 	set("kind", f.Kind)
+	set("load_mode", f.LoadMode)
 	set("tag", f.Tag)
 	set("equipment", f.Equipment)
 	set("muscle", f.Muscle)
