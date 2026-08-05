@@ -24,12 +24,15 @@ func NewSessionHandler(sessions *repository.SessionRepo, workouts *repository.Wo
 	return &SessionHandler{sessions: sessions, workouts: workouts}
 }
 
-// List handles GET /api/v1/sessions with optional filters: ?workout_id=&from=&to=.
+// List handles GET /api/v1/sessions with optional filters:
+// ?workout_id=&from=&to=&unfinished=. unfinished is how the app finds the session to
+// offer resuming, so it takes no value beyond being present.
 func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	filter := models.WorkoutSessionFilter{
-		From: q.Get("from"),
-		To:   q.Get("to"),
+		From:       q.Get("from"),
+		To:         q.Get("to"),
+		Unfinished: q.Has("unfinished") && q.Get("unfinished") != "false",
 	}
 	if raw := q.Get("workout_id"); raw != "" {
 		id, err := strconv.ParseInt(raw, 10, 64)
@@ -129,8 +132,30 @@ func (h *SessionHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	writeNoContent(w)
 }
 
-// UpdateMovement handles PATCH /api/v1/sessions/{id}/movements/{entryID} — check off a
-// set, record actuals, or swap the entry for an alternate. Returns the refreshed session.
+// Finish handles POST /api/v1/sessions/{id}/finish — training is over. Fills in the
+// duration and takes the session out of the resume slot. Idempotent, so it is safe to
+// tap twice.
+func (h *SessionHandler) Finish(w http.ResponseWriter, r *http.Request) {
+	id, err := parseSessionID(r.PathValue("id"))
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	session, err := h.sessions.Finish(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeNotFound(w, fmt.Sprintf("session %s not found", id))
+			return
+		}
+		writeSessionWriteError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, session)
+}
+
+// UpdateMovement handles PATCH /api/v1/sessions/{id}/movements/{entryID} — override the
+// done flag, edit this session's target, or swap the entry for an alternate. Returns the
+// refreshed session.
 func (h *SessionHandler) UpdateMovement(w http.ResponseWriter, r *http.Request) {
 	sessionID, err := parseSessionID(r.PathValue("id"))
 	if err != nil {
@@ -218,8 +243,90 @@ func (h *SessionHandler) RemoveMovement(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, session)
 }
 
+// AddSet handles POST /api/v1/sessions/{id}/movements/{entryID}/sets — log one set.
+// An empty body is the normal case and means "another one like the last", so unlike
+// every other create here there is nothing required.
+func (h *SessionHandler) AddSet(w http.ResponseWriter, r *http.Request) {
+	sessionID, entryID, ok := parseEntryPath(w, r)
+	if !ok {
+		return
+	}
+	var in models.SessionSetInput
+	if err := decodeJSON(r, &in); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+
+	session, err := h.sessions.AddSet(r.Context(), sessionID, entryID, in)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeNotFound(w, fmt.Sprintf("session %s entry %d not found", sessionID, entryID))
+			return
+		}
+		writeSessionWriteError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, session)
+}
+
+// UpdateSet handles PATCH /api/v1/sessions/{id}/movements/{entryID}/sets/{setID} — fix
+// a set that was logged wrong.
+func (h *SessionHandler) UpdateSet(w http.ResponseWriter, r *http.Request) {
+	sessionID, entryID, ok := parseEntryPath(w, r)
+	if !ok {
+		return
+	}
+	setID, err := parseID(r.PathValue("setID"))
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	var in models.SessionSetUpdate
+	if err := decodeJSON(r, &in); err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+
+	session, err := h.sessions.UpdateSet(r.Context(), sessionID, entryID, setID, in)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeNotFound(w, fmt.Sprintf("session %s entry %d set %d not found", sessionID, entryID, setID))
+			return
+		}
+		writeSessionWriteError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, session)
+}
+
+// RemoveSet handles DELETE /api/v1/sessions/{id}/movements/{entryID}/sets/{setID} —
+// drop a set logged by mistake. Returns the refreshed session, matching the other
+// composition endpoints.
+func (h *SessionHandler) RemoveSet(w http.ResponseWriter, r *http.Request) {
+	sessionID, entryID, ok := parseEntryPath(w, r)
+	if !ok {
+		return
+	}
+	setID, err := parseID(r.PathValue("setID"))
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+
+	session, err := h.sessions.RemoveSet(r.Context(), sessionID, entryID, setID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			writeNotFound(w, fmt.Sprintf("session %s entry %d set %d not found", sessionID, entryID, setID))
+			return
+		}
+		writeSessionWriteError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, session)
+}
+
 // Promote handles POST /api/v1/sessions/{id}/workout — turn what was just performed
-// ad-hoc into a reusable workout template, and return the created workout.
+// free-form into a reusable workout template, and return the created workout.
 func (h *SessionHandler) Promote(w http.ResponseWriter, r *http.Request) {
 	sessionID, err := parseSessionID(r.PathValue("id"))
 	if err != nil {
@@ -255,6 +362,22 @@ func (h *SessionHandler) Promote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, workout)
+}
+
+// parseEntryPath reads the {id}/{entryID} pair the set routes all share, writing the
+// 400 itself so each handler is left with its own work.
+func parseEntryPath(w http.ResponseWriter, r *http.Request) (uuid.UUID, int64, bool) {
+	sessionID, err := parseSessionID(r.PathValue("id"))
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return uuid.Nil, 0, false
+	}
+	entryID, err := parseID(r.PathValue("entryID"))
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return uuid.Nil, 0, false
+	}
+	return sessionID, entryID, true
 }
 
 // parseSessionID reads a UUID path value (sessions use a UUID7 PK). A malformed uuid

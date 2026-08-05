@@ -79,20 +79,27 @@ func NewRouter(pool *pgxpool.Pool) *http.ServeMux {
 	mux.HandleFunc("DELETE /api/v1/workouts/{id}/movements/{entryID}", workoutH.RemoveMovement)
 
 	// Sessions — workouts performed on a date, the logged instance (Phase 3).
-	// POST with a workout_id copies that template's movements in; without one the
-	// session starts empty and grows through the sub-resource POST as the workout is
-	// performed. The sub-resource PATCH checks off a set / records actuals / swaps an
-	// entry mid-session; POST .../workout promotes what was performed ad-hoc into a
-	// reusable template.
+	// POST with a workout_id copies that template's movements in as targets; without one
+	// the session starts empty and grows through the sub-resource POST as the workout is
+	// performed. The entry PATCH overrides done / edits this session's target / swaps an
+	// entry mid-session; POST .../workout promotes what was performed free-form into a
+	// reusable template; POST .../finish ends it.
 	mux.HandleFunc("GET /api/v1/sessions", sessionH.List)
 	mux.HandleFunc("POST /api/v1/sessions", sessionH.Create)
 	mux.HandleFunc("GET /api/v1/sessions/{id}", sessionH.Get)
 	mux.HandleFunc("PUT /api/v1/sessions/{id}", sessionH.Update)
 	mux.HandleFunc("DELETE /api/v1/sessions/{id}", sessionH.Delete)
+	mux.HandleFunc("POST /api/v1/sessions/{id}/finish", sessionH.Finish)
 	mux.HandleFunc("POST /api/v1/sessions/{id}/movements", sessionH.AddMovement)
 	mux.HandleFunc("PATCH /api/v1/sessions/{id}/movements/{entryID}", sessionH.UpdateMovement)
 	mux.HandleFunc("DELETE /api/v1/sessions/{id}/movements/{entryID}", sessionH.RemoveMovement)
 	mux.HandleFunc("POST /api/v1/sessions/{id}/workout", sessionH.Promote)
+
+	// Sets — what was actually performed, one row per set. The POST is the most-tapped
+	// write in the app: an empty body repeats the last set, so logging one costs a tap.
+	mux.HandleFunc("POST /api/v1/sessions/{id}/movements/{entryID}/sets", sessionH.AddSet)
+	mux.HandleFunc("PATCH /api/v1/sessions/{id}/movements/{entryID}/sets/{setID}", sessionH.UpdateSet)
+	mux.HandleFunc("DELETE /api/v1/sessions/{id}/movements/{entryID}/sets/{setID}", sessionH.RemoveSet)
 
 	// Metrics + measurements — the tracked stats time series (Phase 4). Metrics are
 	// the definition vocabulary; measurements are dated readings against them; the

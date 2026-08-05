@@ -131,6 +131,18 @@ func seedTestLookups(url string) error {
 			return err
 		}
 	}
+	setKinds := []string{"working", "warmup", "amrap", "drop", "failure"}
+	for _, k := range setKinds {
+		if _, err := db.Exec(`INSERT INTO set_kinds (name) VALUES ($1) ON CONFLICT DO NOTHING`, k); err != nil {
+			return err
+		}
+	}
+	loadModes := []string{"weighted", "bodyweight", "timed", "assisted"}
+	for _, m := range loadModes {
+		if _, err := db.Exec(`INSERT INTO load_modes (name) VALUES ($1) ON CONFLICT DO NOTHING`, m); err != nil {
+			return err
+		}
+	}
 	muscles := map[string]string{
 		"chest": "anterior", "triceps": "arms", "quads": "anterior",
 		"hamstrings": "posterior", "glutes": "posterior", "shoulders": "shoulders",
@@ -163,7 +175,7 @@ func setupTestDB(t *testing.T) *database.TestPool {
 		pool.Exec(ctx, `DELETE FROM cycles`)              //nolint:errcheck // cascades to cycle_workouts
 		pool.Exec(ctx, `DELETE FROM measurements`)        //nolint:errcheck
 		pool.Exec(ctx, `DELETE FROM metric_definitions`)  //nolint:errcheck
-		pool.Exec(ctx, `DELETE FROM workout_sessions`)    //nolint:errcheck // cascades to session_movements
+		pool.Exec(ctx, `DELETE FROM workout_sessions`)    //nolint:errcheck // cascades to session_movements, and those to session_sets
 		pool.Exec(ctx, `DELETE FROM workouts`)            //nolint:errcheck // cascades to workout_movements
 		pool.Exec(ctx, `DELETE FROM movements`)           //nolint:errcheck // cascades to movement_muscles + movement_relationships
 		pool.Close()

@@ -55,6 +55,7 @@ type Movement struct {
 	SourceName         *string           `json:"source_name"`
 	Name               string            `json:"name"`
 	MovementKind       string            `json:"movement_kind"`
+	LoadMode           string            `json:"load_mode"`
 	HowTo              string            `json:"how_to"`
 	FormCues           string            `json:"form_cues"`
 	CommonFaults       string            `json:"common_faults"`
@@ -79,6 +80,7 @@ type MovementCreate struct {
 	SourceName         *string               `json:"source_name"`
 	Name               string                `json:"name"`
 	MovementKind       string                `json:"movement_kind"`
+	LoadMode           string                `json:"load_mode"`
 	HowTo              string                `json:"how_to"`
 	FormCues           string                `json:"form_cues"`
 	CommonFaults       string                `json:"common_faults"`
@@ -95,6 +97,7 @@ type MovementCreate struct {
 type MovementUpdate struct {
 	Name               *string                `json:"name"`
 	MovementKind       *string                `json:"movement_kind"`
+	LoadMode           *string                `json:"load_mode"`
 	Favorite           *bool                  `json:"favorite"`
 	Rating             *int                   `json:"rating"`
 	Tags               *[]string              `json:"tags"`
@@ -117,6 +120,7 @@ type MovementUpdate struct {
 // are set. Favorite is a pointer so ?favorite=false is distinguishable from unset.
 type MovementFilter struct {
 	Kind      string
+	LoadMode  string
 	Tag       string
 	Equipment string
 	Muscle    string

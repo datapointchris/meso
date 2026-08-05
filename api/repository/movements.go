@@ -21,16 +21,33 @@ func NewMovementRepo(pool *pgxpool.Pool) *MovementRepo {
 	return &MovementRepo{pool: pool}
 }
 
+// resolveLoadMode fills in a load mode the caller did not give, from the only signal
+// available at write time. A stretch or a pose is held, never loaded; everything else is
+// assumed weighted, because the library is mostly lifts and a stray weight box is a
+// smaller error than a missing one.
+//
+// It is a guess, and `meso movements update --load-mode` is how it gets corrected. The
+// same rule seeded the existing library in 00012_session_sets.sql.
+func resolveLoadMode(loadMode, kind string) string {
+	if loadMode != "" {
+		return loadMode
+	}
+	if kind == "stretch" || kind == "yoga_pose" {
+		return "timed"
+	}
+	return "weighted"
+}
+
 // movementCols is the ordered column list shared by every movement SELECT so the
 // scan below stays in lockstep with the query.
-const movementCols = `id, name, movement_kind, favorite, rating, tags, equipment,
+const movementCols = `id, name, movement_kind, load_mode, favorite, rating, tags, equipment,
 	how_to, form_cues, common_faults, default_sets, default_reps, default_hold_seconds,
 	sanskrit_name, measurable_rom, source_url, source_name, created_at, updated_at`
 
 func scanMovement(row pgx.Row) (models.Movement, error) {
 	var m models.Movement
 	err := row.Scan(
-		&m.ID, &m.Name, &m.MovementKind, &m.Favorite, &m.Rating, &m.Tags, &m.Equipment,
+		&m.ID, &m.Name, &m.MovementKind, &m.LoadMode, &m.Favorite, &m.Rating, &m.Tags, &m.Equipment,
 		&m.HowTo, &m.FormCues, &m.CommonFaults, &m.DefaultSets, &m.DefaultReps, &m.DefaultHoldSeconds,
 		&m.SanskritName, &m.MeasurableROM, &m.SourceURL, &m.SourceName, &m.CreatedAt, &m.UpdatedAt,
 	)
@@ -66,6 +83,9 @@ func (r *MovementRepo) List(ctx context.Context, f models.MovementFilter) ([]mod
 
 	if f.Kind != "" {
 		add("movement_kind = $%d", f.Kind)
+	}
+	if f.LoadMode != "" {
+		add("load_mode = $%d", f.LoadMode)
 	}
 	if f.Favorite != nil {
 		add("favorite = $%d", *f.Favorite)
@@ -253,12 +273,13 @@ func (r *MovementRepo) Create(ctx context.Context, in models.MovementCreate) (mo
 	err = tx.QueryRow(ctx, `
 		INSERT INTO movements (name, movement_kind, favorite, rating, tags, equipment,
 			how_to, form_cues, common_faults, default_sets, default_reps, default_hold_seconds,
-			sanskrit_name, measurable_rom, source_url, source_name)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+			sanskrit_name, measurable_rom, source_url, source_name, load_mode)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		RETURNING id`,
 		in.Name, in.MovementKind, in.Favorite, in.Rating, normalizeArray(in.Tags), normalizeArray(in.Equipment),
 		in.HowTo, in.FormCues, in.CommonFaults, in.DefaultSets, in.DefaultReps, in.DefaultHoldSeconds,
-		in.SanskritName, in.MeasurableROM, in.SourceURL, in.SourceName).Scan(&id)
+		in.SanskritName, in.MeasurableROM, in.SourceURL, in.SourceName,
+		resolveLoadMode(in.LoadMode, in.MovementKind)).Scan(&id)
 	if err != nil {
 		return models.Movement{}, mapWriteError("creating movement", err)
 	}
@@ -280,6 +301,7 @@ func (r *MovementRepo) Update(ctx context.Context, id int64, in models.MovementU
 
 	name := valueOr(in.Name, current.Name)
 	kind := valueOr(in.MovementKind, current.MovementKind)
+	loadMode := valueOr(in.LoadMode, current.LoadMode)
 	favorite := valueOr(in.Favorite, current.Favorite)
 	measurableROM := valueOr(in.MeasurableROM, current.MeasurableROM)
 	howTo := valueOr(in.HowTo, current.HowTo)
@@ -317,11 +339,11 @@ func (r *MovementRepo) Update(ctx context.Context, id int64, in models.MovementU
 			name = $1, movement_kind = $2, favorite = $3, rating = $4, tags = $5, equipment = $6,
 			how_to = $7, form_cues = $8, common_faults = $9, default_sets = $10, default_reps = $11,
 			default_hold_seconds = $12, sanskrit_name = $13, measurable_rom = $14, source_url = $15,
-			source_name = $16, updated_at = now()
-		WHERE id = $17`,
+			source_name = $16, load_mode = $17, updated_at = now()
+		WHERE id = $18`,
 		name, kind, favorite, rating, normalizeArray(tags), normalizeArray(equipment),
 		howTo, formCues, commonFaults, defaultSets, defaultReps, defaultHold, sanskrit,
-		measurableROM, sourceURL, sourceName, id)
+		measurableROM, sourceURL, sourceName, loadMode, id)
 	if err != nil {
 		return models.Movement{}, mapWriteError("updating movement", err)
 	}
@@ -352,8 +374,8 @@ func (r *MovementRepo) Upsert(ctx context.Context, in models.MovementCreate) (mo
 	err = tx.QueryRow(ctx, `
 		INSERT INTO movements (name, movement_kind, favorite, rating, tags, equipment,
 			how_to, form_cues, common_faults, default_sets, default_reps, default_hold_seconds,
-			sanskrit_name, measurable_rom, source_url, source_name)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+			sanskrit_name, measurable_rom, source_url, source_name, load_mode)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		ON CONFLICT (name) DO UPDATE SET
 			movement_kind = EXCLUDED.movement_kind, favorite = EXCLUDED.favorite, rating = EXCLUDED.rating,
 			tags = EXCLUDED.tags, equipment = EXCLUDED.equipment, how_to = EXCLUDED.how_to,
@@ -361,11 +383,15 @@ func (r *MovementRepo) Upsert(ctx context.Context, in models.MovementCreate) (mo
 			default_sets = EXCLUDED.default_sets, default_reps = EXCLUDED.default_reps,
 			default_hold_seconds = EXCLUDED.default_hold_seconds, sanskrit_name = EXCLUDED.sanskrit_name,
 			measurable_rom = EXCLUDED.measurable_rom, source_url = EXCLUDED.source_url,
-			source_name = EXCLUDED.source_name, updated_at = now()
+			source_name = EXCLUDED.source_name, updated_at = now(),
+			-- The raw parameter, not EXCLUDED: that carries the resolved guess, so an
+			-- import silent about load mode would undo every hand correction on rerun.
+			load_mode = COALESCE(NULLIF($18, ''), movements.load_mode)
 		RETURNING id`,
 		in.Name, in.MovementKind, in.Favorite, in.Rating, normalizeArray(in.Tags), normalizeArray(in.Equipment),
 		in.HowTo, in.FormCues, in.CommonFaults, in.DefaultSets, in.DefaultReps, in.DefaultHoldSeconds,
-		in.SanskritName, in.MeasurableROM, in.SourceURL, in.SourceName).Scan(&id)
+		in.SanskritName, in.MeasurableROM, in.SourceURL, in.SourceName,
+		resolveLoadMode(in.LoadMode, in.MovementKind), in.LoadMode).Scan(&id)
 	if err != nil {
 		return models.Movement{}, mapWriteError("upserting movement", err)
 	}

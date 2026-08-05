@@ -180,6 +180,44 @@ func TestMovement_Delete(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, deleteReq(t, mux, "/api/v1/movements/"+itoa(created.ID)).Code)
 }
 
+// Load mode decides whether the logging screen asks for a weight at all, which is why
+// a movement can never be without one.
+func TestMovement_LoadMode(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+
+	// Unstated, it is inferred from the kind: a pose is held, a lift is loaded.
+	lift := decodeMovement(t, postJSON(t, mux, "/api/v1/movements", movementPayload("Deadlift", "exercise")).Body)
+	assert.Equal(t, "weighted", lift.LoadMode)
+	pose := decodeMovement(t, postJSON(t, mux, "/api/v1/movements", movementPayload("Pigeon", "yoga_pose")).Body)
+	assert.Equal(t, "timed", pose.LoadMode)
+
+	// Stated, it is taken as given — the inference is only ever a starting point.
+	abs := movementPayload("Hanging Leg Raise", "exercise")
+	abs["load_mode"] = "bodyweight"
+	created := decodeMovement(t, postJSON(t, mux, "/api/v1/movements", abs).Body)
+	assert.Equal(t, "bodyweight", created.LoadMode)
+
+	// Correcting the guess is a partial update like any other.
+	rr := putJSON(t, mux, "/api/v1/movements/"+itoa(lift.ID), map[string]any{"load_mode": "assisted"})
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "assisted", decodeMovement(t, rr.Body).LoadMode)
+	// And an update silent about it leaves the correction alone.
+	rr = putJSON(t, mux, "/api/v1/movements/"+itoa(lift.ID), map[string]any{"favorite": true})
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "assisted", decodeMovement(t, rr.Body).LoadMode)
+
+	// The list filters on it, which is how a correction pass finds what to look at.
+	var filtered []models.Movement
+	require.NoError(t, json.Unmarshal(getJSON(t, mux, "/api/v1/movements?load_mode=bodyweight").Body.Bytes(), &filtered))
+	require.Len(t, filtered, 1)
+	assert.Equal(t, "Hanging Leg Raise", filtered[0].Name)
+
+	// A mode outside the vocabulary fails the FK -> 409.
+	bogus := movementPayload("Vibes Press", "exercise")
+	bogus["load_mode"] = "telekinetic"
+	assert.Equal(t, http.StatusConflict, postJSON(t, mux, "/api/v1/movements", bogus).Code)
+}
+
 func TestMovement_Create_Validation(t *testing.T) {
 	mux := buildTestMux(setupTestDB(t))
 
