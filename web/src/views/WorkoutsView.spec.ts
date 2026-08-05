@@ -39,7 +39,7 @@ async function mountView(): Promise<{ wrapper: ReturnType<typeof mount>; router:
     routes: [
       { path: '/workouts', name: 'workouts', component: WorkoutsView },
       { path: '/workouts/:id', name: 'workout-detail', component: { template: '<div />' } },
-      { path: '/sessions', name: 'sessions', component: { template: '<div />' } },
+      { path: '/cycles', name: 'cycles', component: { template: '<div />' } },
     ],
   })
   router.push('/workouts')

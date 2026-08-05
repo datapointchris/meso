@@ -1,16 +1,25 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from 'vue-router'
 import { useTheme } from '@/composables/useTheme'
+import { useConfirm } from '@/composables/useConfirm'
 import FeedbackButton from '@/components/FeedbackButton.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
 const { theme, toggle } = useTheme()
+// One dialog for the whole app, driven by useConfirm's singleton request.
+const { request: confirmRequest, answer } = useConfirm()
 
 // The five top surfaces. `to` matches the router names; the bottom-tab bar on
 // mobile and the top bar on desktop both render from this one list.
+//
+// Sessions leads because it is what the app is opened to do: start training, or pick up
+// the one already underway. Workouts stays a tab because picking a template is the other
+// way in. Cycles gave up its slot — planning a block is a rare, considered act, so it
+// lives one tap away in the Workouts header, where the Sessions link used to sit.
 const tabs = [
+  { to: '/sessions', label: 'Sessions', icon: '▶' },
   { to: '/workouts', label: 'Workouts', icon: '🏋' },
   { to: '/movements', label: 'Movements', icon: '📚' },
-  { to: '/cycles', label: 'Cycles', icon: '🔁' },
   { to: '/log', label: 'Log', icon: '📓' },
   { to: '/stats', label: 'Stats', icon: '📈' },
 ]
@@ -43,6 +52,15 @@ const tabs = [
     </main>
 
     <FeedbackButton />
+
+    <ConfirmDialog
+      v-if="confirmRequest"
+      :title="confirmRequest.title"
+      :message="confirmRequest.message"
+      :confirm-label="confirmRequest.confirmLabel ?? 'Confirm'"
+      :danger="confirmRequest.danger ?? false"
+      @confirm="answer(true)"
+      @cancel="answer(false)" />
 
     <nav
       class="tabbar"

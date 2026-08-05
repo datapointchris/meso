@@ -81,8 +81,8 @@ function onCreated(created: Workout) {
       <div class="workouts__head-actions">
         <RouterLink
           class="btn"
-          :to="{ name: 'sessions' }">
-          Sessions
+          :to="{ name: 'cycles' }">
+          Cycles
         </RouterLink>
         <button
           class="btn btn--accent"

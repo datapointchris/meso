@@ -1,21 +1,25 @@
 <script setup lang="ts">
 import { ref, reactive, watch, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { sessionsApi, doneCount, type Session, type SessionFilter } from '@/api/sessions'
+import { sessionsApi, setCount, isInProgress, type Session, type SessionFilter } from '@/api/sessions'
+import type { Workout } from '@/api/workouts'
 import { ApiError } from '@/api/client'
 import DateField from '@/components/DateField.vue'
+import StartSessionSheet from '@/components/StartSessionSheet.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 
-// The session history: past and in-progress sessions, newest first, so a session
-// started earlier can be resumed and completed ones reviewed. Two ways in: from a
-// workout template (Workouts → Start session), or empty from here when the training
-// wasn't planned — that session is filled in as it happens and can become a template
-// afterwards.
+// The app's front door. Opening meso almost always means training, so the first thing
+// on screen is the way into a session: resume the one already going, or start a new one.
+// The history below it is the second reason to be here, not the first.
 const router = useRouter()
 
 const sessions = ref<Session[]>([])
 const loading = ref(true)
 const error = ref('')
 const starting = ref(false)
+const showStart = ref(false)
+const pendingDelete = ref<Session | null>(null)
+const deleting = ref(false)
 
 // Server-side date filtering (the API owns the params), one definition shared with
 // the CLI.
@@ -41,22 +45,52 @@ onMounted(load)
 
 const isEmpty = computed(() => !loading.value && !error.value && sessions.value.length === 0)
 
+// The newest unfinished session, which is the one worth offering to pick up. Sessions
+// come back newest first, so the first match is it.
+const inProgress = computed(() => sessions.value.find(isInProgress) ?? null)
+
 function openSession(s: Session) {
   router.push({ name: 'session-detail', params: { id: s.id } })
 }
 
-// Start an empty session for today and go straight to logging — no template, no name,
-// nothing to fill in first.
-async function startAdHoc() {
+async function start(body: { workout_id?: number }) {
   if (starting.value) return
   starting.value = true
   try {
-    const session = await sessionsApi.create({})
+    const session = await sessionsApi.create(body)
     router.push({ name: 'session-detail', params: { id: session.id } })
   } catch (e) {
     error.value = e instanceof ApiError ? e.message : 'Failed to start a session.'
     starting.value = false
+    showStart.value = false
   }
+}
+
+async function confirmDelete() {
+  const target = pendingDelete.value
+  if (!target || deleting.value) return
+  deleting.value = true
+  try {
+    await sessionsApi.remove(target.id)
+    sessions.value = sessions.value.filter((s) => s.id !== target.id)
+    pendingDelete.value = null
+  } catch (e) {
+    error.value = e instanceof ApiError ? e.message : 'Failed to delete the session.'
+  } finally {
+    deleting.value = false
+  }
+}
+
+function sessionLabel(s: Session): string {
+  return s.workout_name ?? 'Free-form session'
+}
+
+// What happened, rather than how much of the plan was hit. "2/5 done" reads as a score
+// against a plan, and a session that went differently is not a session that failed.
+function summary(s: Session): string {
+  const movements = s.movements.length
+  const sets = setCount(s)
+  return `${movements} movement${movements === 1 ? '' : 's'} · ${sets} set${sets === 1 ? '' : 's'}`
 }
 </script>
 
@@ -64,21 +98,30 @@ async function startAdHoc() {
   <section class="sessions">
     <header class="sessions__head">
       <h1 class="sessions__title">Sessions</h1>
-      <div class="sessions__start">
-        <RouterLink
-          class="btn"
-          :to="{ name: 'workouts' }">
-          From workout
-        </RouterLink>
-        <button
-          type="button"
-          class="btn btn--accent"
-          :disabled="starting"
-          @click="startAdHoc">
-          {{ starting ? 'Starting…' : '+ Log a session' }}
-        </button>
-      </div>
     </header>
+
+    <p
+      v-if="error"
+      class="sessions__status sessions__status--error">
+      {{ error }}
+    </p>
+
+    <button
+      v-if="inProgress"
+      type="button"
+      class="resume"
+      @click="openSession(inProgress)">
+      <span class="resume__label">▶ Resume session</span>
+      <span class="resume__detail">{{ sessionLabel(inProgress) }} · {{ summary(inProgress) }}</span>
+    </button>
+
+    <button
+      type="button"
+      class="btn btn--accent start"
+      :disabled="starting"
+      @click="showStart = true">
+      {{ starting ? 'Starting…' : '+ Start session' }}
+    </button>
 
     <div class="sessions__filters">
       <div class="date-field">
@@ -103,14 +146,9 @@ async function startAdHoc() {
       Loading…
     </p>
     <p
-      v-else-if="error"
-      class="sessions__status sessions__status--error">
-      {{ error }}
-    </p>
-    <p
       v-else-if="isEmpty"
       class="sessions__status">
-      No sessions yet. Tap “Log a session” to record one as you go, or start from a workout.
+      No sessions yet. Tap “Start session” to begin one.
     </p>
 
     <ul
@@ -119,25 +157,57 @@ async function startAdHoc() {
       <li
         v-for="s in sessions"
         :key="s.id"
-        class="card"
-        tabindex="0"
-        role="button"
-        @click="openSession(s)"
-        @keydown.enter="openSession(s)">
-        <div class="card__main">
-          <span class="card__name">{{ s.workout_name ?? 'Ad-hoc session' }}</span>
-          <span class="card__date">{{ s.performed_on }}</span>
+        class="card">
+        <div
+          class="card__open"
+          tabindex="0"
+          role="button"
+          @click="openSession(s)"
+          @keydown.enter="openSession(s)">
+          <div class="card__main">
+            <span class="card__name">{{ sessionLabel(s) }}</span>
+            <span class="card__date">{{ s.performed_on }}</span>
+          </div>
+          <div class="card__meta">
+            <span class="card__count">{{ summary(s) }}</span>
+            <span
+              v-if="isInProgress(s)"
+              class="tag tag--live">
+              in progress
+            </span>
+            <span
+              v-if="s.felt"
+              class="tag">
+              {{ s.felt }}
+            </span>
+          </div>
         </div>
-        <div class="card__meta">
-          <span class="card__count">{{ doneCount(s) }} / {{ s.movements.length }} done</span>
-          <span
-            v-if="s.felt"
-            class="tag">
-            {{ s.felt }}
-          </span>
-        </div>
+        <button
+          type="button"
+          class="card__delete"
+          :aria-label="`Delete the session on ${s.performed_on}`"
+          @click="pendingDelete = s">
+          ✕
+        </button>
       </li>
     </ul>
+
+    <StartSessionSheet
+      v-if="showStart"
+      :busy="starting"
+      @programmed="(w: Workout) => start({ workout_id: w.id })"
+      @free-form="start({})"
+      @close="showStart = false" />
+
+    <ConfirmDialog
+      v-if="pendingDelete"
+      title="Delete session"
+      :message="`Delete the ${sessionLabel(pendingDelete).toLowerCase()} from ${pendingDelete.performed_on}? Everything logged in it goes too.`"
+      confirm-label="Delete"
+      danger
+      :busy="deleting"
+      @confirm="confirmDelete"
+      @cancel="pendingDelete = null" />
   </section>
 </template>
 
@@ -156,14 +226,41 @@ async function startAdHoc() {
   flex-wrap: wrap;
 }
 
-.sessions__start {
-  display: flex;
-  gap: var(--space-2);
-}
-
 .sessions__title {
   margin: 0;
   font-size: 1.5rem;
+}
+
+// Sized above everything else on the screen: picking training back up is the one thing
+// worth being able to hit without looking.
+.resume {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  color: var(--text);
+  text-align: left;
+}
+
+.resume__label {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--accent);
+}
+
+.resume__detail {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.start {
+  min-height: calc(var(--touch-target) * 1.2);
+  justify-content: center;
+  font-size: 1.05rem;
 }
 
 .sessions__filters {
@@ -189,7 +286,7 @@ async function startAdHoc() {
   text-align: center;
 
   &--error {
-    color: #f87171;
+    color: var(--negative);
   }
 }
 
@@ -203,18 +300,36 @@ async function startAdHoc() {
 
 .card {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  align-items: stretch;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.card__open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
   cursor: pointer;
 
   &:focus-visible {
     outline: 2px solid var(--accent);
-    outline-offset: 2px;
+    outline-offset: -2px;
   }
+}
+
+.card__delete {
+  flex-shrink: 0;
+  width: var(--touch-target);
+  border: none;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.9rem;
 }
 
 .card__main {
@@ -255,6 +370,11 @@ async function startAdHoc() {
   background: var(--surface-raised);
   color: var(--text-muted);
   font-size: 0.72rem;
+
+  &--live {
+    background: var(--accent);
+    color: var(--accent-contrast);
+  }
 }
 
 .btn {

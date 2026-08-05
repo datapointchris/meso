@@ -13,6 +13,9 @@ import { workoutsApi, type Workout } from '@/api/workouts'
 import { ApiError } from '@/api/client'
 import { renderMarkdown } from '@/composables/useMarkdown'
 import AddEditCycleModal from '@/components/AddEditCycleModal.vue'
+import { useConfirm } from '@/composables/useConfirm'
+
+const { ask } = useConfirm()
 
 const route = useRoute()
 const router = useRouter()
@@ -141,7 +144,13 @@ async function move(index: number, delta: number) {
 
 async function removeEntry(cw: CycleWorkout) {
   if (!cycle.value) return
-  if (!window.confirm(`Remove “${cw.workout_name}” from this cycle?`)) return
+  const ok = await ask({
+    title: 'Remove workout',
+    message: `Remove “${cw.workout_name}” from this cycle?`,
+    confirmLabel: 'Remove',
+    danger: true,
+  })
+  if (!ok) return
   try {
     cycle.value = await cyclesApi.removeWorkout(cycle.value.id, cw.id)
   } catch (e) {
@@ -158,7 +167,13 @@ function onSaved(saved: Cycle) {
 
 async function removeCycle() {
   if (!cycle.value) return
-  if (!window.confirm(`Delete “${cycle.value.name}”? This cannot be undone.`)) return
+  const ok = await ask({
+    title: 'Delete cycle',
+    message: `Delete “${cycle.value.name}”? This cannot be undone.`,
+    confirmLabel: 'Delete',
+    danger: true,
+  })
+  if (!ok) return
   try {
     await cyclesApi.remove(cycle.value.id)
     router.push({ name: 'cycles' })

@@ -24,6 +24,7 @@ function fakeMovement(over: Partial<Movement>): Movement {
     id: 1,
     name: 'Barbell Deadlift',
     movement_kind: 'exercise',
+    load_mode: 'weighted',
     favorite: false,
     rating: null,
     tags: ['strength', 'posterior-chain'],

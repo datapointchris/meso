@@ -13,6 +13,9 @@ import {
 import { ApiError } from '@/api/client'
 import { renderMarkdown } from '@/composables/useMarkdown'
 import AddEditMovementModal from '@/components/AddEditMovementModal.vue'
+import { useConfirm } from '@/composables/useConfirm'
+
+const { ask } = useConfirm()
 
 const route = useRoute()
 const router = useRouter()
@@ -120,7 +123,13 @@ function onSaved(saved: Movement) {
 
 async function remove() {
   if (!movement.value) return
-  if (!window.confirm(`Delete “${movement.value.name}”? This cannot be undone.`)) return
+  const ok = await ask({
+    title: 'Delete movement',
+    message: `Delete “${movement.value.name}”? This cannot be undone.`,
+    confirmLabel: 'Delete',
+    danger: true,
+  })
+  if (!ok) return
   try {
     await movementsApi.remove(movement.value.id)
     router.push({ name: 'movements' })

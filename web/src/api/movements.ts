@@ -3,6 +3,10 @@
 import { http } from './client'
 
 export type MovementKind = 'exercise' | 'stretch' | 'yoga_pose'
+// LoadMode says how a movement is loaded, which decides what the logging screen asks
+// for. movement_kind cannot stand in — a back squat and a nordic curl are both
+// 'exercise' — and neither can equipment, which is free-form and empty by default.
+export type LoadMode = 'weighted' | 'bodyweight' | 'timed' | 'assisted'
 export type MuscleRole = 'primary' | 'secondary'
 export type RelationshipKind = 'alternate' | 'antagonist' | 'progression' | 'regression' | 'see_also'
 
@@ -25,6 +29,7 @@ export interface Movement {
   id: number
   name: string
   movement_kind: MovementKind
+  load_mode: LoadMode
   favorite: boolean
   rating: number | null
   tags: string[]
@@ -60,6 +65,7 @@ export interface MuscleInput {
 export interface MovementWrite {
   name?: string
   movement_kind?: MovementKind
+  load_mode?: LoadMode
   favorite?: boolean
   rating?: number | null
   tags?: string[]
@@ -79,6 +85,7 @@ export interface MovementWrite {
 
 export interface MovementFilter {
   kind?: MovementKind | ''
+  load_mode?: LoadMode | ''
   favorite?: boolean
   tag?: string
   equipment?: string
@@ -90,6 +97,7 @@ export interface MovementFilter {
 function queryString(filter: MovementFilter): string {
   const params = new URLSearchParams()
   if (filter.kind) params.set('kind', filter.kind)
+  if (filter.load_mode) params.set('load_mode', filter.load_mode)
   if (filter.favorite !== undefined) params.set('favorite', String(filter.favorite))
   if (filter.tag) params.set('tag', filter.tag)
   if (filter.equipment) params.set('equipment', filter.equipment)

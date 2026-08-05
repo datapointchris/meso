@@ -15,6 +15,7 @@ function fakeMovement(over: Partial<Movement>): Movement {
     id: 1,
     name: 'Lat Pulldown',
     movement_kind: 'exercise',
+    load_mode: 'weighted',
     favorite: false,
     rating: null,
     tags: [],

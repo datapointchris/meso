@@ -8,6 +8,9 @@ import { ApiError } from '@/api/client'
 import { renderMarkdown } from '@/composables/useMarkdown'
 import AddEditWorkoutModal from '@/components/AddEditWorkoutModal.vue'
 import MovementPicker from '@/components/MovementPicker.vue'
+import { useConfirm } from '@/composables/useConfirm'
+
+const { ask } = useConfirm()
 
 const route = useRoute()
 const router = useRouter()
@@ -138,7 +141,13 @@ async function move(index: number, delta: number) {
 
 async function removeEntry(m: WorkoutMovement) {
   if (!workout.value) return
-  if (!window.confirm(`Remove “${m.movement_name}” from this workout?`)) return
+  const ok = await ask({
+    title: 'Remove movement',
+    message: `Remove “${m.movement_name}” from this workout?`,
+    confirmLabel: 'Remove',
+    danger: true,
+  })
+  if (!ok) return
   try {
     workout.value = await workoutsApi.removeMovement(workout.value.id, m.id)
   } catch (e) {
@@ -155,7 +164,13 @@ function onSaved(saved: Workout) {
 
 async function removeWorkout() {
   if (!workout.value) return
-  if (!window.confirm(`Delete “${workout.value.name}”? This cannot be undone.`)) return
+  const ok = await ask({
+    title: 'Delete workout',
+    message: `Delete “${workout.value.name}”? This cannot be undone.`,
+    confirmLabel: 'Delete',
+    danger: true,
+  })
+  if (!ok) return
   try {
     await workoutsApi.remove(workout.value.id)
     router.push({ name: 'workouts' })

@@ -5,6 +5,9 @@ import { ApiError } from '@/api/client'
 import { renderMarkdown } from '@/composables/useMarkdown'
 import AddEditLogModal from '@/components/AddEditLogModal.vue'
 import DateField from '@/components/DateField.vue'
+import { useConfirm } from '@/composables/useConfirm'
+
+const { ask } = useConfirm()
 
 // The training journal: dated markdown entries, newest first — the substrate Claude
 // reviews when drafting the next cycle. Filter by date window or tag; add, edit, and
@@ -46,7 +49,13 @@ function onSaved() {
 }
 
 async function remove(entry: LogEntry) {
-  if (!window.confirm(`Delete the entry from ${entry.entry_date}? This cannot be undone.`)) return
+  const ok = await ask({
+    title: 'Delete entry',
+    message: `Delete the entry from ${entry.entry_date}? This cannot be undone.`,
+    confirmLabel: 'Delete',
+    danger: true,
+  })
+  if (!ok) return
   try {
     await logApi.remove(entry.id)
     entries.value = entries.value.filter((e) => e.id !== entry.id)

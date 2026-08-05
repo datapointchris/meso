@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import App from './App.vue'
-import WorkoutsView from './views/WorkoutsView.vue'
+import SessionsView from './views/SessionsView.vue'
 import MovementsView from './views/MovementsView.vue'
 
 describe('App shell', () => {
@@ -24,9 +24,9 @@ describe('App shell', () => {
     const router = createRouter({
       history: createMemoryHistory(),
       routes: [
-        { path: '/', redirect: '/workouts' },
-        { path: '/workouts', name: 'workouts', component: WorkoutsView },
-        { path: '/sessions', name: 'sessions', component: { template: '<div />' } },
+        { path: '/', redirect: '/sessions' },
+        { path: '/workouts', name: 'workouts', component: { template: '<div />' } },
+        { path: '/sessions', name: 'sessions', component: SessionsView },
         { path: '/movements', name: 'movements', component: MovementsView },
         { path: '/cycles', name: 'cycles', component: { template: '<div />' } },
         { path: '/log', name: 'log', component: { template: '<div />' } },
@@ -39,14 +39,15 @@ describe('App shell', () => {
     return { wrapper, router }
   }
 
-  it('renders all five primary tabs', async () => {
+  // Sessions leads because starting or resuming training is why the app gets opened.
+  it('renders all five primary tabs, sessions first', async () => {
     const { wrapper } = await mountApp()
     const labels = wrapper.findAll('.tabbar__label').map((n) => n.text())
-    expect(labels).toEqual(['Workouts', 'Movements', 'Cycles', 'Log', 'Stats'])
+    expect(labels).toEqual(['Sessions', 'Workouts', 'Movements', 'Log', 'Stats'])
   })
 
-  it('lands on the Workouts view at /', async () => {
+  it('lands on Sessions at /', async () => {
     const { wrapper } = await mountApp()
-    expect(wrapper.text()).toContain('Workouts')
+    expect(wrapper.text()).toContain('Start session')
   })
 })

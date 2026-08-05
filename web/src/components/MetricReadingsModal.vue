@@ -3,6 +3,9 @@ import { ref, reactive, onMounted } from 'vue'
 import { measurementsApi, formatValue, type Measurement } from '@/api/measurements'
 import { ApiError } from '@/api/client'
 import DateField from '@/components/DateField.vue'
+import { useConfirm } from '@/composables/useConfirm'
+
+const { ask } = useConfirm()
 
 // The readings behind one metric's trend, correctable in place. The trend card shows
 // a shape; this is where a number that went in wrong gets fixed. Without it the API
@@ -62,7 +65,13 @@ async function save(id: number) {
 }
 
 async function remove(reading: Measurement) {
-  if (!window.confirm(`Delete the ${formatValue(reading.value)} ${props.unit} reading from ${reading.measured_on}?`)) return
+  const ok = await ask({
+    title: 'Delete reading',
+    message: `Delete the ${formatValue(reading.value)} ${props.unit} reading from ${reading.measured_on}?`,
+    confirmLabel: 'Delete',
+    danger: true,
+  })
+  if (!ok) return
   busy.value = true
   error.value = ''
   try {

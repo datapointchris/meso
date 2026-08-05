@@ -9,6 +9,9 @@ import {
   type MetricDirection,
 } from '@/api/measurements'
 import { ApiError } from '@/api/client'
+import { useConfirm } from '@/composables/useConfirm'
+
+const { ask } = useConfirm()
 
 // Defines or edits a metric — the tracked-stat vocabulary itself, as opposed to a
 // reading against it (AddMeasurementModal). This is the UI half of `meso metrics
@@ -91,7 +94,13 @@ async function save() {
 
 async function remove() {
   if (!props.metric) return
-  if (!window.confirm(`Delete “${props.metric.label}”? Metrics with recorded readings can’t be deleted.`)) return
+  const ok = await ask({
+    title: 'Delete metric',
+    message: `Delete “${props.metric.label}”? Metrics with recorded readings can’t be deleted.`,
+    confirmLabel: 'Delete',
+    danger: true,
+  })
+  if (!ok) return
   deleting.value = true
   error.value = ''
   try {

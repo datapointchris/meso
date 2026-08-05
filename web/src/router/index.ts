@@ -1,9 +1,11 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 
-// The five top-level surfaces (README: Workouts | Movements | Cycles | Log |
-// Stats), each with a detail route.
+// The five top-level surfaces (Sessions | Workouts | Movements | Log | Stats), each
+// with a detail route. Cycles is still routed, reached from the Workouts header.
+//
+// Opening the app lands on Sessions: the reason to open it is almost always to train.
 const routes: RouteRecordRaw[] = [
-  { path: '/', redirect: '/workouts' },
+  { path: '/', redirect: '/sessions' },
   {
     path: '/workouts',
     name: 'workouts',

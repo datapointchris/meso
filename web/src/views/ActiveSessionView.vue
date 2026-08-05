@@ -1,28 +1,40 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { sessionsApi, doneCount, previousSummary, type Session, type SessionMovement, type SessionMovementPatch } from '@/api/sessions'
+import {
+  sessionsApi,
+  setCount,
+  isInProgress,
+  targetSummary,
+  previousSummary,
+  type Session,
+  type SessionMovement,
+  type SessionMovementPatch,
+  type SessionSet,
+  type SessionSetInput,
+} from '@/api/sessions'
 import type { Movement } from '@/api/movements'
 import type { Workout } from '@/api/workouts'
 import { ApiError } from '@/api/client'
+import { useConfirm } from '@/composables/useConfirm'
 import MovementPicker from '@/components/MovementPicker.vue'
 import PromoteSessionModal from '@/components/PromoteSessionModal.vue'
 
-// The mobile-critical logging screen: check off sets one-handed, bump actual
-// sets/reps/load against the plan the session was seeded with, and jot notes. Every
-// edit PATCHes immediately and the server returns the refreshed session, so state is
-// never lost on an app-switch (v1 is online; offline logging is deferred).
+// The mobile-critical logging screen. One movement, one card, one big "Log set" button:
+// the common case is another set exactly like the last, and it should cost a tap.
 //
-// A session with no template is the unplanned-training path: it opens empty and is
-// built up movement by movement while it happens, then saved as a workout if it is
-// worth doing again.
+// The card shows the plan as a line of text rather than as inputs. A session is a record
+// of what happened, and the plan is context for it — editable, but not the thing being
+// filled in.
 const route = useRoute()
 const router = useRouter()
+const { ask } = useConfirm()
 const id = computed(() => String(route.params.id))
 
 const session = ref<Session | null>(null)
 const loading = ref(true)
 const error = ref('')
+const busyEntry = ref<number | null>(null)
 
 // Session-level edit buffer, synced from the loaded session and saved on blur.
 const meta = reactive({ felt: '', duration: null as number | null, notes: '' })
@@ -31,9 +43,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const s = await sessionsApi.get(id.value)
-    session.value = s
-    syncMeta(s)
+    apply(await sessionsApi.get(id.value))
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) {
       error.value = 'That session no longer exists.'
@@ -45,80 +55,151 @@ async function load() {
   }
 }
 
-function syncMeta(s: Session) {
-  meta.felt = s.felt ?? ''
-  meta.duration = s.duration_minutes
-  meta.notes = s.overall_notes
+// apply swaps in a server response. The meta buffer is only re-synced on the first load:
+// re-syncing on every write would overwrite what is being typed right now, since a set
+// logged mid-sentence returns the whole session.
+function apply(s: Session, syncMeta = false) {
+  const first = session.value === null
+  session.value = s
+  if (first || syncMeta) {
+    meta.felt = s.felt ?? ''
+    meta.duration = s.duration_minutes
+    meta.notes = s.overall_notes
+  }
 }
 
 onMounted(load)
 
-const progress = computed(() => (session.value ? `${doneCount(session.value)} / ${session.value.movements.length}` : ''))
+// What happened, not a score against the plan.
+const summary = computed(() => {
+  if (!session.value) return ''
+  const movements = session.value.movements.length
+  const sets = setCount(session.value)
+  return `${movements} movement${movements === 1 ? '' : 's'} · ${sets} set${sets === 1 ? '' : 's'}`
+})
 
-// patchEntry applies one field change to a logged movement and swaps in the refreshed
-// session the server returns. Errors surface without discarding the loaded session.
-async function patchEntry(entry: SessionMovement, patch: SessionMovementPatch) {
-  if (!session.value) return
+const live = computed(() => session.value !== null && isInProgress(session.value))
+
+// Only a session with no template can be promoted — one already backed by a workout
+// would silently fork it.
+const isFreeForm = computed(() => session.value !== null && session.value.workout_id === null)
+
+const showPicker = ref(false)
+const showPromote = ref(false)
+const finishing = ref(false)
+const editingSet = ref<{ entryId: number; set: SessionSet } | null>(null)
+
+async function withEntry<T>(entryId: number, work: () => Promise<T>) {
+  if (busyEntry.value !== null) return
+  busyEntry.value = entryId
   try {
-    session.value = await sessionsApi.updateMovement(session.value.id, entry.id, patch)
+    return await work()
   } catch (e) {
     error.value = e instanceof ApiError ? e.message : 'Failed to save.'
+  } finally {
+    busyEntry.value = null
   }
 }
 
+// logSet is the screen's whole point. An empty body tells the server to repeat the
+// previous set, so nothing has to be typed unless something actually changed.
+function logSet(entry: SessionMovement, body: SessionSetInput = {}) {
+  return withEntry(entry.id, async () => {
+    apply(await sessionsApi.addSet(id.value, entry.id, body))
+  })
+}
+
+function patchEntry(entry: SessionMovement, patch: SessionMovementPatch) {
+  return withEntry(entry.id, async () => {
+    apply(await sessionsApi.updateMovement(id.value, entry.id, patch))
+  })
+}
+
+// The checkbox ticks itself when the logged sets reach the plan. It stays tappable so
+// stopping short on purpose can be said, and so a movement done without logging sets can
+// still be marked.
 function toggleDone(entry: SessionMovement) {
-  patchEntry(entry, { done: !entry.done })
+  return patchEntry(entry, { done: !entry.done })
 }
 
-function bumpSets(entry: SessionMovement, delta: number) {
-  const next = Math.max(0, (entry.actual_sets ?? 0) + delta)
-  patchEntry(entry, { actual_sets: next })
+async function saveSet(patch: SessionSetInput) {
+  const editing = editingSet.value
+  if (!editing) return
+  await withEntry(editing.entryId, async () => {
+    apply(await sessionsApi.updateSet(id.value, editing.entryId, editing.set.id, patch))
+  })
+  editingSet.value = null
 }
 
-// saveReps/saveLoad/saveEntryNotes fire on blur, sending the trimmed value (empty → null).
-function saveReps(entry: SessionMovement, value: string) {
-  const v = value.trim()
-  if (v === (entry.actual_reps ?? '')) return
-  patchEntry(entry, { actual_reps: v || null })
-}
-function saveLoad(entry: SessionMovement, value: string) {
-  const v = value.trim()
-  if (v === (entry.actual_load ?? '')) return
-  patchEntry(entry, { actual_load: v || null })
-}
-function saveEntryNotes(entry: SessionMovement, value: string) {
-  if (value === entry.notes) return
-  patchEntry(entry, { notes: value })
+async function removeSet(entryId: number, set: SessionSet) {
+  const ok = await ask({
+    title: 'Remove set',
+    message: `Remove set ${set.position}?`,
+    confirmLabel: 'Remove',
+    danger: true,
+  })
+  if (!ok) return
+  await withEntry(entryId, async () => {
+    apply(await sessionsApi.removeSet(id.value, entryId, set.id))
+  })
+  editingSet.value = null
 }
 
-// isAdHoc gates everything about composing the session. A session copied from a
-// template is edited by editing that workout, not by rearranging the log of what was
-// performed — and it has no template to produce, so there is nothing to promote.
-const isAdHoc = computed(() => session.value !== null && session.value.workout_id === null)
-
-const showPicker = ref(false)
-const adding = ref(false)
-const showPromote = ref(false)
-
+// Adding and removing movements works on a session from a template too. Doing an extra
+// movement, or skipping one, is part of what happened — the record has to be able to
+// say so, and editing the workout instead would rewrite every past session's plan.
 async function addMovement(movement: Movement) {
-  if (!session.value || adding.value) return
-  adding.value = true
+  if (busyEntry.value !== null) return
+  busyEntry.value = -1
   try {
-    session.value = await sessionsApi.addMovement(session.value.id, { movement_id: movement.id })
+    apply(await sessionsApi.addMovement(id.value, { movement_id: movement.id }))
   } catch (e) {
     error.value = e instanceof ApiError ? e.message : 'Failed to add movement.'
   } finally {
-    adding.value = false
+    busyEntry.value = null
   }
 }
 
 async function removeEntry(entry: SessionMovement) {
-  if (!session.value) return
-  if (!window.confirm(`Remove “${entry.movement_name}” from this session?`)) return
+  const ok = await ask({
+    title: 'Remove movement',
+    message: `Remove “${entry.movement_name}” from this session? Its ${entry.sets.length} logged set${
+      entry.sets.length === 1 ? '' : 's'
+    } go too.`,
+    confirmLabel: 'Remove',
+    danger: true,
+  })
+  if (!ok) return
+  await withEntry(entry.id, async () => {
+    apply(await sessionsApi.removeMovement(id.value, entry.id))
+  })
+}
+
+async function finish() {
+  if (finishing.value) return
+  finishing.value = true
   try {
-    session.value = await sessionsApi.removeMovement(session.value.id, entry.id)
+    await sessionsApi.finish(id.value)
+    router.push({ name: 'sessions' })
   } catch (e) {
-    error.value = e instanceof ApiError ? e.message : 'Failed to remove movement.'
+    error.value = e instanceof ApiError ? e.message : 'Failed to finish the session.'
+    finishing.value = false
+  }
+}
+
+async function deleteSession() {
+  const ok = await ask({
+    title: 'Delete session',
+    message: 'Delete this session? Everything logged in it goes too.',
+    confirmLabel: 'Delete',
+    danger: true,
+  })
+  if (!ok) return
+  try {
+    await sessionsApi.remove(id.value)
+    router.push({ name: 'sessions' })
+  } catch (e) {
+    error.value = e instanceof ApiError ? e.message : 'Failed to delete the session.'
   }
 }
 
@@ -131,14 +212,52 @@ function onPromoted(workout: Workout) {
 async function saveMeta() {
   if (!session.value) return
   try {
-    session.value = await sessionsApi.update(session.value.id, {
-      felt: meta.felt.trim() || null,
-      duration_minutes: meta.duration || null,
-      overall_notes: meta.notes,
-    })
+    apply(
+      await sessionsApi.update(id.value, {
+        felt: meta.felt.trim() || null,
+        duration_minutes: meta.duration || null,
+        overall_notes: meta.notes,
+      }),
+    )
   } catch (e) {
     error.value = e instanceof ApiError ? e.message : 'Failed to save session.'
   }
+}
+
+// Load mode decides what a set is even described by, so the inputs follow it rather
+// than showing everything and letting the irrelevant ones sit there empty.
+function asksForLoad(entry: SessionMovement): boolean {
+  return entry.load_mode === 'weighted' || entry.load_mode === 'assisted'
+}
+function asksForHold(entry: SessionMovement): boolean {
+  return entry.load_mode === 'timed'
+}
+function loadLabel(entry: SessionMovement): string {
+  return entry.load_mode === 'assisted' ? 'Assistance' : 'Load'
+}
+
+function setSummary(set: SessionSet): string {
+  const parts: string[] = []
+  if (set.reps != null) parts.push(`${set.reps} reps`)
+  if (set.hold_seconds != null) parts.push(`${set.hold_seconds}s`)
+  if (set.load) parts.push(set.load)
+  return parts.length > 0 ? parts.join(' · ') : 'logged'
+}
+
+// The edit sheet's own buffer, so typing in it never fights a server response.
+const setEdit = reactive({ reps: '', load: '', hold: '' })
+function openSetEditor(entryId: number, set: SessionSet) {
+  editingSet.value = { entryId, set }
+  setEdit.reps = set.reps != null ? String(set.reps) : ''
+  setEdit.load = set.load ?? ''
+  setEdit.hold = set.hold_seconds != null ? String(set.hold_seconds) : ''
+}
+function submitSetEdit() {
+  saveSet({
+    reps: setEdit.reps.trim() === '' ? null : Number(setEdit.reps),
+    load: setEdit.load.trim() || null,
+    hold_seconds: setEdit.hold.trim() === '' ? null : Number(setEdit.hold),
+  })
 }
 </script>
 
@@ -164,14 +283,10 @@ async function saveMeta() {
     <template v-else-if="session">
       <header class="session__head">
         <div>
-          <h1 class="session__title">{{ session.workout_name ?? 'Ad-hoc session' }}</h1>
+          <h1 class="session__title">{{ session.workout_name ?? 'Free-form session' }}</h1>
           <span class="session__date">{{ session.performed_on }}</span>
         </div>
-        <span
-          class="session__progress"
-          aria-label="Movements completed">
-          {{ progress }}
-        </span>
+        <span class="session__summary">{{ summary }}</span>
       </header>
 
       <p
@@ -183,7 +298,7 @@ async function saveMeta() {
       <p
         v-if="session.movements.length === 0"
         class="session__status">
-        {{ isAdHoc ? 'Nothing logged yet. Add the first movement below.' : 'No movements were logged for this session.' }}
+        Nothing logged yet. Add the first movement below.
       </p>
 
       <ol
@@ -192,9 +307,9 @@ async function saveMeta() {
         <li
           v-for="entry in session.movements"
           :key="entry.id"
-          class="log-entry"
-          :class="{ 'log-entry--done': entry.done }">
-          <div class="log-entry__top">
+          class="entry"
+          :class="{ 'entry--done': entry.done }">
+          <div class="entry__top">
             <button
               type="button"
               class="check"
@@ -204,86 +319,67 @@ async function saveMeta() {
               @click="toggleDone(entry)">
               {{ entry.done ? '✓' : '' }}
             </button>
-            <div class="log-entry__ident">
-              <span class="log-entry__name">{{ entry.movement_name }}</span>
-              <span
-                v-if="entry.previous"
-                class="log-entry__previous">
-                Last: {{ previousSummary(entry) }}
+            <div class="entry__ident">
+              <span class="entry__name">{{ entry.movement_name }}</span>
+              <span class="entry__context">
+                <span v-if="targetSummary(entry)">Plan: {{ targetSummary(entry) }}</span>
+                <span
+                  v-if="entry.previous"
+                  class="entry__previous">
+                  Last: {{ previousSummary(entry) }}
+                </span>
               </span>
             </div>
+            <button
+              type="button"
+              class="entry__remove"
+              :aria-label="`Remove ${entry.movement_name}`"
+              @click="removeEntry(entry)">
+              ✕
+            </button>
           </div>
 
-          <div class="actuals">
-            <div class="actuals__sets">
-              <span class="actuals__label">Sets</span>
-              <div class="stepper">
-                <button
-                  type="button"
-                  class="stepper__btn"
-                  aria-label="Fewer sets"
-                  @click="bumpSets(entry, -1)">
-                  −
-                </button>
-                <span class="stepper__value">{{ entry.actual_sets ?? '—' }}</span>
-                <button
-                  type="button"
-                  class="stepper__btn"
-                  aria-label="More sets"
-                  @click="bumpSets(entry, 1)">
-                  +
-                </button>
-              </div>
-            </div>
-
-            <label class="actuals__field">
-              <span class="actuals__label">Reps</span>
-              <input
-                class="actuals__input"
-                type="text"
-                inputmode="text"
-                :value="entry.actual_reps ?? ''"
-                placeholder="5, AMRAP, 30s"
-                @change="saveReps(entry, ($event.target as HTMLInputElement).value)" />
-            </label>
-
-            <label class="actuals__field">
-              <span class="actuals__label">Load</span>
-              <input
-                class="actuals__input"
-                type="text"
-                inputmode="text"
-                :value="entry.actual_load ?? ''"
-                placeholder="100lb, bodyweight"
-                @change="saveLoad(entry, ($event.target as HTMLInputElement).value)" />
-            </label>
-          </div>
-
-          <input
-            class="log-entry__notes"
-            type="text"
-            :value="entry.notes"
-            placeholder="Notes for this movement…"
-            :aria-label="`Notes for ${entry.movement_name}`"
-            @change="saveEntryNotes(entry, ($event.target as HTMLInputElement).value)" />
+          <ul
+            v-if="entry.sets.length > 0"
+            class="sets">
+            <li
+              v-for="set in entry.sets"
+              :key="set.id">
+              <button
+                type="button"
+                class="set"
+                :aria-label="`Edit set ${set.position}`"
+                @click="openSetEditor(entry.id, set)">
+                <span class="set__index">{{ set.position }}</span>
+                <span class="set__values">{{ setSummary(set) }}</span>
+                <span
+                  v-if="set.set_kind !== 'working'"
+                  class="set__kind">
+                  {{ set.set_kind }}
+                </span>
+              </button>
+            </li>
+          </ul>
 
           <button
-            v-if="isAdHoc"
             type="button"
-            class="log-entry__remove"
-            @click="removeEntry(entry)">
-            Remove
+            class="log-set"
+            :disabled="busyEntry === entry.id"
+            @click="logSet(entry)">
+            {{ busyEntry === entry.id ? 'Logging…' : '+ Log set' }}
           </button>
+
+          <p class="entry__hint">
+            {{ entry.sets.length === 0 ? 'Logs the plan, then repeats the last set.' : 'Repeats the last set. Tap a set to change it.' }}
+          </p>
         </li>
       </ol>
 
-      <section
-        v-if="isAdHoc"
-        class="compose">
+      <section class="compose">
         <button
           v-if="!showPicker"
           type="button"
-          class="btn btn--accent compose__open"
+          class="btn compose__open"
           @click="showPicker = true">
           + Add a movement
         </button>
@@ -294,11 +390,11 @@ async function saveMeta() {
               type="button"
               class="link-btn"
               @click="showPicker = false">
-              Done adding
+              Close
             </button>
           </div>
           <MovementPicker
-            :busy="adding"
+            :busy="busyEntry !== null"
             @pick="addMovement" />
         </template>
       </section>
@@ -323,6 +419,7 @@ async function saveMeta() {
               type="number"
               min="0"
               inputmode="numeric"
+              placeholder="filled in when you finish"
               @blur="saveMeta" />
           </label>
         </div>
@@ -337,19 +434,34 @@ async function saveMeta() {
         </label>
       </section>
 
-      <div class="session__actions">
+      <div class="session__secondary">
         <button
-          v-if="isAdHoc && session.movements.length > 0"
+          v-if="isFreeForm && session.movements.length > 0"
           type="button"
           class="btn"
           @click="showPromote = true">
           Save as workout
         </button>
-        <RouterLink
-          class="btn btn--accent"
-          :to="{ name: 'sessions' }">
-          Done
-        </RouterLink>
+        <button
+          type="button"
+          class="btn btn--quiet"
+          @click="deleteSession">
+          Delete session
+        </button>
+      </div>
+
+      <!-- Sticky so the one action that ends the session sits in the thumb zone rather
+           than at the bottom of a page that grows with every set. -->
+      <div
+        v-if="live"
+        class="finish-bar">
+        <button
+          type="button"
+          class="btn btn--accent finish-bar__btn"
+          :disabled="finishing"
+          @click="finish">
+          {{ finishing ? 'Finishing…' : 'Finish session' }}
+        </button>
       </div>
 
       <PromoteSessionModal
@@ -358,6 +470,70 @@ async function saveMeta() {
         :movement-count="session.movements.length"
         @promoted="onPromoted"
         @close="showPromote = false" />
+
+      <div
+        v-if="editingSet"
+        class="overlay"
+        @click.self="editingSet = null">
+        <form
+          class="sheet"
+          @submit.prevent="submitSetEdit">
+          <h2 class="sheet__title">Set {{ editingSet.set.position }}</h2>
+          <div class="sheet__grid">
+            <label
+              v-if="!asksForHold(session.movements.find((m) => m.id === editingSet!.entryId)!)"
+              class="field">
+              <span class="field__label">Reps</span>
+              <input
+                v-model="setEdit.reps"
+                class="field__input"
+                type="number"
+                min="0"
+                inputmode="numeric" />
+            </label>
+            <label
+              v-if="asksForHold(session.movements.find((m) => m.id === editingSet!.entryId)!)"
+              class="field">
+              <span class="field__label">Hold (sec)</span>
+              <input
+                v-model="setEdit.hold"
+                class="field__input"
+                type="number"
+                min="0"
+                inputmode="numeric" />
+            </label>
+            <label
+              v-if="asksForLoad(session.movements.find((m) => m.id === editingSet!.entryId)!)"
+              class="field">
+              <span class="field__label">{{ loadLabel(session.movements.find((m) => m.id === editingSet!.entryId)!) }}</span>
+              <input
+                v-model="setEdit.load"
+                class="field__input"
+                type="text"
+                placeholder="100lb, 2 plates" />
+            </label>
+          </div>
+          <div class="sheet__actions">
+            <button
+              type="button"
+              class="btn btn--quiet"
+              @click="removeSet(editingSet.entryId, editingSet.set)">
+              Remove
+            </button>
+            <button
+              type="button"
+              class="btn"
+              @click="editingSet = null">
+              Cancel
+            </button>
+            <button
+              type="submit"
+              class="btn btn--accent">
+              Save
+            </button>
+          </div>
+        </form>
+      </div>
     </template>
   </section>
 </template>
@@ -367,6 +543,9 @@ async function saveMeta() {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  // Room for the sticky finish bar: its own offset off the tab bar, plus its height,
+  // plus a gap. Without this the last card sits underneath it and cannot be tapped.
+  padding-bottom: calc(var(--touch-target) * 2.3 + var(--space-6));
 }
 
 .session__back {
@@ -374,44 +553,39 @@ async function saveMeta() {
   font-size: 0.9rem;
 }
 
-.session__status {
-  padding: var(--space-4);
-  text-align: center;
-  color: var(--text-muted);
-
-  &--error {
-    color: #f87171;
-  }
-}
-
 .session__head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 .session__title {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.35rem;
 }
 
 .session__date {
-  display: inline-block;
-  margin-top: var(--space-1);
   color: var(--text-muted);
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
 }
 
-.session__progress {
+.session__summary {
   flex-shrink: 0;
-  padding: var(--space-1) var(--space-3);
-  border-radius: 999px;
-  background: var(--surface-raised);
   color: var(--text-muted);
+  font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
+}
+
+.session__status {
+  padding: var(--space-4);
+  color: var(--text-muted);
+  text-align: center;
+
+  &--error {
+    color: var(--negative);
+  }
 }
 
 .log {
@@ -420,13 +594,13 @@ async function saveMeta() {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
-.log-entry {
+.entry {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
   padding: var(--space-3);
   background: var(--surface);
   border: 1px solid var(--border);
@@ -437,24 +611,21 @@ async function saveMeta() {
   }
 }
 
-.log-entry__top {
+.entry__top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-3);
 }
 
-// A large, one-handed-friendly checkbox — the most-tapped control on the screen.
 .check {
-  flex: 0 0 auto;
+  flex-shrink: 0;
   width: var(--touch-target);
   height: var(--touch-target);
-  display: grid;
-  place-items: center;
   border: 2px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
   color: var(--accent-contrast);
-  font-size: 1.4rem;
+  font-size: 1.2rem;
   line-height: 1;
 
   &--on {
@@ -463,151 +634,135 @@ async function saveMeta() {
   }
 }
 
-.log-entry__ident {
+.entry__ident {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  min-width: 0;
 }
 
-.log-entry__name {
+.entry__name {
   font-weight: 600;
   font-size: 1.05rem;
 }
 
-.log-entry__previous {
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.log-entry--done .log-entry__name {
-  color: var(--text-muted);
-}
-
-.actuals {
-  display: grid;
-  grid-template-columns: auto 1fr 1fr;
+.entry__context {
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
-  align-items: end;
-}
-
-.actuals__sets {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.actuals__field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.actuals__label {
-  font-size: 0.75rem;
   color: var(--text-muted);
+  font-size: 0.78rem;
 }
 
-.actuals__input {
+.entry__previous {
+  color: var(--accent);
+}
+
+.entry__remove {
+  flex-shrink: 0;
+  min-width: var(--touch-target);
   min-height: var(--touch-target);
-  width: 100%;
-  padding: 0 var(--space-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg);
-  color: var(--text);
-  font: inherit;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
-.stepper {
+.sets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.set {
+  width: 100%;
+  min-height: var(--touch-target);
   display: flex;
   align-items: center;
-  gap: var(--space-1);
-}
-
-.stepper__btn {
-  width: var(--touch-target);
-  height: var(--touch-target);
+  gap: var(--space-3);
+  padding: 0 var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-raised);
   color: var(--text);
-  font-size: 1.3rem;
-  line-height: 1;
+  text-align: left;
 }
 
-.stepper__value {
-  min-width: 2ch;
-  text-align: center;
+.set__index {
+  flex-shrink: 0;
+  width: 1.25rem;
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
 }
 
-.log-entry__notes {
-  min-height: var(--touch-target);
-  padding: 0 var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg);
-  color: var(--text);
-  font: inherit;
+.set__values {
+  flex: 1;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
 }
 
-.log-entry__remove {
-  align-self: flex-start;
-  border: none;
-  background: transparent;
-  padding: 0;
-  color: #f87171;
-  font-size: 0.8rem;
+.set__kind {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
-.section-title {
-  margin: 0 0 var(--space-2);
-  font-size: 1.05rem;
-}
-
-.compose {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  background: var(--surface);
-  border: 1px dashed var(--border);
+// The largest target on the card: it is pressed once per set, mid-workout, one-handed.
+.log-set {
+  min-height: calc(var(--touch-target) * 1.15);
+  border: 1px solid var(--accent);
   border-radius: var(--radius);
-}
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 700;
+  font-size: 1.05rem;
 
-// Full-width so adding the next movement is a thumb-reachable target between sets.
-.compose__open {
-  width: 100%;
-  justify-content: center;
-}
-
-.compose__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2);
-
-  .section-title {
-    margin: 0;
+  &:disabled {
+    opacity: 0.6;
   }
 }
 
-.link-btn {
-  border: none;
-  background: transparent;
-  padding: 0;
-  color: var(--accent);
-  font-size: 0.85rem;
+.entry__hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-align: center;
 }
 
+.compose,
 .meta {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+
+.compose__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.compose__open {
+  justify-content: center;
+}
+
+.section-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.link-btn {
+  min-height: var(--touch-target);
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
 }
 
 .meta__grid {
@@ -637,12 +792,76 @@ async function saveMeta() {
   font: inherit;
 
   &--area {
-    min-height: 4.5rem;
+    min-height: auto;
     resize: vertical;
   }
 }
 
-.session__actions {
+.session__secondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.finish-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  // Clears the tab bar, which is itself fixed to the bottom edge.
+  bottom: calc(var(--touch-target) + var(--space-4) + var(--safe-bottom));
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  // The right inset clears the feedback button, which is fixed at the same height.
+  padding: 0 calc(var(--touch-target) + var(--space-3)) 0 var(--space-4);
+  pointer-events: none;
+}
+
+.finish-bar__btn {
+  pointer-events: auto;
+  width: 100%;
+  max-width: var(--content-max);
+  min-height: calc(var(--touch-target) * 1.15);
+  justify-content: center;
+  font-size: 1.05rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.sheet {
+  width: 100%;
+  max-width: 32rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.sheet__title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.sheet__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.sheet__actions {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
@@ -665,8 +884,28 @@ async function saveMeta() {
     color: var(--accent-contrast);
   }
 
+  &--quiet {
+    border-color: var(--negative);
+    color: var(--negative);
+    background: transparent;
+  }
+
   &:disabled {
     opacity: 0.6;
+  }
+}
+
+@media (min-width: 720px) {
+  .overlay {
+    align-items: center;
+  }
+
+  .sheet {
+    border-radius: var(--radius);
+  }
+
+  .finish-bar {
+    bottom: var(--space-4);
   }
 }
 </style>
