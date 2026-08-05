@@ -516,7 +516,9 @@ func (r *SessionRepo) AddSet(ctx context.Context, sessionID uuid.UUID, entryID i
 		Scan(&last.Position, &last.Reps, &last.Load, &last.HoldSeconds)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		reps = pickPtr(reps, targetRepsAsInt(entry.TargetReps))
+		targetReps, targetHold := readTarget(entry.TargetReps)
+		reps = pickPtr(reps, targetReps)
+		hold = pickPtr(hold, targetHold)
 		load = pickPtr(load, entry.TargetLoad)
 	case err != nil:
 		return models.WorkoutSession{}, fmt.Errorf("finding previous set: %w", err)
@@ -768,18 +770,27 @@ type execer interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
-// targetRepsAsInt reads a rep count out of a target when it is a plain number, so the
-// first set of a "3 × 8" comes pre-filled. A target of "8–10" or "AMRAP" yields nothing
-// and the set is logged without a rep count rather than with a guess.
-func targetRepsAsInt(target *string) *int {
+// readTarget pulls a rep count or a hold out of a target so the first set comes
+// pre-filled from the plan: "8" is eight reps, "30s" is a thirty-second hold — the
+// notation the prescription has always used for a stretch.
+//
+// A target of "8–10" or "AMRAP" yields neither, and the set is logged without a number
+// rather than with a guess.
+func readTarget(target *string) (reps, hold *int) {
 	if target == nil {
-		return nil
+		return nil, nil
 	}
-	n, err := strconv.Atoi(strings.TrimSpace(*target))
-	if err != nil {
-		return nil
+	text := strings.TrimSpace(*target)
+	if seconds, ok := strings.CutSuffix(text, "s"); ok {
+		if n, err := strconv.Atoi(seconds); err == nil {
+			return nil, &n
+		}
+		return nil, nil
 	}
-	return &n
+	if n, err := strconv.Atoi(text); err == nil {
+		return &n, nil
+	}
+	return nil, nil
 }
 
 // valueOrDefault substitutes a fallback for an empty string, for the NOT NULL text

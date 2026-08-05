@@ -205,6 +205,44 @@ func TestSession_AddSet_CarriesForwardAndTicksDone(t *testing.T) {
 	assert.Equal(t, 3, *after.Movements[0].TargetSets)
 }
 
+// A stretch's plan is written "30s", which is a hold, not a rep count. The first set has
+// to read it that way or a timed movement always starts blank.
+func TestSession_AddSet_SeedsAHoldFromATimedTarget(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+	stretch := createMovement(t, mux, "Couch Stretch", "stretch")
+	workout := createWorkoutWithMovements(t, mux, "Mobility", []map[string]any{
+		{"movement_id": stretch, "sets": 1, "reps": "30s"},
+	})
+	session := decodeSession(t, postJSON(t, mux, "/api/v1/sessions", map[string]any{"workout_id": workout.ID}).Body)
+
+	after := logSet(t, mux, session, session.Movements[0].ID, map[string]any{})
+	set := after.Movements[0].Sets[0]
+	require.NotNil(t, set.HoldSeconds)
+	assert.Equal(t, 30, *set.HoldSeconds)
+	assert.Nil(t, set.Reps, "a hold is not a rep count")
+
+	// The next set carries the hold forward like any other value.
+	again := logSet(t, mux, session, session.Movements[0].ID, map[string]any{})
+	require.NotNil(t, again.Movements[0].Sets[1].HoldSeconds)
+	assert.Equal(t, 30, *again.Movements[0].Sets[1].HoldSeconds)
+}
+
+// A target that is neither a count nor a hold seeds nothing rather than a guess.
+func TestSession_AddSet_LeavesAProseTargetAlone(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+	row := createMovement(t, mux, "Barbell Row", "exercise")
+	workout := createWorkoutWithMovements(t, mux, "Pull", []map[string]any{
+		{"movement_id": row, "sets": 3, "reps": "8–10", "load": "2 plates"},
+	})
+	session := decodeSession(t, postJSON(t, mux, "/api/v1/sessions", map[string]any{"workout_id": workout.ID}).Body)
+
+	set := logSet(t, mux, session, session.Movements[0].ID, map[string]any{}).Movements[0].Sets[0]
+	assert.Nil(t, set.Reps)
+	assert.Nil(t, set.HoldSeconds)
+	require.NotNil(t, set.Load, "the load is prose by design and copies across as-is")
+	assert.Equal(t, "2 plates", *set.Load)
+}
+
 // An entry with no target is done as soon as anything is logged against it: nothing was
 // planned, so doing it at all is the whole of it.
 func TestSession_AddSet_UntargetedEntryIsDoneOnFirstSet(t *testing.T) {
