@@ -27,3 +27,6 @@ dist/
 .idea/
 .vscode/
 .planning
+
+# vue-tsc --build writes these next to the tsconfigs it checks.
+*.tsbuildinfo

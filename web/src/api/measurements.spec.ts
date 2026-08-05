@@ -26,6 +26,7 @@ function trend(partial: Partial<MetricTrend>): MetricTrend {
     unit: 'lb',
     direction: 'higher_better',
     category: 'strength',
+    how_to_measure: '',
     points: [],
     first: null,
     latest: null,
