@@ -150,16 +150,64 @@ func findCommand(commands []*cobra.Command, name string) *cobra.Command {
 }
 
 func TestAdminFeedbackListRejectsConflictingFilters(t *testing.T) {
-	root := NewRootCommand()
-	root.SetArgs([]string{"admin", "feedback", "list", "--open", "--done"})
-	root.SetOut(&bytes.Buffer{})
-	root.SetErr(&bytes.Buffer{})
+	for _, args := range [][]string{
+		{"--open", "--done"},
+		{"--all", "--open"},
+		{"--all", "--status", "done"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			root := NewRootCommand()
+			root.SetArgs(append([]string{"admin", "feedback", "list"}, args...))
+			root.SetOut(&bytes.Buffer{})
+			root.SetErr(&bytes.Buffer{})
 
-	err := root.Execute()
-	if err == nil {
-		t.Fatal("expected --open with --done to be rejected")
+			err := root.Execute()
+			if err == nil {
+				t.Fatalf("expected %v to be rejected", args)
+			}
+			if !strings.Contains(err.Error(), "mutually exclusive") {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
 	}
-	if !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Errorf("unexpected error: %v", err)
+}
+
+// The queue only stays useful if closed feedback leaves it, which is what the empty
+// status means here — so an unfiltered list has to be asked for by name.
+func TestFeedbackFiltersResolve(t *testing.T) {
+	cases := []struct {
+		name    string
+		filters feedbackFilters
+		want    string
+	}{
+		{"no flags scopes to open", feedbackFilters{status: "open"}, "open"},
+		{"--all drops the filter", feedbackFilters{status: "open", all: true}, ""},
+		{"--done", feedbackFilters{status: "open", done: true}, "done"},
+		{"--open", feedbackFilters{status: "open", open: true}, "open"},
+		{"--status done", feedbackFilters{status: "done", statusSet: true}, "done"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := tc.filters.resolve()
+			if err != nil {
+				t.Fatalf("resolve: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("status = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestFeedbackListStatusFlagDefaultsToOpen(t *testing.T) {
+	admin := findCommand(NewRootCommand().Commands(), "admin")
+	feedback := findCommand(admin.Commands(), "feedback")
+	list := findCommand(feedback.Commands(), "list")
+
+	if got := list.Flags().Lookup("status").DefValue; got != "open" {
+		t.Errorf("--status default = %q, want %q", got, "open")
+	}
+	if list.Flags().Lookup("all") == nil {
+		t.Error("--all is missing; there is no way to see closed feedback")
 	}
 }

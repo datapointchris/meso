@@ -34,35 +34,71 @@ func newAdminFeedbackCommand() *cobra.Command {
 	return cmd
 }
 
+// feedbackFilters is the four ways `list` can be scoped, resolved into the one status
+// the API takes.
+type feedbackFilters struct {
+	status                     string
+	statusSet, open, done, all bool
+}
+
+// resolve collapses the flags to a status, where the empty string means every status.
+// Reaching that empty string takes an explicit --all: this is a triage queue, and a
+// default that includes closed feedback buries the items still waiting on a response
+// behind every one already dealt with.
+func (f feedbackFilters) resolve() (string, error) {
+	chosen := 0
+	for _, set := range []bool{f.statusSet, f.open, f.done, f.all} {
+		if set {
+			chosen++
+		}
+	}
+	if chosen > 1 {
+		return "", usageError{fmt.Errorf("--status, --open, --done and --all are mutually exclusive")}
+	}
+	switch {
+	case f.all:
+		return "", nil
+	case f.done:
+		return "done", nil
+	case f.open:
+		return "open", nil
+	}
+	return f.status, nil
+}
+
 func newFeedbackListCommand() *cobra.Command {
 	var (
-		status, search string
-		open, done     bool
-		asJSON         bool
+		status, search  string
+		open, done, all bool
+		asJSON          bool
 	)
 	cmd := &cobra.Command{
 		Use:   "list [flags]",
-		Short: "List captured feedback, newest first",
-		Long: "List feedback. --open and --done are shorthands for the common --status\n" +
-			"filters; --json emits the full rows for a tool or an agent to act on.",
-		Example: "  meso admin feedback list --open\n" +
+		Short: "List open feedback, newest first",
+		Long: "List feedback. This is a triage queue, so it shows open feedback by default —\n" +
+			"closed items would otherwise pile up in front of the ones still needing a\n" +
+			"response. --all drops the filter; --done and --open are shorthands for the\n" +
+			"matching --status. --json emits the full rows for a tool or an agent to act on.",
+		Example: "  meso admin feedback list\n" +
+			"  meso admin feedback list --all\n" +
 			"  meso admin feedback list --search timer --json",
 		Args: usageArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if open && done {
-				return usageError{fmt.Errorf("--open and --done are mutually exclusive")}
-			}
-			switch {
-			case open:
-				status = "open"
-			case done:
-				status = "done"
+			wanted, err := feedbackFilters{
+				status:    status,
+				statusSet: cmd.Flags().Changed("status"),
+				open:      open,
+				done:      done,
+				all:       all,
+			}.resolve()
+			if err != nil {
+				return err
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
 				return handleAPIError(err)
 			}
-			items, err := client.ListFeedback(cmd.Context(), api.FeedbackFilter{Status: status, Search: search})
+			items, err := client.ListFeedback(cmd.Context(), api.FeedbackFilter{Status: wanted, Search: search})
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -74,10 +110,11 @@ func newFeedbackListCommand() *cobra.Command {
 		},
 	}
 	f := cmd.Flags()
-	f.StringVar(&status, "status", "", "Only feedback with this status (open | done)")
+	f.StringVar(&status, "status", "open", "Only feedback with this status (open | done)")
 	f.StringVar(&search, "search", "", "Only feedback whose body matches this text")
 	f.BoolVar(&open, "open", false, "Only open feedback (shorthand for --status open)")
 	f.BoolVar(&done, "done", false, "Only closed feedback (shorthand for --status done)")
+	f.BoolVar(&all, "all", false, "Every piece of feedback, open and closed")
 	f.BoolVar(&asJSON, "json", false, "Output feedback as JSON to stdout")
 	return cmd
 }
