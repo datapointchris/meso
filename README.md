@@ -83,15 +83,15 @@ This is not device flow, not a self-validating JWKS resource server, and not a r
 
 ## Domain Model
 
-Seven entities. The first three are the library and its compositions; the rest are the tracked reality.
+Eight entities. The first three are the library and its compositions; the rest are the tracked reality.
 
 ```bash
 Movement ──< WorkoutMovement >── Workout ──< CycleWorkout >── Cycle
    │                                 │                          │
    │ (self-ref: alternate/           │                          │ targets
    │  antagonist/progression)        ▼                          ▼
-   │                            WorkoutSession ──< SessionMovement >   Goal (a Stat target)
-   │                            (a workout done on a date)
+   │                            WorkoutSession ──< SessionMovement >── SessionSet
+   │                            (a workout done on a date)      (what was performed)
    │
 Measurement (time series: lift numbers, 5k time, toe reach, weight, ROM, ...)
 FitnessLogEntry (dated journal, reviewed with Claude)
@@ -133,18 +133,27 @@ A workout IS its ordered list of prescribed movements. This join is **payload-be
 
 ### 4. WorkoutSession — a workout performed on a date (the instance)
 
-The "checkboxes that they are done" + "notes with a particular workout I do on a day." Distinct from the template so history is real data.
+The record of what was actually done, kept distinct from the template so history is real data.
 
-- `WorkoutSession`: `id` (UUID7 for user-created rows), `workout_id: FK` (nullable — allows an ad-hoc session), `performed_on: Date`, `duration_minutes`, `overall_notes: Text` (markdown), `felt: Text` (nullable energy/mood tag), `created_at`
-- `SessionMovement` (per-exercise actuals): `session_id`, `movement_id`, `position`, `done: bool` (the checkbox), `actual_sets`, `actual_reps: Text`, `actual_load: Text`, `notes: Text`
-  - Seeded from the workout's `WorkoutMovement` rows when a session is started from a template, then edited in place as it's performed.
-  - Appended one at a time when there is no template, so `position` is the order things were actually done.
+- `WorkoutSession`: `id` (UUID7 for user-created rows), `workout_id: FK` (nullable — allows a free-form session), `performed_on: Date`, `duration_minutes`, `overall_notes: Text` (markdown), `felt: Text` (nullable energy/mood tag), `created_at`, `finished_at` (nullable)
+- `SessionMovement` (the plan, for this session): `session_id`, `movement_id`, `position`, `done: bool`, `target_sets`, `target_reps: Text`, `target_load: Text`, `notes: Text`
+- `SessionSet` (what was performed, one row per set): `session_movement_id`, `position`, `reps: Integer`, `load: Text`, `hold_seconds`, `set_kind` (lookup: `working` | `warmup` | `amrap` | `drop` | `failure`), `notes`, `logged_at`
 
-**A session with no template is the unplanned-training path, and it is where new workouts come from.** Not everything is programmed in advance; requiring a workout to exist before anything can be recorded means either authoring a template mid-gym or not logging at all. So a session can start empty, gain movements as they happen, and then be **promoted** into a `Workout` — the logged actuals become the prescription, in the order performed, and the session is back-linked to the workout it produced so it reads as that template's first instance. Only an ad-hoc session can be promoted; one already backed by a template would silently fork it, which is an edit of that workout rather than a new one.
+**The plan and the performance are different columns, and that is the point.** They used to be the same ones: `actual_*` was seeded from the prescription when a session started, then overwritten as it was performed, so the plan was unrecoverable the moment anything diverged — and divergence itself could only be expressed as an unchecked box. Training that went differently than programmed read as training that failed. Now `target_*` is copied from the workout and left alone, and the sets are the record. Doing four sets of a programmed three is a fact rather than an overwrite.
 
-The logging screen carries the features every strength user rewards (see Competitive landscape): the **previous session's actual weight/reps shown inline** next to each input so I know what to beat; and **set-type tags** (warmup / AMRAP / drop / failure). When a movement is swapped for an alternate mid-session, its target **carries over** to the substitute. This is the `ActiveSessionView` — the single most-used, most mobile-critical screen.
+Because a set carries its own `set_kind` and `hold_seconds`, its `reps` can be a plain `Integer`: "AMRAP" is a kind and a 30-second hold is a hold. `load` stays free `Text`, matching the prescription it is measured against.
 
-Session detail embeds each entry's `previous` — the last recorded performance of that movement, strictly before this session. Only entries marked **done** qualify: starting from a template seeds `actual_*` from the prescription, so without that filter a plan opened and abandoned would come back as a result to beat. It is detail-only (the list endpoint leaves it null) and resolves in one `DISTINCT ON` query for the whole session.
+**Logging a set costs one tap.** `POST .../sets` with an empty body repeats the previous set — same reps, same load — falling back to the target for the first one, so only a set that differs needs describing. `done` ticks itself at the moment the logged sets reach the target; it stays writable, so stopping short on purpose survives the sets that follow.
+
+**A session with no template is the unplanned-training path, and it is where new workouts come from.** Not everything is programmed in advance; requiring a workout to exist before anything can be recorded means either authoring a template mid-gym or not logging at all. So a session can start empty, gain movements as they happen, and then be **promoted** into a `Workout` — as many sets as were performed, the reps most of them shared, and the load finished on become the prescription, and the session is back-linked to the workout it produced so it reads as that template's first instance. Only a free-form session can be promoted; one already backed by a template would silently fork it, which is an edit of that workout rather than a new one.
+
+**Movements can be added to and removed from any session, template-backed or not.** Doing something the plan did not call for, or skipping something it did, is part of what happened; the record has to be able to say so. Editing the workout instead would rewrite the plan of every session ever run from it.
+
+**`finished_at` is what separates training happening now from history.** It fills in `duration_minutes` from when the session started, so the duration is never typed, and it is what lets the app offer to resume. Finishing means "I am done training", not "I completed the plan" — nothing compares it to the targets, and a session finished two movements in is a finished session.
+
+Session detail embeds each entry's `previous` — the last set of the most recent performed entry for that movement, strictly before this session. It qualifies only if that entry is done **and** has sets under it: ticked with nothing logged is not a number to beat. Detail-only (the list endpoint leaves it null), resolved in one `DISTINCT ON` query for the whole session.
+
+When a movement is swapped for an alternate mid-session, its target and its already-logged sets **carry over** to the substitute. This is the `ActiveSessionView` — the single most-used, most mobile-critical screen.
 
 Two features the landscape rewards are **deliberately excluded**: the rest timer (not wanted) and the plate calculator. The plate calculator is also structurally wrong for this library — barbell lifts are a small minority of the movements, and `load` is free `Text` by design (`"80% 1RM"`, `"2 plates"`, `"bodyweight"`), so there is no number to calculate from without parsing prose.
 
@@ -203,7 +212,7 @@ There is deliberately **no kind/category** (bug vs. idea vs. improvement). It co
 - **Workout composition is a real payload-bearing M2M** — `WorkoutMovement` carries order + prescription and is read on every render. The relationship _is_ the query, so the M2M-with-payload is correct (as distinct from a prose relationship, which would not earn a table).
 - **Movement relationships get a self-ref join**, justified by the swap-alternate UI — the concrete usage pattern behind the table.
 - **Muscles are lookup-backed** — `muscles(name PK, region)` + `movement_muscles` join with a role, not free tags. Enables region filtering and a future body-map, per the project-wide lookup-tables rule.
-- **Lookup tables, never enums** — `movement_kinds`, `metric_definitions`, `cycle_statuses`, `relationship_kinds` all `Text PRIMARY KEY` + FK. All text columns `Text`.
+- **Lookup tables, never enums** — `movement_kinds`, `metric_definitions`, `cycle_statuses`, `relationship_kinds`, `set_kinds`, `load_modes` all `Text PRIMARY KEY` + FK. All text columns `Text`.
 - **UUID7 PKs for user-generated rows** (`WorkoutSession`, `FitnessLogEntry`), identity for catalog rows (`Movement`, `Workout`) — keeps future client-side/offline creation feasible.
 - **Go layering** — one file per resource across `handlers/` (HTTP), `repository/` (pgx queries), `models/` (domain structs), plus `middleware/` and `migrations/` (goose DDL), mirroring nomad's `api/` layout.
 - **Filtering is server-side** — list endpoints own their query params and build the `WHERE` in SQL, so the CLI and web share one filter definition instead of each re-implementing it.
@@ -218,14 +227,16 @@ This is an iOS-in-the-gym app; mobile-first is the whole point, not a later pass
 
 - Touch targets ≥ 44px; the session-logging screen (check off a set, bump a weight) must be usable one-handed without zoom.
 - Responsive layouts from a phone viewport up — no horizontal scroll, no desktop-table-crammed-onto-phone.
-- The "active session" view is the highest-traffic screen: big checkboxes, inline +/- for actual load/reps, minimal navigation.
+- **Sessions is the first tab and the landing route.** The reason to open the app is to train, so the first thing on screen is a way in: resume the one already underway, or start a new one. Cycles gave up its tab slot for it — planning a block is a rare, considered act that can live a tap deeper, inside Workouts.
+- The "active session" view is the highest-traffic screen. One big **Log set** per movement, which sends nothing and lets the server repeat the last set; the plan sits above it as a line of text rather than a row of inputs. Nothing on it scores you — "3 movements · 20 sets", not "2/5 done".
+- **Nothing irreversible without a dialog, and never `window.confirm`** — a system alert lands its buttons wherever iOS decides and its "OK" says nothing about what is being agreed to, which is the wrong shape for a destructive action taken one-handed mid-workout.
 - **Choosing anything is a search box over tap targets, never a native `<select>` or `<input type="date">`.** Both hand off to an OS picker whose density is fixed and small, and both cost several interactions where one would do. The library picker and the date field are in-app components for that reason.
 - Ships as an **installable PWA** so it opens like an app from the home screen — matching the mobile-PWA write-surface in `~/dev/vision.md` and the gym-mobile need. Full **offline session logging + sync is deferred past v1** (a large add); v1 is a responsive PWA that needs connectivity. UUID7 PKs keep offline-create possible when it's built.
 - The mobile patterns established here (breakpoints, touch components) should stay design-variable-driven so they compose with the design-style-switcher idea.
 
 ### Seed vs. import
 
-`cmd/seed` carries **only the FK-backbone lookups** — the enum lookups (`movement_kinds`, `relationship_kinds`, `cycle_statuses`) plus `muscles`, the categoricals with no CLI verb — and runs on **every deploy**, idempotently, so no fresh environment ever comes up write-dead. **Everything else is content loaded through the CLI** (`meso metrics define`, `meso movements create`, `meso workouts create`, `meso cycles create`), which exercises the real API write path. The rule: **if an entity has a CLI verb, it is imported, never seeded** — migrations and seed carry no actual content.
+`cmd/seed` carries **only the FK-backbone lookups** — the enum lookups (`movement_kinds`, `relationship_kinds`, `cycle_statuses`, `set_kinds`, `load_modes`) plus `muscles`, the categoricals with no CLI verb — and runs on **every deploy**, idempotently, so no fresh environment ever comes up write-dead. **Everything else is content loaded through the CLI** (`meso metrics define`, `meso movements create`, `meso workouts create`, `meso cycles create`), which exercises the real API write path. The rule: **if an entity has a CLI verb, it is imported, never seeded** — migrations and seed carry no actual content.
 
 The initial catalog came from `~/shart/fitness/` that way: the `ppl/*.md` and apartment sheets plus the three research plans became movements, workouts, and cycles; `goals.md` became the metric definitions.
 
@@ -240,7 +251,7 @@ cycle_statuses(name PK)                                   -- planned|active|paus
 metric_definitions(name PK, label, unit, direction, category, how_to_measure)
 muscles(name PK, region)                                  -- hamstrings→posterior, ... (region drives filtering)
 
-movements(id PK identity, name, movement_kind FK, favorite,
+movements(id PK identity, name, movement_kind FK, load_mode FK, favorite,
           rating, tags Text[], equipment Text[], how_to, form_cues, common_faults,
           default_sets, default_reps, default_hold_seconds, sanskrit_name,
           measurable_rom, source_url, source_name, created_at, updated_at)
@@ -258,9 +269,11 @@ workout_movements(id PK, workout_id FK, movement_id FK, position,
           sets, reps, load, rest_seconds, superset_group, notes)
 
 workout_sessions(id PK uuid7, workout_id FK NULL, performed_on,
-          duration_minutes, overall_notes, felt, created_at)
+          duration_minutes, overall_notes, felt, created_at, finished_at NULL)
 session_movements(id PK, session_id FK, movement_id FK, position,
-          done bool, actual_sets, actual_reps, actual_load, notes)
+          done bool, target_sets, target_reps, target_load, notes)
+session_sets(id PK, session_movement_id FK, position, reps Int,
+          load Text, hold_seconds, set_kind FK, notes, logged_at)
 
 cycles(id PK identity, name, goal_summary, target_metric FK NULL,
           target_value, target_date NULL, start_date, status FK, notes)
@@ -287,15 +300,18 @@ Go request/response structs per entity (Create / response / Update shapes) with 
 ## API endpoint shape (RESTful, `net/http` ServeMux)
 
 ```sql
-/api/v1/movements                 CRUD + ?kind=&favorite=&tag=&equipment=&muscle=&region=&search=
+/api/v1/movements                 CRUD + ?kind=&load_mode=&favorite=&tag=&equipment=&muscle=&region=&search=
 /api/v1/muscles                   list the muscle lookup (tagging vocabulary; region drives filtering)
 /api/v1/movements/{id}/related    POST {related_movement_id, relationship_kind}; DELETE .../{rid}
 /api/v1/workouts                  CRUD + ?theme=&tag=&favorite=
 /api/v1/workouts/{id}/movements   POST add movement; PATCH reorder/prescription; DELETE remove
-/api/v1/sessions                  CRUD; POST with workout_id copies template into session; without one it starts empty
-/api/v1/sessions/{id}/movements   POST append a movement mid-session (the ad-hoc path)
-/api/v1/sessions/{id}/movements/{mid}   PATCH done/actuals; DELETE remove the entry
-/api/v1/sessions/{id}/workout     POST promote an ad-hoc session into a workout template
+/api/v1/sessions                  CRUD + ?workout_id=&from=&to=&unfinished=; POST with workout_id copies the template in as the target
+/api/v1/sessions/{id}/finish      POST end the session, filling in the duration (idempotent)
+/api/v1/sessions/{id}/movements   POST append a movement mid-session (works template-backed or not)
+/api/v1/sessions/{id}/movements/{mid}         PATCH done/target/swap; DELETE remove the entry and its sets
+/api/v1/sessions/{id}/movements/{mid}/sets    POST log a set — an empty body repeats the last one
+/api/v1/sessions/{id}/movements/{mid}/sets/{sid}  PATCH fix a set; DELETE drop it
+/api/v1/sessions/{id}/workout     POST promote a free-form session into a workout template
 /api/v1/cycles                    CRUD
 /api/v1/cycles/{id}/workouts      POST/PATCH/DELETE ordered workouts
 /api/v1/metrics                   list metric_definitions; POST define; GET/PUT/DELETE {name}
@@ -315,9 +331,10 @@ Every endpoint group ships with its goose migration and a testcontainers-backed 
 
 ```bash
 meso auth        login | logout | status [--json] | token          # nomad's flow, verbatim
-meso movements   list [--kind --favorite --tag --equipment --muscle --region --search] | show <id> | create | update | delete | muscles | related add/rm | export [--csv]
+meso movements   list [--kind --load-mode --favorite --tag --equipment --muscle --region --search] | show <id> | create | update | delete | muscles | related add/rm | export [--csv]
 meso workouts    list | show <id> | create | update | delete | movements add/reorder/rm
-meso sessions    log [--from-workout <id>] | list [--from --to] | show <id> | movement add/rm/done/update | promote <id> --name
+meso sessions    log [--from-workout <id>] | list [--from --to --unfinished] | show <id> | update <id> | finish <id> | delete <id>
+                 | movement add/rm/done/update | set add/update/rm | promote <id> --name
 meso cycles      list | show <id> | create | update | delete | workouts add/reorder/rm
 meso metrics     list | show <name> | define | edit | delete
 meso measurements record | list [--metric --from --to] | trend <metric>

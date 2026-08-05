@@ -47,20 +47,30 @@ Schema conventions (lookup tables not enums, `TEXT` columns, PK strategy, server
 seed-carries-only-the-FK-backbone) and product independence are fleet standards — see
 `~/dev/standards/data.md` and `~/dev/standards/api-design.md`. How they land here:
 
-- **Lookup tables**: `movement_kinds`, `muscles`, `relationship_kinds`, `cycle_statuses`.
+- **Lookup tables**: `movement_kinds`, `muscles`, `relationship_kinds`, `cycle_statuses`,
+  `set_kinds`, `load_modes`.
   `movement_muscles.role ∈ primary|secondary` is a bounded sub-attribute of a join, so it uses a
   `CHECK` — a `CHECK` is not an enum type.
 - **PKs**: catalog rows (`movements`, `workouts`) use `GENERATED ALWAYS AS IDENTITY` with a
   `UNIQUE` natural key on `.name` so the CLI import upserts idempotently. User-generated rows
   (`workout_sessions`, `fitness_log_entries`) will use UUIDv7. `workout_movements` is the
-  ordered-join case: surrogate id plus `DEFERRABLE UNIQUE(parent_id, position)`.
-- **Seed**: `movement_kinds`, `relationship_kinds`, `cycle_statuses`, `muscles` only. Everything
+  ordered-join case: surrogate id plus `DEFERRABLE UNIQUE(parent_id, position)`, and
+  `session_movements` / `session_sets` follow it.
+- **Plan vs. performance**: `session_movements.target_*` is the prescription copied from the
+  workout; `session_sets` is what was actually done. They are never the same columns again —
+  merging them is what made a diverged session read as a failed one.
+- **Seed**: `movement_kinds`, `relationship_kinds`, `cycle_statuses`, `set_kinds`, `load_modes`,
+  `muscles` only. Everything
   else — metrics, movements, workouts, cycles, measurements, journal — loads through the `meso`
   CLI.
 - **Product independence**: nothing here may know about ichrisbirch, icb, or any sibling app. No
   foreign ids in the schema, no cross-service credentials, no outbound pushes. `feedback` is the
   live example — stored and triaged here, never forwarded. Don't re-propose a push integration.
 - **No MCP, ever** — the `meso` CLI is the sole programmatic/agent surface.
+
+Web conventions: every dialog goes in `components/ModalShell.vue`, every "are you sure" through
+`composables/useConfirm.ts` — never `window.confirm`. `npm run typecheck` must keep its `--build`
+flag; without it the root tsconfig is solution-style and nothing is checked.
 
 ## Local development
 
