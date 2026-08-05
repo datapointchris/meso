@@ -3,6 +3,7 @@ import { reactive, ref } from 'vue'
 import { sessionsApi, type SessionPromote } from '@/api/sessions'
 import type { Workout } from '@/api/workouts'
 import { ApiError } from '@/api/client'
+import ModalShell from './ModalShell.vue'
 
 // Turn a session that was made up on the spot into a workout worth repeating. The
 // movements and their numbers come from what was actually logged, so all that is asked
@@ -43,151 +44,79 @@ async function save() {
 </script>
 
 <template>
-  <div
-    class="overlay"
-    @click.self="emit('close')">
-    <div
-      class="modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Save session as workout">
-      <header class="modal__head">
-        <h2 class="modal__title">Save as workout</h2>
-        <button
-          class="modal__close"
-          type="button"
-          aria-label="Close"
-          @click="emit('close')">
-          ✕
-        </button>
-      </header>
+  <ModalShell
+    title="Save as workout"
+    form
+    @submit="save"
+    @close="emit('close')">
+    <p class="modal__lede">
+      {{ props.movementCount }} logged {{ props.movementCount === 1 ? 'movement' : 'movements' }} become the prescription, in the order you
+      did them.
+    </p>
 
-      <form
-        class="modal__body"
-        @submit.prevent="save">
-        <p class="modal__lede">
-          {{ props.movementCount }} logged {{ props.movementCount === 1 ? 'movement' : 'movements' }} become the prescription, in the order
-          you did them.
-        </p>
+    <label class="field">
+      <span class="field__label">Name</span>
+      <input
+        v-model="form.name"
+        class="field__input"
+        type="text"
+        placeholder="Cable pull day"
+        required />
+    </label>
 
-        <label class="field">
-          <span class="field__label">Name</span>
-          <input
-            v-model="form.name"
-            class="field__input"
-            type="text"
-            placeholder="Cable pull day"
-            required />
-        </label>
+    <label class="field">
+      <span class="field__label">Theme</span>
+      <input
+        v-model="form.theme"
+        class="field__input"
+        type="text"
+        placeholder="pull, lower + shoulder rehab" />
+    </label>
 
-        <label class="field">
-          <span class="field__label">Theme</span>
-          <input
-            v-model="form.theme"
-            class="field__input"
-            type="text"
-            placeholder="pull, lower + shoulder rehab" />
-        </label>
+    <label class="field">
+      <span class="field__label">
+        Tags
+        <em>(comma-separated)</em>
+      </span>
+      <input
+        v-model="form.tags"
+        class="field__input"
+        type="text"
+        placeholder="upper, strength" />
+    </label>
 
-        <label class="field">
-          <span class="field__label">
-            Tags
-            <em>(comma-separated)</em>
-          </span>
-          <input
-            v-model="form.tags"
-            class="field__input"
-            type="text"
-            placeholder="upper, strength" />
-        </label>
+    <label class="field">
+      <span class="field__label">Notes</span>
+      <textarea
+        v-model="form.notes"
+        class="field__input field__area"
+        rows="3" />
+    </label>
 
-        <label class="field">
-          <span class="field__label">Notes</span>
-          <textarea
-            v-model="form.notes"
-            class="field__input field__area"
-            rows="3" />
-        </label>
+    <p
+      v-if="error"
+      class="modal__error">
+      {{ error }}
+    </p>
 
-        <p
-          v-if="error"
-          class="modal__error">
-          {{ error }}
-        </p>
-
-        <div class="modal__actions">
-          <button
-            type="button"
-            class="btn"
-            @click="emit('close')">
-            Cancel
-          </button>
-          <button
-            type="submit"
-            class="btn btn--accent"
-            :disabled="saving">
-            {{ saving ? 'Saving…' : 'Save workout' }}
-          </button>
-        </div>
-      </form>
+    <div class="modal__actions">
+      <button
+        type="button"
+        class="btn"
+        @click="emit('close')">
+        Cancel
+      </button>
+      <button
+        type="submit"
+        class="btn btn--accent"
+        :disabled="saving">
+        {{ saving ? 'Saving…' : 'Save workout' }}
+      </button>
     </div>
-  </div>
+  </ModalShell>
 </template>
 
 <style scoped lang="scss">
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
-  padding: 0;
-}
-
-.modal {
-  width: 100%;
-  max-width: 40rem;
-  max-height: 92dvh;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius) var(--radius) 0 0;
-}
-
-.modal__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-4);
-  border-bottom: 1px solid var(--border);
-}
-
-.modal__title {
-  margin: 0;
-  font-size: 1.2rem;
-}
-
-.modal__close {
-  min-width: var(--touch-target);
-  min-height: var(--touch-target);
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 1.1rem;
-}
-
-.modal__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
-  overflow-y: auto;
-}
-
 .modal__lede {
   margin: 0;
   color: var(--text-muted);
@@ -255,16 +184,6 @@ async function save() {
 
   &:disabled {
     opacity: 0.6;
-  }
-}
-
-@media (min-width: 720px) {
-  .overlay {
-    align-items: center;
-  }
-
-  .modal {
-    border-radius: var(--radius);
   }
 }
 </style>

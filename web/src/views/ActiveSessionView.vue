@@ -19,6 +19,7 @@ import { ApiError } from '@/api/client'
 import { useConfirm } from '@/composables/useConfirm'
 import MovementPicker from '@/components/MovementPicker.vue'
 import PromoteSessionModal from '@/components/PromoteSessionModal.vue'
+import ModalShell from '@/components/ModalShell.vue'
 
 // The mobile-critical logging screen. One movement, one card, one big "Log set" button:
 // the common case is another set exactly like the last, and it should cost a tap.
@@ -471,69 +472,67 @@ function submitSetEdit() {
         @promoted="onPromoted"
         @close="showPromote = false" />
 
-      <div
+      <ModalShell
         v-if="editingSet"
-        class="overlay"
-        @click.self="editingSet = null">
-        <form
-          class="sheet"
-          @submit.prevent="submitSetEdit">
-          <h2 class="sheet__title">Set {{ editingSet.set.position }}</h2>
-          <div class="sheet__grid">
-            <label
-              v-if="!asksForHold(session.movements.find((m) => m.id === editingSet!.entryId)!)"
-              class="field">
-              <span class="field__label">Reps</span>
-              <input
-                v-model="setEdit.reps"
-                class="field__input"
-                type="number"
-                min="0"
-                inputmode="numeric" />
-            </label>
-            <label
-              v-if="asksForHold(session.movements.find((m) => m.id === editingSet!.entryId)!)"
-              class="field">
-              <span class="field__label">Hold (sec)</span>
-              <input
-                v-model="setEdit.hold"
-                class="field__input"
-                type="number"
-                min="0"
-                inputmode="numeric" />
-            </label>
-            <label
-              v-if="asksForLoad(session.movements.find((m) => m.id === editingSet!.entryId)!)"
-              class="field">
-              <span class="field__label">{{ loadLabel(session.movements.find((m) => m.id === editingSet!.entryId)!) }}</span>
-              <input
-                v-model="setEdit.load"
-                class="field__input"
-                type="text"
-                placeholder="100lb, 2 plates" />
-            </label>
-          </div>
-          <div class="sheet__actions">
-            <button
-              type="button"
-              class="btn btn--quiet"
-              @click="removeSet(editingSet.entryId, editingSet.set)">
-              Remove
-            </button>
-            <button
-              type="button"
-              class="btn"
-              @click="editingSet = null">
-              Cancel
-            </button>
-            <button
-              type="submit"
-              class="btn btn--accent">
-              Save
-            </button>
-          </div>
-        </form>
-      </div>
+        :title="`Set ${editingSet.set.position}`"
+        narrow
+        form
+        @submit="submitSetEdit"
+        @close="editingSet = null">
+        <div class="sheet__grid">
+          <label
+            v-if="!asksForHold(session.movements.find((m) => m.id === editingSet!.entryId)!)"
+            class="field">
+            <span class="field__label">Reps</span>
+            <input
+              v-model="setEdit.reps"
+              class="field__input"
+              type="number"
+              min="0"
+              inputmode="numeric" />
+          </label>
+          <label
+            v-if="asksForHold(session.movements.find((m) => m.id === editingSet!.entryId)!)"
+            class="field">
+            <span class="field__label">Hold (sec)</span>
+            <input
+              v-model="setEdit.hold"
+              class="field__input"
+              type="number"
+              min="0"
+              inputmode="numeric" />
+          </label>
+          <label
+            v-if="asksForLoad(session.movements.find((m) => m.id === editingSet!.entryId)!)"
+            class="field">
+            <span class="field__label">{{ loadLabel(session.movements.find((m) => m.id === editingSet!.entryId)!) }}</span>
+            <input
+              v-model="setEdit.load"
+              class="field__input"
+              type="text"
+              placeholder="100lb, 2 plates" />
+          </label>
+        </div>
+        <div class="sheet__actions">
+          <button
+            type="button"
+            class="btn btn--quiet"
+            @click="removeSet(editingSet.entryId, editingSet.set)">
+            Remove
+          </button>
+          <button
+            type="button"
+            class="btn"
+            @click="editingSet = null">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="btn btn--accent">
+            Save
+          </button>
+        </div>
+      </ModalShell>
     </template>
   </section>
 </template>
@@ -827,34 +826,6 @@ function submitSetEdit() {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
-}
-
-.sheet {
-  width: 100%;
-  max-width: 32rem;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius) var(--radius) 0 0;
-}
-
-.sheet__title {
-  margin: 0;
-  font-size: 1.1rem;
-}
-
 .sheet__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -896,14 +867,6 @@ function submitSetEdit() {
 }
 
 @media (min-width: 720px) {
-  .overlay {
-    align-items: center;
-  }
-
-  .sheet {
-    border-radius: var(--radius);
-  }
-
   .finish-bar {
     bottom: var(--space-4);
   }

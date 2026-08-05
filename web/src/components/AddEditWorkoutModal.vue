@@ -2,6 +2,7 @@
 import { reactive, ref, computed } from 'vue'
 import { workoutsApi, type Workout, type WorkoutWrite } from '@/api/workouts'
 import { ApiError } from '@/api/client'
+import ModalShell from './ModalShell.vue'
 
 // When `workout` is supplied the modal edits it (PUT); otherwise it creates (POST).
 const props = defineProps<{ workout?: Workout }>()
@@ -57,161 +58,89 @@ async function save() {
 </script>
 
 <template>
-  <div
-    class="overlay"
-    @click.self="emit('close')">
-    <div
-      class="modal"
-      role="dialog"
-      aria-modal="true"
-      :aria-label="isEdit ? 'Edit workout' : 'Add workout'">
-      <header class="modal__head">
-        <h2 class="modal__title">{{ isEdit ? 'Edit workout' : 'Add workout' }}</h2>
-        <button
-          class="modal__close"
-          type="button"
-          aria-label="Close"
-          @click="emit('close')">
-          ✕
-        </button>
-      </header>
+  <ModalShell
+    :title="isEdit ? 'Edit workout' : 'Add workout'"
+    form
+    @submit="save"
+    @close="emit('close')">
+    <label class="field">
+      <span class="field__label">Name</span>
+      <input
+        v-model="form.name"
+        class="field__input"
+        type="text"
+        required />
+    </label>
 
-      <form
-        class="modal__body"
-        @submit.prevent="save">
-        <label class="field">
-          <span class="field__label">Name</span>
-          <input
-            v-model="form.name"
-            class="field__input"
-            type="text"
-            required />
-        </label>
+    <label class="field">
+      <span class="field__label">Theme</span>
+      <input
+        v-model="form.theme"
+        class="field__input"
+        type="text"
+        placeholder="push, lower + shoulder rehab" />
+    </label>
 
-        <label class="field">
-          <span class="field__label">Theme</span>
-          <input
-            v-model="form.theme"
-            class="field__input"
-            type="text"
-            placeholder="push, lower + shoulder rehab" />
-        </label>
+    <label class="field">
+      <span class="field__label">
+        Tags
+        <em>(comma-separated)</em>
+      </span>
+      <input
+        v-model="form.tags"
+        class="field__input"
+        type="text"
+        placeholder="upper, strength" />
+    </label>
 
-        <label class="field">
-          <span class="field__label">
-            Tags
-            <em>(comma-separated)</em>
-          </span>
-          <input
-            v-model="form.tags"
-            class="field__input"
-            type="text"
-            placeholder="upper, strength" />
-        </label>
+    <label class="field field--check">
+      <input
+        v-model="form.favorite"
+        type="checkbox" />
+      <span>Favorite</span>
+    </label>
 
-        <label class="field field--check">
-          <input
-            v-model="form.favorite"
-            type="checkbox" />
-          <span>Favorite</span>
-        </label>
+    <label class="field field--inline">
+      <span class="field__label">Estimated minutes</span>
+      <input
+        v-model.number="form.estimated_minutes"
+        class="field__input"
+        type="number"
+        min="0" />
+    </label>
 
-        <label class="field field--inline">
-          <span class="field__label">Estimated minutes</span>
-          <input
-            v-model.number="form.estimated_minutes"
-            class="field__input"
-            type="number"
-            min="0" />
-        </label>
+    <label class="field">
+      <span class="field__label">Notes</span>
+      <textarea
+        v-model="form.notes"
+        class="field__input field__area"
+        rows="3" />
+    </label>
 
-        <label class="field">
-          <span class="field__label">Notes</span>
-          <textarea
-            v-model="form.notes"
-            class="field__input field__area"
-            rows="3" />
-        </label>
+    <p
+      v-if="error"
+      class="modal__error">
+      {{ error }}
+    </p>
 
-        <p
-          v-if="error"
-          class="modal__error">
-          {{ error }}
-        </p>
-
-        <div class="modal__actions">
-          <button
-            type="button"
-            class="btn"
-            @click="emit('close')">
-            Cancel
-          </button>
-          <button
-            type="submit"
-            class="btn btn--accent"
-            :disabled="saving">
-            {{ saving ? 'Saving…' : isEdit ? 'Save' : 'Create' }}
-          </button>
-        </div>
-      </form>
+    <div class="modal__actions">
+      <button
+        type="button"
+        class="btn"
+        @click="emit('close')">
+        Cancel
+      </button>
+      <button
+        type="submit"
+        class="btn btn--accent"
+        :disabled="saving">
+        {{ saving ? 'Saving…' : isEdit ? 'Save' : 'Create' }}
+      </button>
     </div>
-  </div>
+  </ModalShell>
 </template>
 
 <style scoped lang="scss">
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
-  padding: 0;
-}
-
-.modal {
-  width: 100%;
-  max-width: 40rem;
-  max-height: 92dvh;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius) var(--radius) 0 0;
-}
-
-.modal__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-4);
-  border-bottom: 1px solid var(--border);
-}
-
-.modal__title {
-  margin: 0;
-  font-size: 1.2rem;
-}
-
-.modal__close {
-  min-width: var(--touch-target);
-  min-height: var(--touch-target);
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 1.1rem;
-}
-
-.modal__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
-  overflow-y: auto;
-}
-
 .field {
   display: flex;
   flex-direction: column;
@@ -290,16 +219,6 @@ async function save() {
 
   &:disabled {
     opacity: 0.6;
-  }
-}
-
-@media (min-width: 720px) {
-  .overlay {
-    align-items: center;
-  }
-
-  .modal {
-    border-radius: var(--radius);
   }
 }
 </style>

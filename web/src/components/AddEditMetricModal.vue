@@ -10,6 +10,7 @@ import {
 } from '@/api/measurements'
 import { ApiError } from '@/api/client'
 import { useConfirm } from '@/composables/useConfirm'
+import ModalShell from './ModalShell.vue'
 
 const { ask } = useConfirm()
 
@@ -115,188 +116,117 @@ async function remove() {
 </script>
 
 <template>
-  <div
-    class="overlay"
-    @click.self="emit('close')">
-    <div
-      class="modal"
-      role="dialog"
-      aria-modal="true"
-      :aria-label="isEdit ? 'Edit metric' : 'New metric'">
-      <header class="modal__head">
-        <h2 class="modal__title">{{ isEdit ? 'Edit metric' : 'New metric' }}</h2>
-        <button
-          class="modal__close"
-          type="button"
-          aria-label="Close"
-          @click="emit('close')">
-          ✕
-        </button>
-      </header>
+  <ModalShell
+    :title="isEdit ? 'Edit metric' : 'New metric'"
+    form
+    @submit="save"
+    @close="emit('close')">
+    <label class="field">
+      <span class="field__label">Name</span>
+      <input
+        v-model="form.label"
+        class="field__input"
+        type="text"
+        placeholder="Row Machine 500m"
+        required />
+    </label>
 
-      <form
-        class="modal__body"
-        @submit.prevent="save">
-        <label class="field">
-          <span class="field__label">Name</span>
-          <input
-            v-model="form.label"
-            class="field__input"
-            type="text"
-            placeholder="Row Machine 500m"
-            required />
-        </label>
+    <label class="field">
+      <span class="field__label">
+        Key
+        <em>{{ isEdit ? '(permanent)' : '(how the CLI addresses it)' }}</em>
+      </span>
+      <input
+        v-model="form.name"
+        class="field__input"
+        type="text"
+        placeholder="row-machine-500m"
+        :disabled="isEdit"
+        @input="keyIsAuto = false" />
+    </label>
 
-        <label class="field">
-          <span class="field__label">
-            Key
-            <em>{{ isEdit ? '(permanent)' : '(how the CLI addresses it)' }}</em>
-          </span>
-          <input
-            v-model="form.name"
-            class="field__input"
-            type="text"
-            placeholder="row-machine-500m"
-            :disabled="isEdit"
-            @input="keyIsAuto = false" />
-        </label>
+    <label class="field">
+      <span class="field__label">Unit</span>
+      <input
+        v-model="form.unit"
+        class="field__input"
+        type="text"
+        placeholder="seconds"
+        required />
+    </label>
 
-        <label class="field">
-          <span class="field__label">Unit</span>
-          <input
-            v-model="form.unit"
-            class="field__input"
-            type="text"
-            placeholder="seconds"
-            required />
-        </label>
+    <label class="field">
+      <span class="field__label">Category</span>
+      <select
+        v-model="form.category"
+        class="field__input">
+        <option
+          v-for="c in CATEGORIES"
+          :key="c"
+          :value="c">
+          {{ CATEGORY_LABELS[c] }}
+        </option>
+      </select>
+    </label>
 
-        <label class="field">
-          <span class="field__label">Category</span>
-          <select
-            v-model="form.category"
-            class="field__input">
-            <option
-              v-for="c in CATEGORIES"
-              :key="c"
-              :value="c">
-              {{ CATEGORY_LABELS[c] }}
-            </option>
-          </select>
-        </label>
+    <label class="field">
+      <span class="field__label">
+        Improvement
+        <em>(which way is better)</em>
+      </span>
+      <select
+        v-model="form.direction"
+        class="field__input">
+        <option value="higher_better">Higher is better</option>
+        <option value="lower_better">Lower is better</option>
+      </select>
+    </label>
 
-        <label class="field">
-          <span class="field__label">
-            Improvement
-            <em>(which way is better)</em>
-          </span>
-          <select
-            v-model="form.direction"
-            class="field__input">
-            <option value="higher_better">Higher is better</option>
-            <option value="lower_better">Lower is better</option>
-          </select>
-        </label>
+    <label class="field">
+      <span class="field__label">
+        How to measure
+        <em>(what it is and how to take the reading)</em>
+      </span>
+      <textarea
+        v-model="form.howToMeasure"
+        class="field__input field__area"
+        rows="4"
+        placeholder="Single-leg heel raises to failure on flat ground, knee straight, full range. Count reps." />
+    </label>
 
-        <label class="field">
-          <span class="field__label">
-            How to measure
-            <em>(what it is and how to take the reading)</em>
-          </span>
-          <textarea
-            v-model="form.howToMeasure"
-            class="field__input field__area"
-            rows="4"
-            placeholder="Single-leg heel raises to failure on flat ground, knee straight, full range. Count reps." />
-        </label>
+    <p
+      v-if="error"
+      class="modal__error">
+      {{ error }}
+    </p>
 
-        <p
-          v-if="error"
-          class="modal__error">
-          {{ error }}
-        </p>
-
-        <div class="modal__actions">
-          <button
-            v-if="isEdit"
-            type="button"
-            class="btn btn--danger"
-            :disabled="deleting || saving"
-            @click="remove">
-            {{ deleting ? 'Deleting…' : 'Delete' }}
-          </button>
-          <span class="modal__spacer" />
-          <button
-            type="button"
-            class="btn"
-            @click="emit('close')">
-            Cancel
-          </button>
-          <button
-            type="submit"
-            class="btn btn--accent"
-            :disabled="saving || deleting">
-            {{ saving ? 'Saving…' : 'Save' }}
-          </button>
-        </div>
-      </form>
+    <div class="modal__actions">
+      <button
+        v-if="isEdit"
+        type="button"
+        class="btn btn--danger"
+        :disabled="deleting || saving"
+        @click="remove">
+        {{ deleting ? 'Deleting…' : 'Delete' }}
+      </button>
+      <span class="modal__spacer" />
+      <button
+        type="button"
+        class="btn"
+        @click="emit('close')">
+        Cancel
+      </button>
+      <button
+        type="submit"
+        class="btn btn--accent"
+        :disabled="saving || deleting">
+        {{ saving ? 'Saving…' : 'Save' }}
+      </button>
     </div>
-  </div>
+  </ModalShell>
 </template>
 
 <style scoped lang="scss">
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
-}
-
-.modal {
-  width: 100%;
-  max-width: 32rem;
-  max-height: 92dvh;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius) var(--radius) 0 0;
-}
-
-.modal__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-4);
-  border-bottom: 1px solid var(--border);
-}
-
-.modal__title {
-  margin: 0;
-  font-size: 1.2rem;
-}
-
-.modal__close {
-  min-width: var(--touch-target);
-  min-height: var(--touch-target);
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 1.1rem;
-}
-
-.modal__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
-  overflow-y: auto;
-}
-
 .field {
   display: flex;
   flex-direction: column;
@@ -370,16 +300,6 @@ async function remove() {
 
   &:disabled {
     opacity: 0.6;
-  }
-}
-
-@media (min-width: 720px) {
-  .overlay {
-    align-items: center;
-  }
-
-  .modal {
-    border-radius: var(--radius);
   }
 }
 </style>

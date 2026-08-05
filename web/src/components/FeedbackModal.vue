@@ -3,6 +3,7 @@ import { ref, onMounted, useTemplateRef } from 'vue'
 import { useRoute } from 'vue-router'
 import { feedbackApi } from '@/api/feedback'
 import { ApiError } from '@/api/client'
+import ModalShell from './ModalShell.vue'
 
 // One field and a button. The whole value of this is that a thought had mid-session
 // survives the moment, so anything that slows the capture — a category picker, a
@@ -48,125 +49,64 @@ async function save() {
 </script>
 
 <template>
-  <div
-    class="overlay"
-    @click.self="emit('close')">
-    <div
-      class="modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Send feedback">
-      <header class="modal__head">
-        <h2 class="modal__title">Feedback</h2>
-        <button
-          class="modal__close"
-          type="button"
-          aria-label="Close"
-          @click="emit('close')">
-          ✕
-        </button>
-      </header>
+  <ModalShell
+    title="Feedback"
+    @close="emit('close')">
+    <p
+      v-if="saved"
+      class="modal__saved">
+      Saved.
+    </p>
+
+    <!-- The form stays inside the slot rather than being the shell's body, because the
+         saved state replaces it entirely. -->
+    <form
+      v-else
+      class="feedback-form"
+      @submit.prevent="save">
+      <label class="field">
+        <span class="field__label">
+          What's on your mind?
+          <em>{{ route.fullPath }}</em>
+        </span>
+        <textarea
+          ref="field"
+          v-model="body"
+          class="field__input field__area"
+          rows="4"
+          placeholder="Anything — a papercut, a missing thing, an idea."
+          required />
+      </label>
 
       <p
-        v-if="saved"
-        class="modal__saved">
-        Saved.
+        v-if="error"
+        class="modal__error">
+        {{ error }}
       </p>
 
-      <form
-        v-else
-        class="modal__body"
-        @submit.prevent="save">
-        <label class="field">
-          <span class="field__label">
-            What's on your mind?
-            <em>{{ route.fullPath }}</em>
-          </span>
-          <textarea
-            ref="field"
-            v-model="body"
-            class="field__input field__area"
-            rows="4"
-            placeholder="Anything — a papercut, a missing thing, an idea."
-            required />
-        </label>
-
-        <p
-          v-if="error"
-          class="modal__error">
-          {{ error }}
-        </p>
-
-        <div class="modal__actions">
-          <button
-            type="button"
-            class="btn"
-            @click="emit('close')">
-            Cancel
-          </button>
-          <button
-            type="submit"
-            class="btn btn--accent"
-            :disabled="saving">
-            {{ saving ? 'Saving…' : 'Send' }}
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
+      <div class="modal__actions">
+        <button
+          type="button"
+          class="btn"
+          @click="emit('close')">
+          Cancel
+        </button>
+        <button
+          type="submit"
+          class="btn btn--accent"
+          :disabled="saving">
+          {{ saving ? 'Saving…' : 'Send' }}
+        </button>
+      </div>
+    </form>
+  </ModalShell>
 </template>
 
 <style scoped lang="scss">
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
-}
-
-.modal {
-  width: 100%;
-  max-width: 32rem;
-  max-height: 92dvh;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius) var(--radius) 0 0;
-}
-
-.modal__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-4);
-  border-bottom: 1px solid var(--border);
-}
-
-.modal__title {
-  margin: 0;
-  font-size: 1.2rem;
-}
-
-.modal__close {
-  min-width: var(--touch-target);
-  min-height: var(--touch-target);
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 1.1rem;
-}
-
-.modal__body {
+.feedback-form {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4);
-  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
-  overflow-y: auto;
 }
 
 .modal__saved {
@@ -236,16 +176,6 @@ async function save() {
 
   &:disabled {
     opacity: 0.6;
-  }
-}
-
-@media (min-width: 720px) {
-  .overlay {
-    align-items: center;
-  }
-
-  .modal {
-    border-radius: var(--radius);
   }
 }
 </style>

@@ -11,10 +11,12 @@ withDefaults(
     title: string
     /** Constrains the sheet for short dialogs so a two-line question isn't full-width. */
     narrow?: boolean
+    /** Renders the body as a form, so Enter submits and the browser validates. */
+    form?: boolean
   }>(),
-  { narrow: false },
+  { narrow: false, form: false },
 )
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; submit: [] }>()
 
 // Escape closes. Handled here rather than per-dialog so it cannot be forgotten in one.
 function onKeydown(event: KeyboardEvent) {
@@ -45,7 +47,15 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
         </button>
       </header>
 
-      <div class="modal__body">
+      <form
+        v-if="form"
+        class="modal__body"
+        @submit.prevent="emit('submit')">
+        <slot />
+      </form>
+      <div
+        v-else
+        class="modal__body">
         <slot />
       </div>
     </div>

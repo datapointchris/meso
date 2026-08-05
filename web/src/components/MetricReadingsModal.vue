@@ -4,6 +4,7 @@ import { measurementsApi, formatValue, type Measurement } from '@/api/measuremen
 import { ApiError } from '@/api/client'
 import DateField from '@/components/DateField.vue'
 import { useConfirm } from '@/composables/useConfirm'
+import ModalShell from './ModalShell.vue'
 
 const { ask } = useConfirm()
 
@@ -87,177 +88,109 @@ async function remove(reading: Measurement) {
 </script>
 
 <template>
-  <div
-    class="overlay"
-    @click.self="emit('close')">
-    <div
-      class="modal"
-      role="dialog"
-      aria-modal="true"
-      :aria-label="`${label} readings`">
-      <header class="modal__head">
-        <h2 class="modal__title">{{ label }}</h2>
-        <button
-          class="modal__close"
-          type="button"
-          aria-label="Close"
-          @click="emit('close')">
-          ✕
-        </button>
-      </header>
+  <ModalShell
+    :title="label"
+    @close="emit('close')">
+    <p
+      v-if="loading"
+      class="modal__status">
+      Loading…
+    </p>
+    <p
+      v-else-if="readings.length === 0"
+      class="modal__status">
+      No readings yet.
+    </p>
 
-      <div class="modal__body">
-        <p
-          v-if="loading"
-          class="modal__status">
-          Loading…
-        </p>
-        <p
-          v-else-if="readings.length === 0"
-          class="modal__status">
-          No readings yet.
-        </p>
-
-        <ul
-          v-else
-          class="readings">
-          <li
-            v-for="reading in readings"
-            :key="reading.id"
-            class="reading">
-            <template v-if="editingID === reading.id">
-              <form
-                class="edit"
-                @submit.prevent="save(reading.id)">
-                <label class="field">
-                  <span class="field__label">Value</span>
-                  <input
-                    v-model.number="draft.value"
-                    class="field__input"
-                    type="number"
-                    step="any"
-                    inputmode="decimal"
-                    required />
-                </label>
-                <div class="field">
-                  <span class="field__label">Date</span>
-                  <DateField
-                    v-model="draft.measured_on"
-                    label="Measured on" />
-                </div>
-                <label class="field">
-                  <span class="field__label">Notes</span>
-                  <input
-                    v-model="draft.notes"
-                    class="field__input"
-                    type="text" />
-                </label>
-                <div class="edit__actions">
-                  <button
-                    type="button"
-                    class="btn"
-                    @click="editingID = null">
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    class="btn btn--accent"
-                    :disabled="busy">
-                    Save
-                  </button>
-                </div>
-              </form>
-            </template>
-
-            <template v-else>
+    <ul
+      v-else
+      class="readings">
+      <li
+        v-for="reading in readings"
+        :key="reading.id"
+        class="reading">
+        <template v-if="editingID === reading.id">
+          <form
+            class="edit"
+            @submit.prevent="save(reading.id)">
+            <label class="field">
+              <span class="field__label">Value</span>
+              <input
+                v-model.number="draft.value"
+                class="field__input"
+                type="number"
+                step="any"
+                inputmode="decimal"
+                required />
+            </label>
+            <div class="field">
+              <span class="field__label">Date</span>
+              <DateField
+                v-model="draft.measured_on"
+                label="Measured on" />
+            </div>
+            <label class="field">
+              <span class="field__label">Notes</span>
+              <input
+                v-model="draft.notes"
+                class="field__input"
+                type="text" />
+            </label>
+            <div class="edit__actions">
               <button
-                class="reading__main"
                 type="button"
-                :aria-label="`Edit the reading from ${reading.measured_on}`"
-                @click="startEdit(reading)">
-                <span class="reading__value">
-                  {{ formatValue(reading.value) }}
-                  <em class="reading__unit">{{ unit }}</em>
-                </span>
-                <span class="reading__date">{{ reading.measured_on }}</span>
-                <span
-                  v-if="reading.notes"
-                  class="reading__notes">
-                  {{ reading.notes }}
-                </span>
+                class="btn"
+                @click="editingID = null">
+                Cancel
               </button>
               <button
-                class="reading__delete"
-                type="button"
-                :aria-label="`Delete the reading from ${reading.measured_on}`"
-                :disabled="busy"
-                @click="remove(reading)">
-                ✕
+                type="submit"
+                class="btn btn--accent"
+                :disabled="busy">
+                Save
               </button>
-            </template>
-          </li>
-        </ul>
+            </div>
+          </form>
+        </template>
 
-        <p
-          v-if="error"
-          class="modal__error">
-          {{ error }}
-        </p>
-      </div>
-    </div>
-  </div>
+        <template v-else>
+          <button
+            class="reading__main"
+            type="button"
+            :aria-label="`Edit the reading from ${reading.measured_on}`"
+            @click="startEdit(reading)">
+            <span class="reading__value">
+              {{ formatValue(reading.value) }}
+              <em class="reading__unit">{{ unit }}</em>
+            </span>
+            <span class="reading__date">{{ reading.measured_on }}</span>
+            <span
+              v-if="reading.notes"
+              class="reading__notes">
+              {{ reading.notes }}
+            </span>
+          </button>
+          <button
+            class="reading__delete"
+            type="button"
+            :aria-label="`Delete the reading from ${reading.measured_on}`"
+            :disabled="busy"
+            @click="remove(reading)">
+            ✕
+          </button>
+        </template>
+      </li>
+    </ul>
+
+    <p
+      v-if="error"
+      class="modal__error">
+      {{ error }}
+    </p>
+  </ModalShell>
 </template>
 
 <style scoped lang="scss">
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
-}
-
-.modal {
-  width: 100%;
-  max-width: 32rem;
-  max-height: 92dvh;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius) var(--radius) 0 0;
-}
-
-.modal__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-4);
-  border-bottom: 1px solid var(--border);
-}
-
-.modal__title {
-  margin: 0;
-  font-size: 1.2rem;
-}
-
-.modal__close {
-  min-width: var(--touch-target);
-  min-height: var(--touch-target);
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 1.1rem;
-}
-
-.modal__body {
-  padding: var(--space-2) var(--space-4);
-  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
-  overflow-y: auto;
-}
-
 .modal__status {
   padding: var(--space-4);
   color: var(--text-muted);
@@ -393,16 +326,6 @@ async function remove(reading: Measurement) {
 
   &:disabled {
     opacity: 0.6;
-  }
-}
-
-@media (min-width: 720px) {
-  .overlay {
-    align-items: center;
-  }
-
-  .modal {
-    border-radius: var(--radius);
   }
 }
 </style>
