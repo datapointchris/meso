@@ -50,8 +50,18 @@ func NewRootCommand() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "meso",
 		Short: "meso — a mobile-first training CLI",
-		Long: "meso is the command-line client for the meso training app. Authenticate\n" +
-			"once with `meso auth login`, then run commands against the API as yourself.",
+		Long: "meso is a training log — the movement library, the workouts composed from\n" +
+			"it, the cycles that sequence those, the sessions where they were actually\n" +
+			"performed, and the measurements and journal alongside.\n" +
+			"\n" +
+			"The noun comes first and the verb last, so moving from reading to acting\n" +
+			"changes only the final word: `meso workouts list` becomes\n" +
+			"`meso workouts edit`. Every top-level noun is a training noun — anything\n" +
+			"about the app rather than the training lives under `meso admin`. Every\n" +
+			"list and show takes --json.\n" +
+			"\n" +
+			"Run any partial command with no arguments or --help to see what comes\n" +
+			"next. Authenticate once with `meso auth login`.",
 		Version:       version,
 		SilenceUsage:  true, // usage is shown deliberately, not on every runtime error
 		SilenceErrors: true, // Execute prints errors itself, to stderr

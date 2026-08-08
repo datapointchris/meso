@@ -18,7 +18,7 @@ func newCyclesCommand() *cobra.Command {
 		Long: "A cycle (mesocycle) is a multi-week block of workouts aimed at a target — a\n" +
 			"race date, a working weight, restored range of motion. List and filter, inspect\n" +
 			"the sequence, create/update/delete cycles, and manage their workout list (add,\n" +
-			"edit/swap, reorder, remove). Requires a logged-in session (`meso auth login`).",
+			"edit/swap, reorder, remove).",
 		RunE: requireSubcommand,
 	}
 	cmd.AddCommand(

@@ -23,7 +23,7 @@ func newAdminCommand() *cobra.Command {
 		Short: "Administer the app itself, as opposed to your training",
 		Long: "Commands about meso rather than about training. Everything else in this CLI\n" +
 			"operates your movement library, workouts, and history; these operate the\n" +
-			"application. Requires a logged-in session (`meso auth login`).",
+			"application.",
 		RunE: requireSubcommand,
 	}
 	cmd.AddCommand(newAdminFeedbackCommand())

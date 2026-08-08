@@ -18,8 +18,7 @@ func newWorkoutsCommand() *cobra.Command {
 		Short: "Build and manage workouts — ordered compositions of movements",
 		Long: "A workout is an ordered, themed list of prescribed movements. List and\n" +
 			"filter, inspect the composition, create/update/delete workouts, and manage\n" +
-			"their movement list (add, edit/swap, reorder, remove). Requires a logged-in\n" +
-			"session (`meso auth login`).",
+			"their movement list (add, edit/swap, reorder, remove).",
 		RunE: requireSubcommand,
 	}
 	cmd.AddCommand(

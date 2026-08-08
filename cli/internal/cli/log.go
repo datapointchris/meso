@@ -17,8 +17,7 @@ func newLogCommand() *cobra.Command {
 		Short: "Write and review the training journal — dated markdown entries",
 		Long: "The fitness log is the dated journal Claude reviews when drafting the next\n" +
 			"cycle: how training felt, what stalled, what to carry forward. Add entries,\n" +
-			"list and filter them, and edit or delete. Requires a logged-in session\n" +
-			"(`meso auth login`).",
+			"list and filter them, and edit or delete.",
 		RunE: requireSubcommand,
 	}
 	cmd.AddCommand(

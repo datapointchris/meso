@@ -17,8 +17,8 @@ func newAdminFeedbackCommand() *cobra.Command {
 		Short: "Read and triage feedback captured in the app",
 		Long: "Feedback is captured by the button in the web app — a papercut or an idea,\n" +
 			"offloaded mid-session without leaving what you were doing. This is where it\n" +
-			"gets read and worked through. meso stores it in its own database and sends it\n" +
-			"nowhere; `list --json` is how it gets anywhere else.\n\n" +
+			"gets read and worked through. meso keeps it and forwards it nowhere;\n" +
+			"`list --json` is how it gets anywhere else.\n\n" +
 			"There is no bug/idea/improvement category on purpose: the body says what it\n" +
 			"is, and the response is the same either way.",
 		RunE: requireSubcommand,

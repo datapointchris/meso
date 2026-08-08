@@ -19,7 +19,7 @@ func newMovementsCommand() *cobra.Command {
 		Short: "Browse and manage the movement library",
 		Long: "The unified library of exercises, stretches, and yoga poses. List and\n" +
 			"filter, inspect a movement's how-to/cues/faults and muscles, and create,\n" +
-			"update, or delete entries. Requires a logged-in session (`meso auth login`).",
+			"update, or delete entries.",
 		RunE: requireSubcommand,
 	}
 	cmd.AddCommand(

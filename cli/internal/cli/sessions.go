@@ -19,8 +19,7 @@ func newSessionsCommand() *cobra.Command {
 		Long: "A session is the tracked instance of a workout: what was actually performed,\n" +
 			"set by set, and how it felt. Start one from a workout template (its movements\n" +
 			"copy in as the target) or start it free-form and add movements as they happen —\n" +
-			"then `promote` that one into a reusable workout. `finish` ends it. Requires a\n" +
-			"logged-in session (`meso auth login`).",
+			"then `promote` that one into a reusable workout. `finish` ends it.",
 		RunE: requireSubcommand,
 	}
 	cmd.AddCommand(
