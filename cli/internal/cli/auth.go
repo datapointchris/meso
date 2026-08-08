@@ -37,7 +37,7 @@ func newAuthLoginCommand() *cobra.Command {
 		Use:     "login",
 		Short:   "Log in via the browser",
 		Example: "  meso auth login",
-		Args:    cobra.NoArgs,
+		Args:    usageArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := config.Load()
 			store := auth.NewTokenStore()
@@ -67,7 +67,7 @@ func newAuthLogoutCommand() *cobra.Command {
 		Use:     "logout",
 		Short:   "Remove the stored token from this machine's keychain",
 		Example: "  meso auth logout",
-		Args:    cobra.NoArgs,
+		Args:    usageArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := config.Load()
 			store := auth.NewTokenStore()
@@ -93,7 +93,7 @@ func newAuthTokenCommand() *cobra.Command {
 			"expired. Intended for scripting, e.g. `curl -H \"Authorization: Bearer\n" +
 			"$(meso auth token)\" …`. Exits non-zero if not logged in.",
 		Example: "  meso auth token",
-		Args:    cobra.NoArgs,
+		Args:    usageArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := config.Load()
 			store := auth.NewTokenStore()
@@ -134,7 +134,7 @@ func newAuthStatusCommand() *cobra.Command {
 		Use:     "status",
 		Short:   "Show whether the CLI is logged in",
 		Example: "  meso auth status\n  meso auth status --json",
-		Args:    cobra.NoArgs,
+		Args:    usageArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := config.Load()
 			store := auth.NewTokenStore()
