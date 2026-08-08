@@ -133,9 +133,15 @@ func newMetricsDeleteCommand() *cobra.Command {
 		Args:    usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
-			if !yes && !confirm(cmd.InOrStdin(), cmd.OutOrStdout(), fmt.Sprintf("Delete metric %q?", name)) {
-				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
-				return nil
+			if !yes {
+				ok, confirmErr := confirm(cmd, fmt.Sprintf("Delete metric %q?", name))
+				if confirmErr != nil {
+					return confirmErr
+				}
+				if !ok {
+					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Aborted.")
+					return nil
+				}
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {

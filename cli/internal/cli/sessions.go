@@ -316,9 +316,12 @@ func newSessionsDeleteCommand() *cobra.Command {
 				if err != nil {
 					return handleAPIError(err)
 				}
-				if !confirm(cmd.InOrStdin(), cmd.OutOrStdout(),
-					fmt.Sprintf("Delete the session on %s?", session.PerformedOn)) {
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+				ok, confirmErr := confirm(cmd, fmt.Sprintf("Delete the session on %s?", session.PerformedOn))
+				if confirmErr != nil {
+					return confirmErr
+				}
+				if !ok {
+					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Aborted.")
 					return nil
 				}
 			}

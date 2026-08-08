@@ -197,9 +197,12 @@ func newLogDeleteCommand() *cobra.Command {
 				if err != nil {
 					return handleAPIError(err)
 				}
-				if !confirm(cmd.InOrStdin(), cmd.OutOrStdout(),
-					fmt.Sprintf("Delete the entry from %s?", entry.EntryDate)) {
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+				ok, confirmErr := confirm(cmd, fmt.Sprintf("Delete the entry from %s?", entry.EntryDate))
+				if confirmErr != nil {
+					return confirmErr
+				}
+				if !ok {
+					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Aborted.")
 					return nil
 				}
 			}

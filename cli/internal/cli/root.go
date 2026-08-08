@@ -15,6 +15,12 @@ import (
 // version is overridden at build time via -ldflags.
 var version = "dev"
 
+// noInput is bound to the persistent --no-input flag, which forces the
+// non-interactive path from a terminal. Package-level because every destructive
+// verb consults it through confirm; pflag rewrites it to the default on each
+// NewRootCommand, so a test never inherits the previous one's value.
+var noInput bool
+
 // usageError marks an invocation mistake (bad flag/args) so Execute can return
 // exit code 2, distinct from a runtime failure (1). Per CLI conventions.
 type usageError struct{ err error }
@@ -56,6 +62,9 @@ func NewRootCommand() *cobra.Command {
 	// it here is what makes the tree self-classifying for anything driving
 	// NewRootCommand directly.
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return usageError{err} })
+
+	root.PersistentFlags().BoolVar(&noInput, "no-input", false,
+		"Never prompt; fail naming the flag that would have answered")
 
 	// Free -v for a future --verbose flag: cobra's auto version flag claims -v,
 	// but the CLI convention reserves -v for verbose and -V/--version for

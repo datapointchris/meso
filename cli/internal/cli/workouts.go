@@ -247,8 +247,12 @@ func newWorkoutsDeleteCommand() *cobra.Command {
 				if err != nil {
 					return handleAPIError(err)
 				}
-				if !confirm(cmd.InOrStdin(), cmd.OutOrStdout(), fmt.Sprintf("Delete %q (id %d)?", workout.Name, id)) {
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+				ok, confirmErr := confirm(cmd, fmt.Sprintf("Delete %q (id %d)?", workout.Name, id))
+				if confirmErr != nil {
+					return confirmErr
+				}
+				if !ok {
+					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Aborted.")
 					return nil
 				}
 			}

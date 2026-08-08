@@ -507,8 +507,12 @@ func newMovementsDeleteCommand() *cobra.Command {
 				if err != nil {
 					return handleAPIError(err)
 				}
-				if !confirm(cmd.InOrStdin(), cmd.OutOrStdout(), fmt.Sprintf("Delete %q (id %d)?", movement.Name, id)) {
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Aborted.")
+				ok, confirmErr := confirm(cmd, fmt.Sprintf("Delete %q (id %d)?", movement.Name, id))
+				if confirmErr != nil {
+					return confirmErr
+				}
+				if !ok {
+					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Aborted.")
 					return nil
 				}
 			}
