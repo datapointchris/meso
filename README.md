@@ -216,7 +216,7 @@ There is deliberately **no kind/category** (bug vs. idea vs. improvement). It co
 - **UUID7 PKs for user-generated rows** (`WorkoutSession`, `FitnessLogEntry`), identity for catalog rows (`Movement`, `Workout`) — keeps future client-side/offline creation feasible.
 - **Go layering** — one file per resource across `handlers/` (HTTP), `repository/` (pgx queries), `models/` (domain structs), plus `middleware/` and `migrations/` (goose DDL), mirroring nomad's `api/` layout.
 - **Filtering is server-side** — list endpoints own their query params and build the `WHERE` in SQL, so the CLI and web share one filter definition instead of each re-implementing it.
-- **Data ownership: CSV export from day one** — repeatedly named a dealbreaker when absent. `meso <resource> export --csv` is trivial for a single user and keeps the data portable.
+- **Data ownership: CSV export from day one** — repeatedly named a dealbreaker when absent. `meso <resource> export --format csv` is trivial for a single user and keeps the data portable.
 - **Ships as an installable PWA**; full offline logging + sync is deferred past v1 (UUID7 keeps it possible).
 - **Own `meso-lxc`** — every app gets its own LXC; meso follows the pattern.
 - **Private-only** — single user, no multi-tenant scope.
@@ -331,7 +331,7 @@ Every endpoint group ships with its goose migration and a testcontainers-backed 
 
 ```bash
 meso auth        login | logout | status [--json] | token          # nomad's flow, verbatim
-meso movements   list [--kind --load-mode --favorite --tag --equipment --muscle --region --search] | show <id> | create | update | delete | muscles | related add/rm | export [--csv]
+meso movements   list [--kind --load-mode --favorite --tag --equipment --muscle --region --search] | show <id> | create | update | delete | muscles | related add/rm | export [--format csv]
 meso workouts    list | show <id> | create | update | delete | movements add/reorder/rm
 meso sessions    log [--from-workout <id>] | list [--from --to --unfinished] | show <id> | update <id> | finish <id> | delete <id>
                  | movement add/rm/done/update | set add/update/rm | promote <id> --name

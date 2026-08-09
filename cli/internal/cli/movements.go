@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -12,6 +13,10 @@ import (
 
 	"github.com/datapointchris/meso/cli/internal/api"
 )
+
+// exportFormats is the set --format accepts. It is a list rather than a bool so
+// that adding JSON is a new entry here, not a second flag competing with --csv.
+var exportFormats = []string{"csv"}
 
 func newMovementsCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -528,18 +533,22 @@ func newMovementsDeleteCommand() *cobra.Command {
 }
 
 func newMovementsExportCommand() *cobra.Command {
+	var format string
 	cmd := &cobra.Command{
-		Use:     "export [flags]",
-		Short:   "Export movements as CSV to stdout",
-		Long:    "Export the movement library (optionally filtered) as CSV — data portability from day one.",
-		Example: "  meso movements export > movements.csv\n  meso movements export --kind exercise",
+		Use:   "export [flags]",
+		Short: "Export the movement library to stdout",
+		Long: "Export the movement library, optionally filtered, in a portable format —\n" +
+			"data portability from day one. CSV is the only format so far; --format is\n" +
+			"how a second one arrives without changing what `export` already means.",
+		Example: "  meso movements export > movements.csv\n  meso movements export --kind exercise\n  meso movements export --format csv",
 		Args:    usageArgs(cobra.NoArgs),
 	}
 	readFilter := movementFilterFlags(cmd)
-	// --csv is accepted for the documented `export --csv` grammar; CSV is the only
-	// format export emits, so the flag is a no-op affirmation.
-	cmd.Flags().Bool("csv", false, "Emit CSV (the default and only format)")
+	cmd.Flags().StringVar(&format, "format", "csv", "Output format ("+strings.Join(exportFormats, "|")+")")
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
+		if !slices.Contains(exportFormats, format) {
+			return usageError{fmt.Errorf("unknown format %q — valid formats are %s", format, strings.Join(exportFormats, ", "))}
+		}
 		client, err := newAPIClient(cmd.Context())
 		if err != nil {
 			return handleAPIError(err)
