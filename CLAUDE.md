@@ -45,7 +45,7 @@ inhabitant; a new non-domain command belongs there, not at the root.
 
 Schema conventions (lookup tables not enums, `TEXT` columns, PK strategy, server-side filtering,
 seed-carries-only-the-FK-backbone) and product independence are fleet standards — see
-`~/dev/standards/data.md` and `~/dev/standards/api-design.md`. How they land here:
+`standards/data.md` and `standards/api-design.md`. How they land here:
 
 - **Lookup tables**: `movement_kinds`, `muscles`, `relationship_kinds`, `cycle_statuses`,
   `set_kinds`, `load_modes`.
