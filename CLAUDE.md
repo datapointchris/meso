@@ -30,7 +30,7 @@ lives in `cmd/seed`. Handler tests are testcontainers-backed (`handlers/main_tes
 
 ### CLI layering
 
-`internal/config` (OIDC/API settings) → `internal/auth` (PKCE flow + OS-keychain
+`internal/config` (OIDC/API settings) → `internal/auth` (device grant + OS-keychain
 token store) → `internal/api` (typed REST client over the wire contract) →
 `internal/cli` (cobra command tree). Resource commands live one file per resource
 under `internal/cli`, each with a matching `internal/api/<resource>.go` client.

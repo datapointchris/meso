@@ -14,18 +14,18 @@ import (
 	"github.com/datapointchris/meso/cli/internal/config"
 )
 
-// loginTimeout bounds how long the CLI waits for the browser round-trip before
-// giving up and freeing the loopback port.
-const loginTimeout = 5 * time.Minute
+// loginTimeout is a backstop only — the device code carries its own expiry and
+// the poll stops there first.
+const loginTimeout = 15 * time.Minute
 
 func newAuthCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "auth",
 		Short: "Log in and out of the meso API",
-		Long: "Authenticate this machine against Authelia using the OAuth 2.0\n" +
-			"Authorization Code flow with PKCE, a pushed authorization request, and a\n" +
-			"loopback redirect. The resulting bearer token is authorized at the edge\n" +
-			"and stored in the OS keychain, never on disk.",
+		Long: "Authenticate this machine against Authelia using the OAuth 2.0 device\n" +
+			"authorization grant. The CLI prints a code and a URL; approve it in any\n" +
+			"browser on any device, including from a different machine over SSH. The\n" +
+			"resulting token is stored in the OS keychain, never on disk.",
 		RunE: requireSubcommand,
 	}
 	cmd.AddCommand(newAuthLoginCommand(), newAuthLogoutCommand(), newAuthStatusCommand(), newAuthTokenCommand())
@@ -35,7 +35,7 @@ func newAuthCommand() *cobra.Command {
 func newAuthLoginCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:     "login",
-		Short:   "Log in via the browser",
+		Short:   "Log in by approving a code in any browser",
 		Example: "  meso auth login",
 		Args:    usageArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -45,10 +45,15 @@ func newAuthLoginCommand() *cobra.Command {
 			ctx, cancel := context.WithTimeout(cmd.Context(), loginTimeout)
 			defer cancel()
 
+			// pkg/browser hands the launcher's own stdout to this variable, and it
+			// defaults to os.Stdout — enough to put "Opening in existing browser
+			// session." on the stream `auth token` is piped from.
+			browser.Stdout = cmd.ErrOrStderr()
+
 			token, err := auth.Login(ctx, cfg, browser.OpenURL, cmd.ErrOrStderr())
 			if err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
-					return fmt.Errorf("timed out waiting for browser sign-in after %s; run `meso auth login` again", loginTimeout)
+					return fmt.Errorf("timed out waiting for approval after %s; run `meso auth login` again", loginTimeout)
 				}
 				return err
 			}
@@ -116,14 +121,13 @@ func newAuthTokenCommand() *cobra.Command {
 	}
 }
 
-// statusReport is the stable JSON schema for `auth status --json`. The token is
-// opaque (edge-authorized), so there are no identity claims to surface — only
-// whether a token is stored and whether it has expired.
+// statusReport is the stable JSON schema for `auth status --json`. There is no
+// audience field because Authelia leaves `aud` empty through the device grant —
+// reporting one would be a claim the token does not carry.
 type statusReport struct {
 	LoggedIn  bool   `json:"logged_in"`
 	ClientID  string `json:"client_id"`
 	Issuer    string `json:"issuer"`
-	Audience  string `json:"audience"`
 	ExpiresAt string `json:"expires_at,omitempty"`
 	Expired   bool   `json:"expired"`
 }
@@ -139,7 +143,7 @@ func newAuthStatusCommand() *cobra.Command {
 			cfg := config.Load()
 			store := auth.NewTokenStore()
 
-			report := statusReport{ClientID: cfg.ClientID, Issuer: cfg.Issuer, Audience: cfg.Audience}
+			report := statusReport{ClientID: cfg.ClientID, Issuer: cfg.Issuer}
 
 			token, err := store.Load(cfg.ClientID)
 			switch {
@@ -184,7 +188,6 @@ func printStatus(cmd *cobra.Command, r statusReport) {
 	_, _ = fmt.Fprintf(out, "Logged in\n")
 	_, _ = fmt.Fprintf(out, "  client:   %s\n", r.ClientID)
 	_, _ = fmt.Fprintf(out, "  issuer:   %s\n", r.Issuer)
-	_, _ = fmt.Fprintf(out, "  audience: %s\n", r.Audience)
 	if r.ExpiresAt != "" {
 		state := "valid"
 		if r.Expired {

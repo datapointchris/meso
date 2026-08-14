@@ -13,6 +13,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 
+	"meso/api/auth"
 	"meso/api/config"
 	"meso/api/database"
 	"meso/api/handlers"
@@ -58,7 +59,12 @@ func main() {
 	if cfg.Env == "development" {
 		handler = middleware.DevCORS(handler)
 	} else {
-		handler = middleware.RequireAuthelia(handler)
+		verifier, verifierErr := auth.NewVerifier(ctx, cfg.OIDCIssuer, cfg.CLIClientIDPrefix)
+		if verifierErr != nil {
+			slog.Error("oidc verifier", "err", verifierErr)
+			os.Exit(1)
+		}
+		handler = middleware.RequireAuth(verifier, cfg.ServiceToken, slog.Default())(handler)
 	}
 
 	srv := &http.Server{

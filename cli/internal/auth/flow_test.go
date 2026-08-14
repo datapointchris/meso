@@ -2,48 +2,38 @@ package auth
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"sync"
 	"testing"
 
+	"golang.org/x/oauth2"
+
 	"github.com/datapointchris/meso/cli/internal/config"
 )
 
-// mockIDP is a minimal Authelia stand-in implementing the native bearer.authz
-// flow: discovery, PAR, an authorization endpoint that plays the browser by
-// form_post-ing the code back to the loopback, and a PKCE-checked token
-// endpoint.
+// mockIDP is a minimal Authelia stand-in for the device authorization grant:
+// discovery, a device-authorization endpoint, and a token endpoint that reports
+// authorization_pending until the request is "approved".
 type mockIDP struct {
 	server *httptest.Server
 
-	mu       sync.Mutex
-	parByURI map[string]url.Values // request_uri -> pushed params
-	codes    map[string]codeRecord // code -> pkce challenge + redirect
+	mu             sync.Mutex
+	pollsBefore    int
+	polls          int
+	omitDeviceAuth bool
 }
 
-type codeRecord struct {
-	codeChallenge string
-	redirectURI   string
-}
-
-func newMockIDP(t *testing.T) *mockIDP {
+func newMockIDP(t *testing.T, pollsBefore int) *mockIDP {
 	t.Helper()
-	idp := &mockIDP{
-		parByURI: map[string]url.Values{},
-		codes:    map[string]codeRecord{},
-	}
+	idp := &mockIDP{pollsBefore: pollsBefore}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", idp.discovery)
-	mux.HandleFunc("/par", idp.par)
-	mux.HandleFunc("/authorize", idp.authorize)
+	mux.HandleFunc("/device", idp.deviceAuth)
 	mux.HandleFunc("/token", idp.token)
 	idp.server = httptest.NewServer(mux)
 	t.Cleanup(idp.server.Close)
@@ -52,197 +42,139 @@ func newMockIDP(t *testing.T) *mockIDP {
 
 func (m *mockIDP) discovery(w http.ResponseWriter, _ *http.Request) {
 	base := m.server.URL
-	_ = json.NewEncoder(w).Encode(map[string]string{
-		"issuer":                                base,
-		"authorization_endpoint":                base + "/authorize",
-		"token_endpoint":                        base + "/token",
-		"pushed_authorization_request_endpoint": base + "/par",
-	})
+	doc := map[string]string{
+		"issuer":         base,
+		"token_endpoint": base + "/token",
+	}
+	if !m.omitDeviceAuth {
+		doc["device_authorization_endpoint"] = base + "/device"
+	}
+	_ = json.NewEncoder(w).Encode(doc)
 }
 
-func (m *mockIDP) par(w http.ResponseWriter, r *http.Request) {
+func (m *mockIDP) deviceAuth(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
-	if r.FormValue("response_mode") != "form_post" {
-		http.Error(w, "expected form_post", http.StatusBadRequest)
-		return
-	}
-	if r.FormValue("code_challenge_method") != "S256" || r.FormValue("code_challenge") == "" {
-		http.Error(w, "expected PKCE S256", http.StatusBadRequest)
-		return
-	}
-	requestURI := "urn:ietf:params:oauth:request_uri:" + r.FormValue("state")
-	m.mu.Lock()
-	m.parByURI[requestURI] = r.Form
-	m.mu.Unlock()
-
-	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(map[string]any{"request_uri": requestURI, "expires_in": 60})
-}
-
-// authorize plays the browser: it resolves the pushed request and form_posts
-// the authorization code to the client's loopback redirect_uri.
-func (m *mockIDP) authorize(w http.ResponseWriter, r *http.Request) {
-	requestURI := r.URL.Query().Get("request_uri")
-	m.mu.Lock()
-	params, ok := m.parByURI[requestURI]
-	m.mu.Unlock()
-	if !ok {
-		http.Error(w, "unknown request_uri", http.StatusBadRequest)
-		return
-	}
-
-	code := "auth-code-123"
-	m.mu.Lock()
-	m.codes[code] = codeRecord{codeChallenge: params.Get("code_challenge"), redirectURI: params.Get("redirect_uri")}
-	m.mu.Unlock()
-
-	resp, err := http.PostForm(params.Get("redirect_uri"), url.Values{
-		"code":  {code},
-		"state": {params.Get("state")},
-	})
-	if err != nil {
-		http.Error(w, "callback failed: "+err.Error(), http.StatusBadGateway)
-		return
-	}
-	_ = resp.Body.Close()
-	w.WriteHeader(http.StatusOK)
-}
-
-func (m *mockIDP) token(w http.ResponseWriter, r *http.Request) {
-	_ = r.ParseForm()
-	code := r.FormValue("code")
-	m.mu.Lock()
-	rec, ok := m.codes[code]
-	m.mu.Unlock()
-	if !ok {
-		http.Error(w, "unknown code", http.StatusBadRequest)
-		return
-	}
-	// Verify PKCE: base64url(sha256(verifier)) must equal the pushed challenge.
-	sum := sha256.Sum256([]byte(r.FormValue("code_verifier")))
-	if base64.RawURLEncoding.EncodeToString(sum[:]) != rec.codeChallenge {
-		http.Error(w, "PKCE verification failed", http.StatusBadRequest)
-		return
-	}
-	if r.FormValue("redirect_uri") != rec.redirectURI {
-		http.Error(w, "redirect_uri mismatch", http.StatusBadRequest)
+	if r.FormValue("client_id") == "" {
+		http.Error(w, "missing client_id", http.StatusBadRequest)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"access_token":  "authelia_at_opaque_value",
-		"refresh_token": "authelia_rt_opaque_value",
+		"device_code":               "device-code-123",
+		"user_code":                 "JSMTZRTB",
+		"verification_uri":          "https://auth.example.com/device",
+		"verification_uri_complete": "https://auth.example.com/device?user_code=JSMTZRTB",
+		"expires_in":                600,
+		"interval":                  1,
+	})
+}
+
+func (m *mockIDP) token(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	if got := r.FormValue("grant_type"); got != "urn:ietf:params:oauth:grant-type:device_code" {
+		http.Error(w, "unexpected grant_type "+got, http.StatusBadRequest)
+		return
+	}
+	if r.FormValue("device_code") != "device-code-123" {
+		http.Error(w, "unknown device_code", http.StatusBadRequest)
+		return
+	}
+
+	m.mu.Lock()
+	m.polls++
+	pending := m.polls <= m.pollsBefore
+	m.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	if pending {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": "authorization_pending"})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"access_token":  "authelia_at_jwt_value",
+		"refresh_token": "authelia_rt_value",
 		"token_type":    "bearer",
 		"expires_in":    3600,
 	})
 }
 
-func TestLogin_FullPARFormPostFlow(t *testing.T) {
-	idp := newMockIDP(t)
-	cfg := config.Config{
-		Issuer:   idp.server.URL,
-		ClientID: "meso-cli-macmini",
-		Audience: "https://meso.ichrisbirch.com",
-	}
+func TestLogin_DeviceFlowPollsUntilApproved(t *testing.T) {
+	idp := newMockIDP(t, 1)
+	cfg := config.Config{Issuer: idp.server.URL, ClientID: "meso-cli-macmini"}
 
-	// The opener plays the human clicking the link: fetching the authorization
-	// URL triggers the mock to form_post the code to the loopback listener.
-	opener := func(authURL string) error {
-		resp, err := http.Get(authURL) //nolint:noctx // test helper
-		if err != nil {
-			return err
-		}
-		return resp.Body.Close()
+	var opened string
+	opener := func(url string) error {
+		opened = url
+		return nil
 	}
 
 	token, err := Login(context.Background(), cfg, opener, io.Discard)
 	if err != nil {
 		t.Fatalf("Login: %v", err)
 	}
-	if token.AccessToken != "authelia_at_opaque_value" {
+	if token.AccessToken != "authelia_at_jwt_value" {
 		t.Fatalf("unexpected access token: %q", token.AccessToken)
 	}
-	if token.RefreshToken != "authelia_rt_opaque_value" {
+	if token.RefreshToken != "authelia_rt_value" {
 		t.Fatalf("unexpected refresh token: %q", token.RefreshToken)
 	}
-}
-
-func TestCallbackHandler_Success(t *testing.T) {
-	codeCh := make(chan string, 1)
-	errCh := make(chan error, 1)
-	h := callbackHandler("the-state", codeCh, errCh)
-
-	rec := httptest.NewRecorder()
-	body := url.Values{"code": {"abc"}, "state": {"the-state"}}.Encode()
-	req := httptest.NewRequest(http.MethodPost, "/callback", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	h.ServeHTTP(rec, req)
-
-	select {
-	case code := <-codeCh:
-		if code != "abc" {
-			t.Fatalf("got code %q", code)
-		}
-	case err := <-errCh:
-		t.Fatalf("unexpected error: %v", err)
+	if opened != "https://auth.example.com/device?user_code=JSMTZRTB" {
+		t.Fatalf("opener got %q, expected the complete verification URI", opened)
+	}
+	idp.mu.Lock()
+	defer idp.mu.Unlock()
+	if idp.polls < 2 {
+		t.Fatalf("expected the CLI to poll past authorization_pending, got %d polls", idp.polls)
 	}
 }
 
-func TestCallbackHandler_StateMismatch(t *testing.T) {
-	codeCh := make(chan string, 1)
-	errCh := make(chan error, 1)
-	h := callbackHandler("expected-state", codeCh, errCh)
+// The user code has to reach the user even when no browser can be opened, which
+// is the whole point of the grant over SSH.
+func TestLogin_WritesUserCodeWhenBrowserFails(t *testing.T) {
+	idp := newMockIDP(t, 0)
+	cfg := config.Config{Issuer: idp.server.URL, ClientID: "meso-cli-macmini"}
 
-	rec := httptest.NewRecorder()
-	body := url.Values{"code": {"abc"}, "state": {"attacker-state"}}.Encode()
-	req := httptest.NewRequest(http.MethodPost, "/callback", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	h.ServeHTTP(rec, req)
+	var progress strings.Builder
+	opener := func(string) error { return errors.New("no browser here") }
 
-	select {
-	case <-codeCh:
-		t.Fatal("code accepted despite state mismatch")
-	case err := <-errCh:
-		if err == nil {
-			t.Fatal("expected a state-mismatch error")
-		}
+	if _, err := Login(context.Background(), cfg, opener, &progress); err != nil {
+		t.Fatalf("Login: %v", err)
 	}
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d", rec.Code)
+	out := progress.String()
+	if !strings.Contains(out, "JSMTZRTB") {
+		t.Fatalf("user code missing from progress output: %q", out)
+	}
+	if !strings.Contains(out, "https://auth.example.com/device") {
+		t.Fatalf("verification URI missing from progress output: %q", out)
 	}
 }
 
-func TestCallbackHandler_AuthorizationError(t *testing.T) {
-	codeCh := make(chan string, 1)
-	errCh := make(chan error, 1)
-	h := callbackHandler("s", codeCh, errCh)
+func TestLogin_ErrorsWhenProviderHasNoDeviceEndpoint(t *testing.T) {
+	idp := newMockIDP(t, 0)
+	idp.omitDeviceAuth = true
+	cfg := config.Config{Issuer: idp.server.URL, ClientID: "meso-cli-macmini"}
 
-	rec := httptest.NewRecorder()
-	body := url.Values{"error": {"access_denied"}, "error_description": {"user said no"}}.Encode()
-	req := httptest.NewRequest(http.MethodPost, "/callback", strings.NewReader(body))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	h.ServeHTTP(rec, req)
-
-	select {
-	case <-codeCh:
-		t.Fatal("code delivered despite authorization error")
-	case err := <-errCh:
-		if err == nil {
-			t.Fatal("expected an authorization error")
-		}
+	_, err := Login(context.Background(), cfg, nil, io.Discard)
+	if err == nil {
+		t.Fatal("expected an error when the provider advertises no device endpoint")
+	}
+	if !strings.Contains(err.Error(), "device_authorization_endpoint") {
+		t.Fatalf("error should name the missing endpoint, got: %v", err)
 	}
 }
 
-func TestBindLoopback_PicksFreePort(t *testing.T) {
-	listener, port, err := bindLoopback(config.LoopbackPorts)
-	if err != nil {
-		t.Fatalf("bindLoopback: %v", err)
+func TestVerificationURL_PrefersCompleteURI(t *testing.T) {
+	withComplete := &oauth2.DeviceAuthResponse{
+		VerificationURI:         "https://auth.example.com/device",
+		VerificationURIComplete: "https://auth.example.com/device?user_code=ABCD",
 	}
-	defer func() { _ = listener.Close() }()
-	if port != config.LoopbackPorts[0] {
-		t.Fatalf("expected first free port %d, got %d", config.LoopbackPorts[0], port)
+	if got := verificationURL(withComplete); got != withComplete.VerificationURIComplete {
+		t.Fatalf("got %q, want the complete URI", got)
 	}
-	if got := listener.Addr().String(); got != fmt.Sprintf("127.0.0.1:%d", port) {
-		t.Fatalf("unexpected listener addr %q", got)
+
+	bare := &oauth2.DeviceAuthResponse{VerificationURI: "https://auth.example.com/device"}
+	if got := verificationURL(bare); got != bare.VerificationURI {
+		t.Fatalf("got %q, want the bare URI", got)
 	}
 }

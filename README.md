@@ -72,14 +72,15 @@ meso copies nomad's stack top to bottom. See `~/webapps/nomad/CLAUDE.md` for the
 
 Frontend container follows nomad: a Caddy image serving the built SPA with fallback and reverse-proxying `/api/*` → the Go API.
 
-### Auth — Authelia at the edge (web cookie + CLI bearer)
+### Auth — Authelia cookie at the edge, Authelia JWT verified in the API
 
 Identical model to nomad; full design in `~/webapps/nomad/.planning/cli-auth-design.md`, Authelia itself in `~/homelab/containers/auth-lxc/README.md`.
 
 - **Web**: Authelia **cookie SSO** at the Traefik edge. The browser redirects to `auth.ichrisbirch.com`, logs in once, and gets a session cookie. The Vue SPA stays on cookie auth; there is no app-issued JWT and no login page in meso itself.
-- **CLI**: `meso auth login` runs the OAuth 2.0 **Authorization Code + PKCE + loopback** flow (RFC 8252) against Authelia as a **public client**, scopes `authelia.bearer.authz` + `offline_access`. The resulting token is **opaque**, authorized at the Traefik ForwardAuth **edge by audience** (`meso.ichrisbirch.com`) — the API does **not** self-validate JWTs. The token lives in the **OS keychain**, never on disk. Clients are registered **per (machine × app)** — `meso-cli-<host>`, derived from the short hostname — so a leaked token is audience-scoped and revocation is two-axis (machine, app). `meso auth` provides `login / logout / status --json / token` (the last for `curl -H "Authorization: Bearer $(meso auth token)"`).
+- **CLI**: `meso auth login` runs the OAuth 2.0 **device authorization grant** (RFC 8628) against Authelia as a **public client**, scopes `openid` + `profile` + `offline_access`. The CLI prints a code and a URL; approval happens in any browser on any device, which is what makes login work over SSH — a loopback redirect needs a browser that can reach a listener on the machine being logged into. The resulting access token is an **RFC 9068 JWT** (`typ=at+jwt`, RS256) that the API **verifies itself** against Authelia's JWKS. The token lives in the **OS keychain**, never on disk. Clients are registered **per (machine × app)** — `meso-cli-<host>`, derived from the short hostname — so revocation is two-axis (machine, app). `meso auth` provides `login / logout / status --json / token` (the last for `curl -H "Authorization: Bearer $(meso auth token)"`).
+- **API**: `api/auth` checks, in order, that the header is `typ=at+jwt`, that the signature verifies against the issuer's JWKS, that `iss` matches, that `sub` is non-empty, that `client_id` starts with `meso-cli-`, and that `exp` is in the future. Every failure returns one opaque error, so a probe cannot learn which check it failed. `client_id` — not `aud` — is what isolates meso from its sibling products: Authelia does not carry the audience through the device grant, so the `aud` claim comes back empty and cannot be relied on. `authelia.bearer.authz` is absent from the scopes for the same reason the grant changed — Authelia forbids the device grant alongside it.
 
-This is not device flow, not a self-validating JWKS resource server, and not a reuse of any pre-existing JWT/PAT code — it is nomad's flow with the strings swapped.
+The `authelia.bearer.authz` + PAR + loopback + `form_post` flow this replaced is gone, along with the edge-by-audience authorization it depended on.
 
 ## Domain Model
 
@@ -204,7 +205,7 @@ There is deliberately **no kind/category** (bug vs. idea vs. improvement). It co
 
 ## Settled decisions
 
-- **Full nomad product model** — Go API + Go CLI + Vue, Authelia edge auth (web cookie / CLI PKCE), registry-pull deploy. Copy the reference build rather than reinvent; consolidates the product tier (learning, nomad, meso) on Go.
+- **Full nomad product model** — Go API + Go CLI + Vue, Authelia auth (web cookie at the edge / CLI device grant verified in the API), registry-pull deploy. Copy the reference build rather than reinvent; consolidates the product tier (learning, nomad, meso) on Go.
 - **No MCP** — the `meso` CLI is the sole programmatic/agent surface, in line with the ecosystem-wide MCP retirement.
 - **Block entity named `Cycle`** (not Progression / Mesocycle).
 - **One `Movement` entity, not three** — exercises/stretches/poses share every operation (favorite, tag, search, compose, relate). A `movement_kind` lookup + nullable kind-specific fields beats three parallel tables.

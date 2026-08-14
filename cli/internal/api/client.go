@@ -1,8 +1,9 @@
 // Package api is the meso CLI's typed client for the Go HTTP API. It depends on
 // the wire contract (the JSON shapes the API returns), not the server's internal
 // models package, so the two can evolve independently as long as the JSON is
-// stable. Every request carries the edge-authorized bearer token supplied by the
-// injected *http.Client (built from auth.TokenSource).
+// stable. Every request carries the bearer token supplied by the injected
+// *http.Client (built from auth.TokenSource), which the API verifies against
+// Authelia's JWKS.
 package api
 
 import (

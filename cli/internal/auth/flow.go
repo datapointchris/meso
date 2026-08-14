@@ -2,16 +2,11 @@ package auth
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"net/url"
 	"strings"
-	"time"
 
 	"golang.org/x/oauth2"
 
@@ -19,13 +14,10 @@ import (
 )
 
 // providerMetadata is the subset of the OIDC discovery document the CLI needs.
-// Authelia's native bearer.authz flow requires a Pushed Authorization Request
-// (RFC 9126), so the PAR endpoint is part of the contract.
 type providerMetadata struct {
-	Issuer                             string `json:"issuer"`
-	AuthorizationEndpoint              string `json:"authorization_endpoint"`
-	TokenEndpoint                      string `json:"token_endpoint"`
-	PushedAuthorizationRequestEndpoint string `json:"pushed_authorization_request_endpoint"`
+	Issuer                      string `json:"issuer"`
+	TokenEndpoint               string `json:"token_endpoint"`
+	DeviceAuthorizationEndpoint string `json:"device_authorization_endpoint"`
 }
 
 // Discover fetches the OIDC discovery document for the issuer.
@@ -50,215 +42,74 @@ func Discover(ctx context.Context, issuer string) (providerMetadata, error) {
 	return meta, nil
 }
 
-// oauthConfig builds the oauth2 config used for the token exchange and refresh.
+// oauthConfig builds the oauth2 config used for the device grant and refresh.
 // AuthStyle is pinned to InParams because the client is public
 // (token_endpoint_auth_method: none) — the client_id goes in the request body,
 // and there is no secret to put in a Basic header.
-func oauthConfig(cfg config.Config, meta providerMetadata, redirectURL string) *oauth2.Config {
+func oauthConfig(cfg config.Config, meta providerMetadata) *oauth2.Config {
 	return &oauth2.Config{
 		ClientID: cfg.ClientID,
 		Endpoint: oauth2.Endpoint{
-			AuthURL:   meta.AuthorizationEndpoint,
-			TokenURL:  meta.TokenEndpoint,
-			AuthStyle: oauth2.AuthStyleInParams,
+			TokenURL:      meta.TokenEndpoint,
+			DeviceAuthURL: meta.DeviceAuthorizationEndpoint,
+			AuthStyle:     oauth2.AuthStyleInParams,
 		},
-		RedirectURL: redirectURL,
-		Scopes:      config.Scopes,
+		Scopes: config.Scopes,
 	}
 }
 
-// Login runs Authelia's native OAuth 2.0 Bearer Authorization: Authorization
-// Code + PKCE (RFC 7636) + Pushed Authorization Request (RFC 9126) with a
-// loopback redirect (RFC 8252) and response_mode=form_post. It binds the first
-// free port from config.LoopbackPorts, pushes the request to Authelia's PAR
-// endpoint, opens the browser to a short authorization URL, and blocks until
-// Authelia POSTs the code back to the loopback callback or ctx is canceled.
-// Progress is written to progress (stderr), never stdout.
+// Login runs the OAuth 2.0 device authorization grant (RFC 8628). It asks
+// Authelia for a device code, prints the user code and verification URL, and
+// polls until the request is approved or the code expires.
+//
+// Approval happens in any browser on any device, which is the point: a loopback
+// redirect requires a browser that can reach a listener on this machine, and
+// over SSH there is none. Progress is written to progress (stderr), never
+// stdout, so `auth token` stays pipeable.
 func Login(ctx context.Context, cfg config.Config, opener func(string) error, progress io.Writer) (*oauth2.Token, error) {
 	meta, err := Discover(ctx, cfg.Issuer)
 	if err != nil {
 		return nil, err
 	}
-	if meta.PushedAuthorizationRequestEndpoint == "" {
-		return nil, fmt.Errorf("identity provider does not advertise a pushed_authorization_request_endpoint")
+	if meta.DeviceAuthorizationEndpoint == "" {
+		return nil, fmt.Errorf("identity provider does not advertise a device_authorization_endpoint")
 	}
 
-	listener, port, err := bindLoopback(config.LoopbackPorts)
+	oauthCfg := oauthConfig(cfg, meta)
+	deviceAuth, err := oauthCfg.DeviceAuth(ctx)
 	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = listener.Close() }()
-	redirectURL := fmt.Sprintf("http://%s:%d/callback", config.RedirectHost, port)
-
-	verifier := oauth2.GenerateVerifier()
-	state, err := randomToken()
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("request a device code: %w", err)
 	}
 
-	// Push the authorization request; get back a one-time request_uri.
-	requestURI, err := pushAuthorizationRequest(ctx, cfg, meta, redirectURL, state, verifier)
-	if err != nil {
-		return nil, err
-	}
-	authURL := fmt.Sprintf(
-		"%s?client_id=%s&request_uri=%s",
-		meta.AuthorizationEndpoint,
-		url.QueryEscape(cfg.ClientID),
-		url.QueryEscape(requestURI),
-	)
-
-	codeCh := make(chan string, 1)
-	errCh := make(chan error, 1)
-	srv := &http.Server{Handler: callbackHandler(state, codeCh, errCh)}
-	go func() {
-		if serveErr := srv.Serve(listener); serveErr != nil && serveErr != http.ErrServerClosed {
-			errCh <- serveErr
+	writeInstructions(progress, cfg.ClientID, deviceAuth)
+	if url := verificationURL(deviceAuth); opener != nil {
+		if openErr := opener(url); openErr != nil {
+			_, _ = fmt.Fprintf(progress, "(could not open a browser here: %v)\n", openErr)
 		}
-	}()
-	defer func() {
-		shutCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(shutCtx)
-	}()
-
-	_, _ = fmt.Fprintf(progress, "Opening your browser to sign in as %s...\n", cfg.ClientID)
-	_, _ = fmt.Fprintf(progress, "Approve the consent screen. If the browser does not open, visit:\n\n  %s\n\n", authURL)
-	if openErr := opener(authURL); openErr != nil {
-		_, _ = fmt.Fprintf(progress, "(could not open a browser automatically: %v)\n", openErr)
 	}
 
-	var code string
-	select {
-	case code = <-codeCh:
-	case err = <-errCh:
-		return nil, err
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-
-	oauthCfg := oauthConfig(cfg, meta, redirectURL)
-	token, err := oauthCfg.Exchange(ctx, code, oauth2.VerifierOption(verifier))
+	token, err := oauthCfg.DeviceAccessToken(ctx, deviceAuth)
 	if err != nil {
-		return nil, fmt.Errorf("exchange authorization code for token: %w", err)
+		return nil, fmt.Errorf("waiting for approval: %w", err)
 	}
 	return token, nil
 }
 
-// pushAuthorizationRequest POSTs the full authorization request to the PAR
-// endpoint and returns the resulting request_uri. The client is public, so the
-// client_id travels in the body and there is no client authentication.
-func pushAuthorizationRequest(ctx context.Context, cfg config.Config, meta providerMetadata, redirectURL, state, verifier string) (string, error) {
-	form := url.Values{}
-	form.Set("client_id", cfg.ClientID)
-	form.Set("response_type", "code")
-	form.Set("response_mode", "form_post")
-	form.Set("redirect_uri", redirectURL)
-	form.Set("scope", strings.Join(config.Scopes, " "))
-	form.Set("audience", cfg.Audience)
-	form.Set("state", state)
-	form.Set("code_challenge", oauth2.S256ChallengeFromVerifier(verifier))
-	form.Set("code_challenge_method", "S256")
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, meta.PushedAuthorizationRequestEndpoint, strings.NewReader(form.Encode()))
-	if err != nil {
-		return "", err
+// verificationURL prefers the URI with the code already embedded, so a browser
+// that does open lands on an approval screen with nothing to type.
+func verificationURL(d *oauth2.DeviceAuthResponse) string {
+	if d.VerificationURIComplete != "" {
+		return d.VerificationURIComplete
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("push authorization request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("pushed authorization request rejected (%s): %s", resp.Status, strings.TrimSpace(string(body)))
-	}
-
-	var par struct {
-		RequestURI string `json:"request_uri"`
-		ExpiresIn  int    `json:"expires_in"`
-	}
-	if err := json.Unmarshal(body, &par); err != nil {
-		return "", fmt.Errorf("decode PAR response: %w", err)
-	}
-	if par.RequestURI == "" {
-		return "", fmt.Errorf("PAR response carried no request_uri")
-	}
-	return par.RequestURI, nil
+	return d.VerificationURI
 }
 
-// callbackHandler validates the state parameter and captures the authorization
-// code. With response_mode=form_post, Authelia POSTs the parameters as a form
-// body; FormValue transparently reads them (and query params as a fallback).
-func callbackHandler(wantState string, codeCh chan<- string, errCh chan<- error) http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		if err := r.ParseForm(); err != nil {
-			writeResultPage(w, false, "could not parse the callback parameters")
-			errCh <- fmt.Errorf("parse callback form: %w", err)
-			return
-		}
-		if oauthErr := r.FormValue("error"); oauthErr != "" {
-			detail := oauthErr + ": " + r.FormValue("error_description")
-			writeResultPage(w, false, detail)
-			errCh <- fmt.Errorf("authorization failed: %s", detail)
-			return
-		}
-		if r.FormValue("state") != wantState {
-			writeResultPage(w, false, "state mismatch — possible CSRF, login aborted")
-			errCh <- fmt.Errorf("state mismatch: the callback state did not match the request")
-			return
-		}
-		code := r.FormValue("code")
-		if code == "" {
-			writeResultPage(w, false, "no authorization code in callback")
-			errCh <- fmt.Errorf("callback carried no authorization code")
-			return
-		}
-		writeResultPage(w, true, "")
-		codeCh <- code
-	})
-	return mux
-}
-
-func writeResultPage(w http.ResponseWriter, ok bool, detail string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	heading := "You're signed in to meso"
-	body := "You can close this tab and return to the terminal."
-	if !ok {
-		w.WriteHeader(http.StatusBadRequest)
-		heading = "Sign-in failed"
-		body = detail
-	}
-	_, _ = fmt.Fprintf(w, `<!doctype html><html><head><meta charset="utf-8"><title>meso</title>
-<style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:6rem auto;padding:0 1rem;color:#1a1a1a}
-h1{font-size:1.4rem}p{color:#555}</style></head>
-<body><h1>%s</h1><p>%s</p></body></html>`, heading, body)
-}
-
-// bindLoopback binds the first available port from the candidate set on
-// 127.0.0.1. Returns the listener and the port that was bound.
-func bindLoopback(ports []int) (net.Listener, int, error) {
-	var lastErr error
-	for _, port := range ports {
-		listener, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
-		if err == nil {
-			return listener, port, nil
-		}
-		lastErr = err
-	}
-	return nil, 0, fmt.Errorf("no loopback port free in %v: %w", ports, lastErr)
-}
-
-func randomToken() (string, error) {
-	buf := make([]byte, 32)
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(buf), nil
+func writeInstructions(progress io.Writer, clientID string, d *oauth2.DeviceAuthResponse) {
+	_, _ = fmt.Fprintf(progress, "\nSigning in as %s\n\n", clientID)
+	_, _ = fmt.Fprintf(progress, "  Code:  %s\n", d.UserCode)
+	_, _ = fmt.Fprintf(progress, "  Open:  %s\n\n", d.VerificationURI)
+	_, _ = fmt.Fprintln(progress, "Open that URL in any browser, on any device, and enter the code.")
+	_, _ = fmt.Fprintln(progress, "Waiting for approval...")
 }
 
 // persistingTokenSource wraps a refreshing oauth2.TokenSource and writes any
@@ -296,7 +147,7 @@ func TokenSource(ctx context.Context, cfg config.Config, store *TokenStore) (oau
 	if err != nil {
 		return nil, err
 	}
-	oauthCfg := oauthConfig(cfg, meta, "")
+	oauthCfg := oauthConfig(cfg, meta)
 	base := oauthCfg.TokenSource(ctx, tok)
 	return &persistingTokenSource{
 		base:        base,
