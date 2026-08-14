@@ -2,6 +2,8 @@ module github.com/datapointchris/meso/cli
 
 go 1.26.5
 
+toolchain go1.26.6
+
 require (
 	github.com/datapointchris/goselfupdate v0.7.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
