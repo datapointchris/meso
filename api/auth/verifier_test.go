@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -231,6 +232,73 @@ func TestLooksLikeJWT(t *testing.T) {
 	for raw, want := range cases {
 		if got := LooksLikeJWT(raw); got != want {
 			t.Errorf("LooksLikeJWT(%q) = %v, want %v", raw, got, want)
+		}
+	}
+}
+
+// Cloudflare fronts the real issuer and refuses an unidentified client, so the agent has to be
+// set on the JWKS refreshes too, not only on the discovery fetch at startup.
+func TestVerify_IdentifiesItselfToTheIssuer(t *testing.T) {
+	var mu sync.Mutex
+	var agents []string
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+
+	mux := http.NewServeMux()
+	var base string
+	record := func(r *http.Request) {
+		mu.Lock()
+		agents = append(agents, r.UserAgent())
+		mu.Unlock()
+	}
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
+		record(r)
+		_ = json.NewEncoder(w).Encode(map[string]string{"issuer": base, "jwks_uri": base + "/jwks.json"})
+	})
+	mux.HandleFunc("/jwks.json", func(w http.ResponseWriter, r *http.Request) {
+		record(r)
+		set := jose.JSONWebKeySet{Keys: []jose.JSONWebKey{{
+			Key: key.Public(), KeyID: testKeyID, Algorithm: string(jose.RS256), Use: "sig",
+		}}}
+		_ = json.NewEncoder(w).Encode(set)
+	})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+	base = server.URL
+
+	v, err := NewVerifier(context.Background(), base, "cli-")
+	if err != nil {
+		t.Fatalf("NewVerifier: %v", err)
+	}
+	// A well-formed at+jwt reaches the key set; a malformed one fails the type check first and
+	// would leave the JWKS request untested.
+	opts := (&jose.SignerOptions{}).WithType("at+jwt")
+	opts.WithHeader("kid", testKeyID)
+	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.RS256, Key: key}, opts)
+	if err != nil {
+		t.Fatalf("new signer: %v", err)
+	}
+	obj, err := signer.Sign([]byte(`{"iss":"x","sub":"s","client_id":"cli-x","exp":1}`))
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	raw, err := obj.CompactSerialize()
+	if err != nil {
+		t.Fatalf("serialize: %v", err)
+	}
+	_, _ = v.Verify(context.Background(), raw)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(agents) < 2 {
+		t.Fatalf("expected discovery and a JWKS fetch, got %d request(s)", len(agents))
+	}
+	for _, agent := range agents {
+		if agent != userAgent {
+			t.Fatalf("User-Agent = %q, want %q", agent, userAgent)
 		}
 	}
 }

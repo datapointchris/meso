@@ -46,6 +46,27 @@ type Verifier struct {
 	now            func() time.Time
 }
 
+// userAgent identifies this API to the issuer. Cloudflare fronts the issuer's public hostname and
+// answers 403 to an unidentified client — measured 2026-08-14, where Python's urllib default was
+// refused and a named agent served. Go's default is equally anonymous and equally at the mercy of
+// a bot rule. Reaching the provider by an internal address instead would tie token verification to
+// one network layout.
+const userAgent = "meso-api (+https://meso.ichrisbirch.com)"
+
+// namedAgent sets the User-Agent on every request the OIDC client makes, including the JWKS
+// refreshes go-oidc performs long after startup.
+type namedAgent struct{ base http.RoundTripper }
+
+func (n namedAgent) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	req.Header.Set("User-Agent", userAgent)
+	return n.base.RoundTrip(req)
+}
+
+func identifiedClient() *http.Client {
+	return &http.Client{Timeout: discoveryTimeout, Transport: namedAgent{base: http.DefaultTransport}}
+}
+
 type discoveryDocument struct {
 	Issuer  string `json:"issuer"`
 	JWKSURI string `json:"jwks_uri"`
@@ -74,7 +95,7 @@ func NewVerifier(ctx context.Context, issuer, clientIDPrefix string) (*Verifier,
 	return &Verifier{
 		issuer:         issuer,
 		clientIDPrefix: clientIDPrefix,
-		keySet:         oidc.NewRemoteKeySet(ctx, doc.JWKSURI),
+		keySet:         oidc.NewRemoteKeySet(oidc.ClientContext(ctx, identifiedClient()), doc.JWKSURI),
 		now:            time.Now,
 	}, nil
 }
@@ -88,8 +109,7 @@ func fetchDiscovery(ctx context.Context, issuer string) (discoveryDocument, erro
 	if err != nil {
 		return discoveryDocument{}, err
 	}
-	client := &http.Client{Timeout: discoveryTimeout}
-	resp, err := client.Do(req)
+	resp, err := identifiedClient().Do(req)
 	if err != nil {
 		return discoveryDocument{}, fmt.Errorf("auth: reach %s: %w", url, err)
 	}
