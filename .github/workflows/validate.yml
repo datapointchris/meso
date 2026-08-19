@@ -1,9 +1,7 @@
-# forge-toolchain: 11
+# forge-toolchain: 16
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_call:
 
