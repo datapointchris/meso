@@ -41,15 +41,26 @@ goes under the `admin` namespace (`internal/cli/admin.go`), following HashiCorp'
 `vault operator` / `consul operator` convention. `admin feedback` is its first
 inhabitant; a new non-domain command belongs there, not at the root.
 
-**A command that cannot answer offers the commands that can.** Where the caller typed
-something valid and the CLI still has nothing to show — an ambiguous name, a name that
-matches nothing, two output flags that render different things — the response is a list
-of runnable commands, not a message about what went wrong. Nothing is phrased as a
-reprimand, and the caller never has to go up a level for `--help` to find the way on.
-`resolveNameArg` in `internal/cli/helpers.go` is the pattern: it prints the menu itself
-and returns `exitCode`, which sets the process status without `Execute` printing an
-`error:` line above it. Reserve a plain error for what genuinely failed — the API being
-unreachable, a token being rejected.
+**A command that cannot answer offers the commands that can.** What an error owes is a
+fleet rule — `help.md` § "An error is the help screen for the failure in hand", whose
+canonical source is the shared cobra bootstrap at `~/tools/goselfupdate/cobracmd/`. What
+is meso's own is the step past it: where the caller typed something valid and the CLI
+still has nothing to show, the response is a list of runnable commands rather than a
+failure at all. `resolveIDOrName` in `internal/cli/helpers.go` is the pattern. It writes
+the menu itself and returns `exitCode`, which sets the process status without `Execute`
+printing an `error:` line above it, and under `--json` it emits the same candidates as
+data. Every command it composes takes its path from `cmd.CommandPath()` and its values
+through `shellArg`, so a menu line can be pasted back as typed.
+
+**It reaches `show` on movements, workouts and cycles, and nothing else yet.** `metrics
+show`, `sessions show`, `log show` and every write verb still return plain errors through
+`handleAPIError` and `usageArgs`. Widening it is a 33-site change to how arguments are
+reported, and `help.md` puts that fix in `cobracmd` rather than per repo — so treat this
+as describing three commands, not the CLI.
+
+**A name is accepted where a command reads and never where it writes.** `show` resolves
+`<id-or-name>`; `update`, `delete` and the composition verbs take ids. A fuzzy match that
+narrows to the wrong record costs a wrong screen on a read and a wrong row on a write.
 
 ## Conventions specific to meso
 

@@ -238,22 +238,17 @@ func newMovementsListCommand() *cobra.Command {
 	return cmd
 }
 
-// resolveMovementArg turns a `show`-style <id-or-name> argument into a movement
-// id. A number is taken as an id without a round trip; anything else is searched
-// server-side and narrowed by resolveNameArg.
-func resolveMovementArg(ctx context.Context, out io.Writer, client *api.Client, raw string) (int64, error) {
-	if id, err := strconv.ParseInt(raw, 10, 64); err == nil {
-		return id, nil
+// movementResolver wires the movement resource into resolveIDOrName.
+func movementResolver(client *api.Client) nameResolver[api.Movement] {
+	return nameResolver[api.Movement]{
+		noun:        "movement",
+		createFlags: "--kind exercise",
+		get:         client.GetMovement,
+		search: func(ctx context.Context, q string) ([]api.Movement, error) {
+			return client.ListMovements(ctx, api.MovementFilter{Search: q})
+		},
+		ref: func(m api.Movement) nameRef { return nameRef{ID: m.ID, Name: m.Name} },
 	}
-	movements, err := client.ListMovements(ctx, api.MovementFilter{Search: raw})
-	if err != nil {
-		return 0, handleAPIError(err)
-	}
-	refs := make([]nameRef, 0, len(movements))
-	for _, m := range movements {
-		refs = append(refs, nameRef{ID: m.ID, Name: m.Name})
-	}
-	return resolveNameArg(out, raw, refs, nameLookup{noun: "movement", createFlags: "--kind exercise"})
 }
 
 func newMovementsShowCommand() *cobra.Command {
@@ -264,7 +259,10 @@ func newMovementsShowCommand() *cobra.Command {
 		Long: "Show one movement whole. The argument is an id, or a name to search for —\n" +
 			"an exact name wins outright, and a partial name resolves when it matches\n" +
 			"one movement. A name matching several comes back as one ready-to-run\n" +
-			"command per match; a name matching none offers to create it.",
+			"command per match; a name matching none offers to create it.\n\n" +
+			"`update` and `delete` still take an id. A name is accepted where a command\n" +
+			"reads and never where it writes, because a name that narrows to the wrong\n" +
+			"movement costs a wrong screen on a read and a wrong row on a write.",
 		Example: "  meso movements show 1\n  meso movements show \"front squat\"\n  meso movements show squat --json",
 		Args:    usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -272,13 +270,9 @@ func newMovementsShowCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			id, err := resolveMovementArg(cmd.Context(), cmd.ErrOrStderr(), client, args[0])
+			movement, err := resolveIDOrName(cmd.Context(), cmd, args[0], asJSON, movementResolver(client))
 			if err != nil {
 				return err
-			}
-			movement, err := client.GetMovement(cmd.Context(), id)
-			if err != nil {
-				return handleAPIError(err)
 			}
 			if asJSON {
 				return encodeJSON(cmd.OutOrStdout(), movement)

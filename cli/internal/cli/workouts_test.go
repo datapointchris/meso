@@ -2,9 +2,8 @@ package cli
 
 import (
 	"bytes"
-	"context"
 	"errors"
-	"io"
+	"slices"
 	"strings"
 	"testing"
 
@@ -81,83 +80,139 @@ func TestPrintWorkoutDetail(t *testing.T) {
 	t.Logf("compact:\n%s", out)
 }
 
-// TestPrintWorkoutDetail_MovementHandles is the reason the position column went:
-// every row has to carry the entry id that `workouts movements update` takes and
-// the movement id that `movements show` takes, and two bare integer columns beside
-// each other is what made them unreadable.
-func TestPrintWorkoutDetail_MovementHandles(t *testing.T) {
-	var buf bytes.Buffer
-	printWorkoutDetail(&buf, sampleWorkout())
-	out := buf.String()
-
-	if !strings.Contains(out, "Bench Press (#7)") {
-		t.Errorf("movement id missing from the row:\n%s", out)
-	}
-	if !strings.Contains(out, "4      Bench Press (#7)") {
-		t.Errorf("entry id missing from the row:\n%s", out)
-	}
-	var header string
-	for _, line := range strings.Split(out, "\n") {
-		if strings.Contains(line, "ENTRY") {
-			header = line
-			break
-		}
-	}
-	if header == "" {
-		t.Fatalf("no movements header at all:\n%s", out)
-	}
-	if strings.HasPrefix(strings.TrimSpace(header), "#") {
-		t.Errorf("position column survived: %q", header)
+// TestMovementLabel checks the value the row is built from: a movement's name
+// carries the id `movements show` takes.
+func TestMovementLabel(t *testing.T) {
+	got := movementLabel(api.WorkoutMovement{MovementName: "Bench Press", MovementID: 7})
+	if got != "Bench Press (#7)" {
+		t.Errorf("movementLabel = %q, want %q", got, "Bench Press (#7)")
 	}
 }
 
-func TestPrintWorkoutDetailed(t *testing.T) {
+// TestPrintWorkoutDetail_MovementHandles checks each row carries both handles:
+// the entry id `workouts movements update` takes, and the movement id
+// `movements show` takes. Column order and padding are the renderer's business,
+// so the row is split on whitespace rather than matched against a fixed width.
+func TestPrintWorkoutDetail_MovementHandles(t *testing.T) {
 	var buf bytes.Buffer
-	printWorkoutDetailed(&buf, sampleWorkout(), sampleLibrary())
+	printWorkoutDetail(&buf, sampleWorkout())
+
+	row := findLine(t, buf.String(), "Bench Press")
+	fields := strings.Fields(row)
+	if fields[0] != "4" {
+		t.Errorf("row should start with the entry id, got %q in %q", fields[0], row)
+	}
+	if !strings.Contains(row, "Bench Press (#7)") {
+		t.Errorf("row is missing the movement id: %q", row)
+	}
+}
+
+// TestPrintWorkoutDetail_HeaderColumns pins the header's columns as a sequence of
+// names, which is the value the table is built from — the position column is not
+// among them because nothing takes a position as an argument.
+func TestPrintWorkoutDetail_HeaderColumns(t *testing.T) {
+	var buf bytes.Buffer
+	printWorkoutDetail(&buf, sampleWorkout())
+
+	got := strings.Fields(findLine(t, buf.String(), "ENTRY"))
+	want := []string{"ENTRY", "MOVEMENT", "SETS", "REPS", "LOAD", "REST", "SUPERSET"}
+	if !slices.Equal(got, want) {
+		t.Errorf("header columns = %v, want %v", got, want)
+	}
+}
+
+// findLine returns the first line containing needle, failing the test when there
+// is none — a missing line otherwise reads as a passing assertion about padding.
+func findLine(t *testing.T, out, needle string) string {
+	t.Helper()
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, needle) {
+			return line
+		}
+	}
+	t.Fatalf("no line containing %q in:\n%s", needle, out)
+	return ""
+}
+
+func TestPrintWorkoutExpanded(t *testing.T) {
+	var buf bytes.Buffer
+	printWorkoutExpanded(&buf, sampleWorkout(), sampleLibrary())
 	out := buf.String()
 
 	for _, want := range []string{
 		"entry 4 — Bench Press (#7)",
 		"exercise · weighted · barbell, bench",
 		"5 × 5 @ 80% 1RM · rest 120s",
-		"primary     chest",
-		"secondary   triceps",
 		"Elbows tucked to 45°.",
 		"entry 5 — Push-up (#9)",
 		"exercise · bodyweight",
 		"no prescription",
-		"notes       to failure",
 	} {
 		if !strings.Contains(out, want) {
-			t.Errorf("detailed missing %q:\n%s", want, out)
+			t.Errorf("expanded view missing %q:\n%s", want, out)
 		}
 	}
-	// The how-to stays in `movements show`; carrying it here is what turns a
-	// detailed workout into a wall.
+	// Muscles and notes are labeled rows, so the label and its value are checked
+	// on one line rather than against a padding width.
+	for label, value := range map[string]string{
+		"primary": "chest", "secondary": "triceps", "notes": "to failure",
+	} {
+		if row := findLine(t, out, label); !strings.Contains(row, value) {
+			t.Errorf("%s row = %q, want it to carry %q", label, row, value)
+		}
+	}
+	// The how-to stays in `movements show`; carrying it here is what turns an
+	// expanded workout into a wall.
 	if strings.Contains(out, "Lie flat, unrack") {
-		t.Errorf("how-to leaked into the detailed view:\n%s", out)
+		t.Errorf("how-to leaked into the expanded view:\n%s", out)
 	}
-	t.Logf("detailed:\n%s", out)
+	t.Logf("expanded:\n%s", out)
 }
 
-// TestPrintWorkoutDetailed_ContinuationLines checks a multi-line cue block hangs
-// under its label rather than resetting to the left margin.
-func TestPrintWorkoutDetailed_ContinuationLines(t *testing.T) {
+// TestDetailRow_ContinuationLines checks a multi-line value hangs under its
+// label rather than resetting to the left margin. It asserts the two lines share
+// a left edge, not what that edge measures.
+func TestDetailRow_ContinuationLines(t *testing.T) {
 	var buf bytes.Buffer
-	printWorkoutDetailed(&buf, sampleWorkout(), sampleLibrary())
-	if !strings.Contains(buf.String(), "                Drive the bar back over the shoulders.") {
-		t.Errorf("continuation line not hung under its label:\n%s", buf.String())
+	detailRow(&buf, "cues", "First line.\nSecond line.")
+
+	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("want 2 lines, got %d: %q", len(lines), buf.String())
+	}
+	first := strings.Index(lines[0], "First line.")
+	second := strings.Index(lines[1], "Second line.")
+	if first != second {
+		t.Errorf("value column moved between lines: %d then %d\n%s", first, second, buf.String())
+	}
+	if strings.Contains(lines[1], "cues") {
+		t.Errorf("label repeated on the continuation line: %q", lines[1])
 	}
 }
 
-// TestPrintWorkoutDetailed_UnknownMovement covers an entry whose movement is
-// absent from the index: the name and prescription still print.
-func TestPrintWorkoutDetailed_UnknownMovement(t *testing.T) {
+// TestPrintWorkoutExpanded_UnknownMovement covers entries whose movements are
+// absent from the index. Each keeps its name and prescription, and the view says
+// how many it could not expand rather than reading as complete.
+func TestPrintWorkoutExpanded_UnknownMovement(t *testing.T) {
 	var buf bytes.Buffer
-	printWorkoutDetailed(&buf, sampleWorkout(), map[int64]api.Movement{})
+	printWorkoutExpanded(&buf, sampleWorkout(), map[int64]api.Movement{})
 	out := buf.String()
+
 	if !strings.Contains(out, "entry 4 — Bench Press (#7)") || !strings.Contains(out, "5 × 5 @ 80% 1RM") {
 		t.Errorf("unknown movement lost its row:\n%s", out)
+	}
+	if !strings.Contains(out, "2 of 2 entries could not be expanded") {
+		t.Errorf("partial view did not say it was partial:\n%s", out)
+	}
+}
+
+// TestPrintWorkoutExpanded_Complete is the other half: a fully expanded view says
+// nothing about missing entries.
+func TestPrintWorkoutExpanded_Complete(t *testing.T) {
+	var buf bytes.Buffer
+	printWorkoutExpanded(&buf, sampleWorkout(), sampleLibrary())
+	if strings.Contains(buf.String(), "could not be expanded") {
+		t.Errorf("complete view claimed entries were missing:\n%s", buf.String())
 	}
 }
 
@@ -263,26 +318,18 @@ func TestWorkoutsShow_DetailedWithJSON(t *testing.T) {
 	for _, want := range []string{
 		"meso workouts show 1 --detailed",
 		"meso workouts show 1 --json",
-		"meso movements show <id> --json",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("view menu missing %q:\n%s", want, out)
 		}
 	}
+	// Every line is offered to be pasted, so a placeholder that cannot be run has
+	// no place among them.
+	if strings.Contains(out, "<id>") {
+		t.Errorf("menu offers an unrunnable placeholder:\n%s", out)
+	}
 	assertNoReprimand(t, out)
 	t.Logf("flag menu:\n%s", out)
-}
-
-// TestResolveWorkoutArg_NumericFastPath pins that a numeric argument resolves with
-// no client call at all — passing nil would panic if it reached the API.
-func TestResolveWorkoutArg_NumericFastPath(t *testing.T) {
-	id, err := resolveWorkoutArg(context.Background(), io.Discard, nil, "12")
-	if err != nil {
-		t.Fatalf("resolveWorkoutArg: %v", err)
-	}
-	if id != 12 {
-		t.Errorf("id = %d, want 12", id)
-	}
 }
 
 func TestPlural(t *testing.T) {

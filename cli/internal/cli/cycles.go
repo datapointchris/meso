@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -74,22 +73,16 @@ func newCyclesListCommand() *cobra.Command {
 	return cmd
 }
 
-// resolveCycleArg turns a `show`-style <id-or-name> argument into a cycle id. A
-// number is taken as an id without a round trip; anything else is searched
-// server-side and narrowed by resolveNameArg.
-func resolveCycleArg(ctx context.Context, out io.Writer, client *api.Client, raw string) (int64, error) {
-	if id, err := strconv.ParseInt(raw, 10, 64); err == nil {
-		return id, nil
+// cycleResolver wires the cycle resource into resolveIDOrName.
+func cycleResolver(client *api.Client) nameResolver[api.Cycle] {
+	return nameResolver[api.Cycle]{
+		noun: "cycle",
+		get:  client.GetCycle,
+		search: func(ctx context.Context, q string) ([]api.Cycle, error) {
+			return client.ListCycles(ctx, api.CycleFilter{Search: q})
+		},
+		ref: func(c api.Cycle) nameRef { return nameRef{ID: c.ID, Name: c.Name} },
 	}
-	cycles, err := client.ListCycles(ctx, api.CycleFilter{Search: raw})
-	if err != nil {
-		return 0, handleAPIError(err)
-	}
-	refs := make([]nameRef, 0, len(cycles))
-	for _, c := range cycles {
-		refs = append(refs, nameRef{ID: c.ID, Name: c.Name})
-	}
-	return resolveNameArg(out, raw, refs, nameLookup{noun: "cycle"})
 }
 
 func newCyclesShowCommand() *cobra.Command {
@@ -100,7 +93,11 @@ func newCyclesShowCommand() *cobra.Command {
 		Long: "Show one cycle whole. The argument is an id, or a name to search for —\n" +
 			"an exact name wins outright, and a partial name resolves when it matches\n" +
 			"one cycle. A name matching several comes back as one ready-to-run\n" +
-			"command per match; a name matching none offers to create it.",
+			"command per match; a name matching none offers to create it.\n\n" +
+			"`update`, `delete` and the `workouts` verbs still take an id. A name is\n" +
+			"accepted where a command reads and never where it writes, because a name\n" +
+			"that narrows to the wrong cycle costs a wrong screen on a read and a\n" +
+			"wrong row on a write.",
 		Example: "  meso cycles show 1\n  meso cycles show \"winter strength\"\n  meso cycles show 1 --json",
 		Args:    usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -108,13 +105,9 @@ func newCyclesShowCommand() *cobra.Command {
 			if err != nil {
 				return handleAPIError(err)
 			}
-			id, err := resolveCycleArg(cmd.Context(), cmd.ErrOrStderr(), client, args[0])
+			cycle, err := resolveIDOrName(cmd.Context(), cmd, args[0], asJSON, cycleResolver(client))
 			if err != nil {
 				return err
-			}
-			cycle, err := client.GetCycle(cmd.Context(), id)
-			if err != nil {
-				return handleAPIError(err)
 			}
 			if asJSON {
 				return encodeJSON(cmd.OutOrStdout(), cycle)
