@@ -771,10 +771,10 @@ func printSessionDetail(out io.Writer, s api.Session) {
 	}
 	_, _ = fmt.Fprintln(out, "\nMovements:")
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "  #\tENTRY\tDONE\tMOVEMENT\tPERFORMED\tTARGET\tPREVIOUS")
+	_, _ = fmt.Fprintln(tw, "  ENTRY\tDONE\tMOVEMENT\tPERFORMED\tTARGET\tPREVIOUS")
 	for _, m := range s.Movements {
-		_, _ = fmt.Fprintf(tw, "  %d\t%d\t%s\t%s\t%s\t%s\t%s\n",
-			m.Position, m.ID, doneGlyph(m.Done), m.MovementName,
+		_, _ = fmt.Fprintf(tw, "  %d\t%s\t%s\t%s\t%s\t%s\n",
+			m.ID, doneGlyph(m.Done), fmt.Sprintf("%s (#%d)", m.MovementName, m.MovementID),
 			formatPerformed(m), formatTarget(m), formatPrevious(m.Previous))
 	}
 	_ = tw.Flush()

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strconv"
@@ -82,34 +83,75 @@ func newWorkoutsListCommand() *cobra.Command {
 	return cmd
 }
 
+// workoutResolver wires the workout resource into resolveIDOrName.
+func workoutResolver(client *api.Client) nameResolver[api.Workout] {
+	return nameResolver[api.Workout]{
+		noun: "workout",
+		get:  client.GetWorkout,
+		search: func(ctx context.Context, q string) ([]api.Workout, error) {
+			return client.ListWorkouts(ctx, api.WorkoutFilter{Search: q})
+		},
+		ref: func(w api.Workout) nameRef { return nameRef{ID: w.ID, Name: w.Name} },
+	}
+}
+
 func newWorkoutsShowCommand() *cobra.Command {
-	var asJSON bool
+	var asJSON, detailed bool
 	cmd := &cobra.Command{
-		Use:     "show <id>",
-		Short:   "Show a workout and its ordered movements",
-		Example: "  meso workouts show 1\n  meso workouts show 1 --json",
+		Use:   "show <id-or-name> [flags]",
+		Short: "Show a workout and its ordered movements, by id or by name",
+		Long: "Show one workout whole. The argument is an id, or a name to search for —\n" +
+			"an exact name wins outright, and a partial name resolves when it matches\n" +
+			"one workout. A name matching several comes back as one ready-to-run\n" +
+			"command per match; a name matching none offers to create it.\n\n" +
+			"`update`, `delete` and the `movements` verbs still take an id. A name is\n" +
+			"accepted where a command reads and never where it writes, because a name\n" +
+			"that narrows to the wrong workout costs a wrong screen on a read and a\n" +
+			"wrong row on a write.\n\n" +
+			"--detailed trades the movement table for a block per entry, carrying the\n" +
+			"movement's kind, equipment, muscles and form cues. The how-to and common\n" +
+			"faults stay in `meso movements show`, whose id every block prints.",
+		Example: "  meso workouts show 1\n  meso workouts show \"push day\"\n  meso workouts show 1 --detailed",
 		Args:    usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := api.ParseWorkoutID(args[0])
-			if err != nil {
-				return usageError{err}
+			if detailed && asJSON {
+				printWorkoutViews(cmd, args[0])
+				return exitCode(2)
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
 				return handleAPIError(err)
 			}
-			workout, err := client.GetWorkout(cmd.Context(), id)
+			workout, err := resolveIDOrName(cmd.Context(), cmd, args[0], asJSON, workoutResolver(client))
 			if err != nil {
-				return handleAPIError(err)
+				return err
 			}
 			if asJSON {
 				return encodeJSON(cmd.OutOrStdout(), workout)
 			}
-			printWorkoutDetail(cmd.OutOrStdout(), workout)
+			if !detailed {
+				printWorkoutDetail(cmd.OutOrStdout(), workout)
+				return nil
+			}
+
+			// One list call indexed by id rather than a GET per entry: the fan-out
+			// is invisible from the server and is what `api-design.md` §
+			// "Embed detail in list endpoints when the client would otherwise fan
+			// out" measures the cost of.
+			library, err := client.ListMovements(cmd.Context(), api.MovementFilter{})
+			if err != nil {
+				return handleAPIError(err)
+			}
+			byID := make(map[int64]api.Movement, len(library))
+			for _, m := range library {
+				byID[m.ID] = m
+			}
+			printWorkoutExpanded(cmd.OutOrStdout(), workout, byID)
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the workout as JSON to stdout")
+	cmd.Flags().BoolVar(&detailed, "detailed", false, "Expand each entry with its movement's kind, equipment, muscles and cues")
 	return cmd
 }
 
@@ -514,7 +556,9 @@ func printWorkoutsTable(out io.Writer, workouts []api.Workout) {
 	_ = tw.Flush()
 }
 
-func printWorkoutDetail(out io.Writer, w api.Workout) {
+// printWorkoutHeader renders the workout-level fields shared by the compact and
+// detailed views; only the movement list below it differs between them.
+func printWorkoutHeader(out io.Writer, w api.Workout) {
 	_, _ = fmt.Fprintf(out, "%s  (#%d)\n", w.Name, w.ID)
 	row := func(label, value string) { _, _ = fmt.Fprintf(out, "  %-16s %s\n", label+":", value) }
 	row("theme", orDashPtr(w.Theme))
@@ -526,6 +570,10 @@ func printWorkoutDetail(out io.Writer, w api.Workout) {
 	if strings.TrimSpace(w.Notes) != "" {
 		_, _ = fmt.Fprintf(out, "\nNotes:\n%s\n", w.Notes)
 	}
+}
+
+func printWorkoutDetail(out io.Writer, w api.Workout) {
+	printWorkoutHeader(out, w)
 
 	if len(w.Movements) == 0 {
 		_, _ = fmt.Fprintln(out, "\nNo movements yet — add one with `meso workouts movements add`.")
@@ -533,14 +581,140 @@ func printWorkoutDetail(out io.Writer, w api.Workout) {
 	}
 	_, _ = fmt.Fprintln(out, "\nMovements:")
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "  #\tENTRY\tMOVEMENT\tSETS\tREPS\tLOAD\tREST\tSUPERSET")
+	_, _ = fmt.Fprintln(tw, "  ENTRY\tMOVEMENT\tSETS\tREPS\tLOAD\tREST\tSUPERSET")
 	for _, m := range w.Movements {
-		_, _ = fmt.Fprintf(tw, "  %d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			m.Position, m.ID, m.MovementName,
+		_, _ = fmt.Fprintf(tw, "  %d\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			m.ID, movementLabel(m),
 			orDashIntPtr(m.Sets), orDashPtr(m.Reps), orDashPtr(m.Load),
 			restLabel(m.RestSeconds), orDashPtr(m.SupersetGroup))
 	}
 	_ = tw.Flush()
+}
+
+// printWorkoutViews lists the ways to read a workout, for a caller who asked for
+// two at once. --detailed is a reading layout and --json is the API's shape, so
+// there is nothing to merge — but one of these is the one they wanted.
+func printWorkoutViews(cmd *cobra.Command, ref string) {
+	out := cmd.ErrOrStderr()
+	_, _ = fmt.Fprintln(out, "--detailed and --json render different things. Pick one:")
+	_, _ = fmt.Fprintln(out)
+	// The caller's argument through shellArg and the path from the command tree:
+	// every line here is offered to be pasted back, so a name with a space in it
+	// has to survive the shell and a renamed group has to move the command with it.
+	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	_, _ = fmt.Fprintf(tw, "  %s %s --detailed\tevery entry expanded, to read\n", cmd.CommandPath(), shellArg(ref))
+	_, _ = fmt.Fprintf(tw, "  %s %s --json\tthe workout as the API returns it\n", cmd.CommandPath(), shellArg(ref))
+	_ = tw.Flush()
+}
+
+// movementLabel renders an entry's movement as name plus the id `movements show`
+// takes, matching how printMovementDetail spells a movement and its handle.
+func movementLabel(m api.WorkoutMovement) string {
+	return fmt.Sprintf("%s (#%d)", m.MovementName, m.MovementID)
+}
+
+// printWorkoutExpanded renders the header as the compact view does, then one
+// block per entry expanded from library. An entry whose movement is missing from
+// library still prints its name and prescription, and the count of those is
+// reported at the end — a view that quietly carries less than it says it does
+// reads as a complete one, and `GET /movements` growing a page limit is the way
+// that happens without anything here changing.
+func printWorkoutExpanded(out io.Writer, w api.Workout, library map[int64]api.Movement) {
+	printWorkoutHeader(out, w)
+	if len(w.Movements) == 0 {
+		_, _ = fmt.Fprintln(out, "\nNo movements yet — add one with `meso workouts movements add`.")
+		return
+	}
+	_, _ = fmt.Fprintln(out, "\nMovements:")
+	unexpanded := 0
+	for _, m := range w.Movements {
+		_, _ = fmt.Fprintf(out, "\n  entry %d — %s\n", m.ID, movementLabel(m))
+		movement, known := library[m.MovementID]
+		if known {
+			_, _ = fmt.Fprintf(out, "    %s\n", identityLine(movement))
+		} else {
+			unexpanded++
+		}
+		_, _ = fmt.Fprintf(out, "    %s\n", prescriptionLine(m))
+		if known {
+			detailRow(out, "primary", strings.Join(movement.PrimaryMuscles(), ", "))
+			detailRow(out, "secondary", strings.Join(movement.SecondaryMuscles(), ", "))
+			detailRow(out, "cues", movement.FormCues)
+		}
+		detailRow(out, "notes", m.Notes)
+	}
+	if unexpanded > 0 {
+		_, _ = fmt.Fprintf(out,
+			"\n%d of %d entries could not be expanded — the movement library did not carry them.\nRead one directly with `meso movements show <id>`.\n",
+			unexpanded, len(w.Movements))
+	}
+}
+
+// identityLine is the one-line "what kind of thing is this" for a movement:
+// kind, how it is loaded, and what it needs.
+func identityLine(m api.Movement) string {
+	parts := []string{m.MovementKind}
+	if m.LoadMode != "" {
+		parts = append(parts, m.LoadMode)
+	}
+	if len(m.Equipment) > 0 {
+		parts = append(parts, strings.Join(m.Equipment, ", "))
+	}
+	return strings.Join(parts, " · ")
+}
+
+// prescriptionLine renders what the workout prescribes for one entry, skipping
+// the fields it leaves unset.
+func prescriptionLine(m api.WorkoutMovement) string {
+	var volume string
+	switch {
+	case m.Sets != nil && m.Reps != nil:
+		volume = fmt.Sprintf("%d × %s", *m.Sets, *m.Reps)
+	case m.Sets != nil:
+		volume = fmt.Sprintf("%d set%s", *m.Sets, plural(*m.Sets))
+	case m.Reps != nil:
+		volume = *m.Reps
+	}
+	if m.Load != nil && *m.Load != "" {
+		if volume == "" {
+			volume = *m.Load
+		} else {
+			volume += " @ " + *m.Load
+		}
+	}
+
+	parts := []string{}
+	if volume != "" {
+		parts = append(parts, volume)
+	}
+	if m.RestSeconds != nil {
+		parts = append(parts, "rest "+strconv.Itoa(*m.RestSeconds)+"s")
+	}
+	if m.SupersetGroup != nil && *m.SupersetGroup != "" {
+		parts = append(parts, "superset "+*m.SupersetGroup)
+	}
+	if len(parts) == 0 {
+		return "no prescription"
+	}
+	return strings.Join(parts, " · ")
+}
+
+// detailRow prints one labeled field of a detailed entry, hanging continuation
+// lines under the value so a multi-line cue block stays in its column. An empty
+// value prints nothing — a detailed view is already long without empty rows.
+func detailRow(out io.Writer, label, value string) {
+	if strings.TrimSpace(value) == "" {
+		return
+	}
+	const indent = "    "
+	const labelWidth = 12
+	for i, line := range strings.Split(strings.TrimRight(value, "\n"), "\n") {
+		if i == 0 {
+			_, _ = fmt.Fprintf(out, "%s%-*s%s\n", indent, labelWidth, label, line)
+			continue
+		}
+		_, _ = fmt.Fprintf(out, "%s%s%s\n", indent, strings.Repeat(" ", labelWidth), line)
+	}
 }
 
 // restLabel renders a nil rest as an em dash, else "<n>s".

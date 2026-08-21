@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -72,25 +73,41 @@ func newCyclesListCommand() *cobra.Command {
 	return cmd
 }
 
+// cycleResolver wires the cycle resource into resolveIDOrName.
+func cycleResolver(client *api.Client) nameResolver[api.Cycle] {
+	return nameResolver[api.Cycle]{
+		noun: "cycle",
+		get:  client.GetCycle,
+		search: func(ctx context.Context, q string) ([]api.Cycle, error) {
+			return client.ListCycles(ctx, api.CycleFilter{Search: q})
+		},
+		ref: func(c api.Cycle) nameRef { return nameRef{ID: c.ID, Name: c.Name} },
+	}
+}
+
 func newCyclesShowCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "show <id>",
-		Short:   "Show a cycle and its ordered workout sequence",
-		Example: "  meso cycles show 1\n  meso cycles show 1 --json",
+		Use:   "show <id-or-name>",
+		Short: "Show a cycle and its ordered workout sequence, by id or by name",
+		Long: "Show one cycle whole. The argument is an id, or a name to search for —\n" +
+			"an exact name wins outright, and a partial name resolves when it matches\n" +
+			"one cycle. A name matching several comes back as one ready-to-run\n" +
+			"command per match; a name matching none offers to create it.\n\n" +
+			"`update`, `delete` and the `workouts` verbs still take an id. A name is\n" +
+			"accepted where a command reads and never where it writes, because a name\n" +
+			"that narrows to the wrong cycle costs a wrong screen on a read and a\n" +
+			"wrong row on a write.",
+		Example: "  meso cycles show 1\n  meso cycles show \"winter strength\"\n  meso cycles show 1 --json",
 		Args:    usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := api.ParseCycleID(args[0])
-			if err != nil {
-				return usageError{err}
-			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
 				return handleAPIError(err)
 			}
-			cycle, err := client.GetCycle(cmd.Context(), id)
+			cycle, err := resolveIDOrName(cmd.Context(), cmd, args[0], asJSON, cycleResolver(client))
 			if err != nil {
-				return handleAPIError(err)
+				return err
 			}
 			if asJSON {
 				return encodeJSON(cmd.OutOrStdout(), cycle)
@@ -530,10 +547,10 @@ func printCycleDetail(out io.Writer, c api.Cycle) {
 	}
 	_, _ = fmt.Fprintln(out, "\nWorkouts:")
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "  #\tENTRY\tWORKOUT\tWEEK\tPHASE\tFREQ\tINTENSITY\tCONDITIONS")
+	_, _ = fmt.Fprintln(tw, "  ENTRY\tWORKOUT\tWEEK\tPHASE\tFREQ\tINTENSITY\tCONDITIONS")
 	for _, cw := range c.Workouts {
-		_, _ = fmt.Fprintf(tw, "  %d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			cw.Position, cw.ID, cw.WorkoutName,
+		_, _ = fmt.Fprintf(tw, "  %d\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			cw.ID, fmt.Sprintf("%s (#%d)", cw.WorkoutName, cw.WorkoutID),
 			orDashIntPtr(cw.Week), orDashPtr(cw.Phase), orDashPtr(cw.Frequency),
 			orDashPtr(cw.Intensity), orDashPtr(cw.Conditions))
 	}

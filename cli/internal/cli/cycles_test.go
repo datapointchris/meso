@@ -58,6 +58,12 @@ func TestPrintCycleDetail(t *testing.T) {
 			t.Errorf("detail missing %q:\n%s", want, out)
 		}
 	}
+	// The entry id drives `cycles workouts update/rm`; the workout id drives
+	// `workouts show`. Both have to be typeable off the row.
+	if !strings.Contains(out, "4      Base Week (#7)") {
+		t.Errorf("row is missing an entry id or a workout id:\n%s", out)
+	}
+	t.Logf("cycle detail:\n%s", out)
 }
 
 func TestPrintCycleDetail_Empty(t *testing.T) {

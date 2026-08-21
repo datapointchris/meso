@@ -205,9 +205,18 @@ func (c *Client) ListMuscles(ctx context.Context) ([]Muscle, error) {
 // PrimaryMuscles returns the names of a movement's primary muscles, for compact
 // table output.
 func (m Movement) PrimaryMuscles() []string {
+	return m.musclesInRole("primary")
+}
+
+// SecondaryMuscles returns the names of a movement's secondary muscles.
+func (m Movement) SecondaryMuscles() []string {
+	return m.musclesInRole("secondary")
+}
+
+func (m Movement) musclesInRole(role string) []string {
 	var out []string
 	for _, mm := range m.Muscles {
-		if mm.Role == "primary" {
+		if mm.Role == role {
 			out = append(out, mm.Muscle)
 		}
 	}

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -237,25 +238,41 @@ func newMovementsListCommand() *cobra.Command {
 	return cmd
 }
 
+// movementResolver wires the movement resource into resolveIDOrName.
+func movementResolver(client *api.Client) nameResolver[api.Movement] {
+	return nameResolver[api.Movement]{
+		noun:        "movement",
+		createFlags: "--kind exercise",
+		get:         client.GetMovement,
+		search: func(ctx context.Context, q string) ([]api.Movement, error) {
+			return client.ListMovements(ctx, api.MovementFilter{Search: q})
+		},
+		ref: func(m api.Movement) nameRef { return nameRef{ID: m.ID, Name: m.Name} },
+	}
+}
+
 func newMovementsShowCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "show <id>",
-		Short:   "Show a movement's full detail",
-		Example: "  meso movements show 1\n  meso movements show 1 --json",
+		Use:   "show <id-or-name>",
+		Short: "Show a movement's full detail, by id or by name",
+		Long: "Show one movement whole. The argument is an id, or a name to search for —\n" +
+			"an exact name wins outright, and a partial name resolves when it matches\n" +
+			"one movement. A name matching several comes back as one ready-to-run\n" +
+			"command per match; a name matching none offers to create it.\n\n" +
+			"`update` and `delete` still take an id. A name is accepted where a command\n" +
+			"reads and never where it writes, because a name that narrows to the wrong\n" +
+			"movement costs a wrong screen on a read and a wrong row on a write.",
+		Example: "  meso movements show 1\n  meso movements show \"front squat\"\n  meso movements show squat --json",
 		Args:    usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := api.ParseID(args[0])
-			if err != nil {
-				return usageError{err}
-			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
 				return handleAPIError(err)
 			}
-			movement, err := client.GetMovement(cmd.Context(), id)
+			movement, err := resolveIDOrName(cmd.Context(), cmd, args[0], asJSON, movementResolver(client))
 			if err != nil {
-				return handleAPIError(err)
+				return err
 			}
 			if asJSON {
 				return encodeJSON(cmd.OutOrStdout(), movement)
@@ -671,16 +688,10 @@ func writeMovementsCSV(out io.Writer, movements []api.Movement) error {
 		return err
 	}
 	for _, m := range movements {
-		var secondary []string
-		for _, mm := range m.Muscles {
-			if mm.Role == "secondary" {
-				secondary = append(secondary, mm.Muscle)
-			}
-		}
 		record := []string{
 			strconv.FormatInt(m.ID, 10), m.Name, m.MovementKind, strconv.FormatBool(m.Favorite),
 			orDashIntPtr(m.Rating), strings.Join(m.Tags, "; "), strings.Join(m.Equipment, "; "),
-			strings.Join(m.PrimaryMuscles(), "; "), strings.Join(secondary, "; "),
+			strings.Join(m.PrimaryMuscles(), "; "), strings.Join(m.SecondaryMuscles(), "; "),
 			orDashIntPtr(m.DefaultSets), orDashPtr(m.DefaultReps), orDashIntPtr(m.DefaultHoldSeconds),
 			orDashPtr(m.SanskritName), strconv.FormatBool(m.MeasurableROM),
 			orDashPtr(m.SourceName), orDashPtr(m.SourceURL),

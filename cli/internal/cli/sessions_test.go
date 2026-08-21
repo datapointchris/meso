@@ -74,6 +74,12 @@ func TestPrintSessionDetail(t *testing.T) {
 			t.Errorf("detail missing %q:\n%s", want, out)
 		}
 	}
+	// The entry id drives `sessions movements update/rm`; the movement id drives
+	// `movements show`. Both have to be typeable off the row.
+	if !strings.Contains(out, "Bench Press (#7)") {
+		t.Errorf("movement id missing from the row:\n%s", out)
+	}
+	t.Logf("session detail:\n%s", out)
 }
 
 // The performed cell collapses sets that shared their numbers and spells out the ones
