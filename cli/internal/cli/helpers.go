@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -105,4 +106,91 @@ func readConfirmation(out io.Writer, in io.Reader, prompt string) (bool, error) 
 	}
 	answer := strings.ToLower(strings.TrimSpace(line))
 	return answer == "y" || answer == "yes", nil
+}
+
+// nameRef is one candidate for resolving a name argument: the id a caller types
+// and the name they searched for.
+type nameRef struct {
+	Name string
+	ID   int64
+}
+
+// nameLookup is what a name argument needs beyond its candidates: the singular
+// noun for prose, and any flags `create` requires, so a query that matched
+// nothing can offer to add what is missing.
+type nameLookup struct {
+	noun        string
+	createFlags string
+}
+
+// namespace is the command group the noun owns, which is its plural.
+func (l nameLookup) namespace() string { return "meso " + l.noun + "s" }
+
+// resolveNameArg turns a non-numeric <id-or-name> argument into an id. An exact
+// case-insensitive name wins outright, so a name that is also a prefix of longer
+// ones still resolves; otherwise the candidates whose name contains the query
+// have to narrow to one.
+//
+// A query that lands on several records, or on none, is not a mistake the caller
+// made — they typed a command the CLI invited. So nothing here is phrased as a
+// failure: out gets the commands that carry on from where they already are, one
+// per candidate or the way to create what is missing, and the returned exitCode
+// stops the run without Execute printing an "error:" line above them.
+//
+// candidates comes from the server-side search, which matches tags too. A query
+// that hit only tags leaves the contains-filter empty, and those hits are then
+// offered rather than reported as no match.
+func resolveNameArg(out io.Writer, raw string, candidates []nameRef, l nameLookup) (int64, error) {
+	query := strings.ToLower(strings.TrimSpace(raw))
+	for _, c := range candidates {
+		if strings.ToLower(c.Name) == query {
+			return c.ID, nil
+		}
+	}
+
+	byName := make([]nameRef, 0, len(candidates))
+	for _, c := range candidates {
+		if strings.Contains(strings.ToLower(c.Name), query) {
+			byName = append(byName, c)
+		}
+	}
+	if len(byName) == 0 {
+		byName = candidates
+	}
+
+	switch len(byName) {
+	case 1:
+		return byName[0].ID, nil
+	case 0:
+		printNoNameMatch(out, raw, l)
+		return 0, exitCode(1)
+	default:
+		printNameCandidates(out, raw, byName, l)
+		return 0, exitCode(2)
+	}
+}
+
+// printNameCandidates offers one runnable command per candidate, so narrowing an
+// ambiguous name costs a copy rather than a fresh search.
+func printNameCandidates(out io.Writer, raw string, refs []nameRef, l nameLookup) {
+	_, _ = fmt.Fprintf(out, "%d %ss match %q. Show one:\n\n", len(refs), l.noun, raw)
+	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	for _, r := range refs {
+		_, _ = fmt.Fprintf(tw, "  %s show %d\t%s\n", l.namespace(), r.ID, r.Name)
+	}
+	_ = tw.Flush()
+}
+
+// printNoNameMatch offers the two things worth doing when a name is absent:
+// browse what does exist, or add the thing that does not.
+func printNoNameMatch(out io.Writer, raw string, l nameLookup) {
+	_, _ = fmt.Fprintf(out, "No %s matches %q. From here:\n\n", l.noun, raw)
+	create := fmt.Sprintf("  %s create %q", l.namespace(), raw)
+	if l.createFlags != "" {
+		create += " " + l.createFlags
+	}
+	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
+	_, _ = fmt.Fprintf(tw, "  %s list\tbrowse every %s\n", l.namespace(), l.noun)
+	_, _ = fmt.Fprintf(tw, "%s\tadd it\n", create)
+	_ = tw.Flush()
 }

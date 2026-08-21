@@ -41,6 +41,16 @@ goes under the `admin` namespace (`internal/cli/admin.go`), following HashiCorp'
 `vault operator` / `consul operator` convention. `admin feedback` is its first
 inhabitant; a new non-domain command belongs there, not at the root.
 
+**A command that cannot answer offers the commands that can.** Where the caller typed
+something valid and the CLI still has nothing to show — an ambiguous name, a name that
+matches nothing, two output flags that render different things — the response is a list
+of runnable commands, not a message about what went wrong. Nothing is phrased as a
+reprimand, and the caller never has to go up a level for `--help` to find the way on.
+`resolveNameArg` in `internal/cli/helpers.go` is the pattern: it prints the menu itself
+and returns `exitCode`, which sets the process status without `Execute` printing an
+`error:` line above it. Reserve a plain error for what genuinely failed — the API being
+unreachable, a token being rejected.
+
 ## Conventions specific to meso
 
 Schema conventions (lookup tables not enums, `TEXT` columns, PK strategy, server-side filtering,

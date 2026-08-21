@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -237,21 +238,43 @@ func newMovementsListCommand() *cobra.Command {
 	return cmd
 }
 
+// resolveMovementArg turns a `show`-style <id-or-name> argument into a movement
+// id. A number is taken as an id without a round trip; anything else is searched
+// server-side and narrowed by resolveNameArg.
+func resolveMovementArg(ctx context.Context, out io.Writer, client *api.Client, raw string) (int64, error) {
+	if id, err := strconv.ParseInt(raw, 10, 64); err == nil {
+		return id, nil
+	}
+	movements, err := client.ListMovements(ctx, api.MovementFilter{Search: raw})
+	if err != nil {
+		return 0, handleAPIError(err)
+	}
+	refs := make([]nameRef, 0, len(movements))
+	for _, m := range movements {
+		refs = append(refs, nameRef{ID: m.ID, Name: m.Name})
+	}
+	return resolveNameArg(out, raw, refs, nameLookup{noun: "movement", createFlags: "--kind exercise"})
+}
+
 func newMovementsShowCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "show <id>",
-		Short:   "Show a movement's full detail",
-		Example: "  meso movements show 1\n  meso movements show 1 --json",
+		Use:   "show <id-or-name>",
+		Short: "Show a movement's full detail, by id or by name",
+		Long: "Show one movement whole. The argument is an id, or a name to search for —\n" +
+			"an exact name wins outright, and a partial name resolves when it matches\n" +
+			"one movement. A name matching several comes back as one ready-to-run\n" +
+			"command per match; a name matching none offers to create it.",
+		Example: "  meso movements show 1\n  meso movements show \"front squat\"\n  meso movements show squat --json",
 		Args:    usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := api.ParseID(args[0])
-			if err != nil {
-				return usageError{err}
-			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
 				return handleAPIError(err)
+			}
+			id, err := resolveMovementArg(cmd.Context(), cmd.ErrOrStderr(), client, args[0])
+			if err != nil {
+				return err
 			}
 			movement, err := client.GetMovement(cmd.Context(), id)
 			if err != nil {
@@ -671,16 +694,10 @@ func writeMovementsCSV(out io.Writer, movements []api.Movement) error {
 		return err
 	}
 	for _, m := range movements {
-		var secondary []string
-		for _, mm := range m.Muscles {
-			if mm.Role == "secondary" {
-				secondary = append(secondary, mm.Muscle)
-			}
-		}
 		record := []string{
 			strconv.FormatInt(m.ID, 10), m.Name, m.MovementKind, strconv.FormatBool(m.Favorite),
 			orDashIntPtr(m.Rating), strings.Join(m.Tags, "; "), strings.Join(m.Equipment, "; "),
-			strings.Join(m.PrimaryMuscles(), "; "), strings.Join(secondary, "; "),
+			strings.Join(m.PrimaryMuscles(), "; "), strings.Join(m.SecondaryMuscles(), "; "),
 			orDashIntPtr(m.DefaultSets), orDashPtr(m.DefaultReps), orDashIntPtr(m.DefaultHoldSeconds),
 			orDashPtr(m.SanskritName), strconv.FormatBool(m.MeasurableROM),
 			orDashPtr(m.SourceName), orDashPtr(m.SourceURL),

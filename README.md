@@ -332,11 +332,11 @@ Every endpoint group ships with its goose migration and a testcontainers-backed 
 
 ```bash
 meso auth        login | logout | status [--json] | token          # nomad's flow, verbatim
-meso movements   list [--kind --load-mode --favorite --tag --equipment --muscle --region --search] | show <id> | create | update | delete | muscles | related add/rm | export [--format csv]
-meso workouts    list | show <id> | create | update | delete | movements add/reorder/rm
+meso movements   list [--kind --load-mode --favorite --tag --equipment --muscle --region --search] | show <id-or-name> | create | update | delete | muscles | related add/rm | export [--format csv]
+meso workouts    list | show <id-or-name> [--detailed] | create | update | delete | movements add/reorder/rm
 meso sessions    log [--from-workout <id>] | list [--from --to --unfinished] | show <id> | update <id> | finish <id> | delete <id>
                  | movement add/rm/done/update | set add/update/rm | promote <id> --name
-meso cycles      list | show <id> | create | update | delete | workouts add/reorder/rm
+meso cycles      list | show <id-or-name> | create | update | delete | workouts add/reorder/rm
 meso metrics     list | show <name> | define | edit | delete
 meso measurements record | list [--metric --from --to] | trend <metric>
 meso log         add | list [--from --to --tag] | show <id>

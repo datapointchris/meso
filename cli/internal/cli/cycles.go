@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -72,21 +74,43 @@ func newCyclesListCommand() *cobra.Command {
 	return cmd
 }
 
+// resolveCycleArg turns a `show`-style <id-or-name> argument into a cycle id. A
+// number is taken as an id without a round trip; anything else is searched
+// server-side and narrowed by resolveNameArg.
+func resolveCycleArg(ctx context.Context, out io.Writer, client *api.Client, raw string) (int64, error) {
+	if id, err := strconv.ParseInt(raw, 10, 64); err == nil {
+		return id, nil
+	}
+	cycles, err := client.ListCycles(ctx, api.CycleFilter{Search: raw})
+	if err != nil {
+		return 0, handleAPIError(err)
+	}
+	refs := make([]nameRef, 0, len(cycles))
+	for _, c := range cycles {
+		refs = append(refs, nameRef{ID: c.ID, Name: c.Name})
+	}
+	return resolveNameArg(out, raw, refs, nameLookup{noun: "cycle"})
+}
+
 func newCyclesShowCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "show <id>",
-		Short:   "Show a cycle and its ordered workout sequence",
-		Example: "  meso cycles show 1\n  meso cycles show 1 --json",
+		Use:   "show <id-or-name>",
+		Short: "Show a cycle and its ordered workout sequence, by id or by name",
+		Long: "Show one cycle whole. The argument is an id, or a name to search for —\n" +
+			"an exact name wins outright, and a partial name resolves when it matches\n" +
+			"one cycle. A name matching several comes back as one ready-to-run\n" +
+			"command per match; a name matching none offers to create it.",
+		Example: "  meso cycles show 1\n  meso cycles show \"winter strength\"\n  meso cycles show 1 --json",
 		Args:    usageArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := api.ParseCycleID(args[0])
-			if err != nil {
-				return usageError{err}
-			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
 				return handleAPIError(err)
+			}
+			id, err := resolveCycleArg(cmd.Context(), cmd.ErrOrStderr(), client, args[0])
+			if err != nil {
+				return err
 			}
 			cycle, err := client.GetCycle(cmd.Context(), id)
 			if err != nil {
@@ -530,10 +554,10 @@ func printCycleDetail(out io.Writer, c api.Cycle) {
 	}
 	_, _ = fmt.Fprintln(out, "\nWorkouts:")
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "  #\tENTRY\tWORKOUT\tWEEK\tPHASE\tFREQ\tINTENSITY\tCONDITIONS")
+	_, _ = fmt.Fprintln(tw, "  ENTRY\tWORKOUT\tWEEK\tPHASE\tFREQ\tINTENSITY\tCONDITIONS")
 	for _, cw := range c.Workouts {
-		_, _ = fmt.Fprintf(tw, "  %d\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			cw.Position, cw.ID, cw.WorkoutName,
+		_, _ = fmt.Fprintf(tw, "  %d\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			cw.ID, fmt.Sprintf("%s (#%d)", cw.WorkoutName, cw.WorkoutID),
 			orDashIntPtr(cw.Week), orDashPtr(cw.Phase), orDashPtr(cw.Frequency),
 			orDashPtr(cw.Intensity), orDashPtr(cw.Conditions))
 	}
