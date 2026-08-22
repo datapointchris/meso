@@ -5,7 +5,7 @@ go 1.26.5
 toolchain go1.26.6
 
 require (
-	github.com/datapointchris/goselfupdate v0.7.0
+	github.com/datapointchris/goselfupdate v0.8.2
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/spf13/cobra v1.10.2
 	github.com/zalando/go-keyring v0.2.8
