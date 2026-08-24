@@ -22,7 +22,7 @@ var errNeedsLogin = errors.New("not logged in")
 // persisting token source, so resource commands never touch tokens directly.
 func newAPIClient(ctx context.Context) (*api.Client, error) {
 	cfg := config.Load()
-	store := goclilogin.NewTokenStore(cfg.Login().KeyringService)
+	store := goclilogin.NewTokenStore(cfg.Login())
 
 	source, err := goclilogin.TokenSource(ctx, cfg.Login(), store)
 	if errors.Is(err, goclilogin.ErrNotLoggedIn) {

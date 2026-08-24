@@ -50,14 +50,15 @@ func getEnv(key, fallback string) string {
 }
 
 // Login is the goclilogin view of this config: which provider to authenticate
-// against, as which client, and where the token and its refresh lock live. The
-// lock sits beside the tool's other state rather than under the keyring service
-// name, which is where goclilogin would put it by default.
+// against, as which client, and where its state lives. StateDir holds the
+// refresh lock and the fallback token file, and naming the tool's own directory
+// keeps both beside its other state rather than under the keyring service name,
+// which is where goclilogin would put them by default.
 func (c Config) Login() goclilogin.Config {
 	return goclilogin.Config{
 		Issuer:         c.Issuer,
 		ClientID:       c.ClientID,
 		KeyringService: keyringService,
-		LockDir:        goclilogin.StateDir("meso"),
+		StateDir:       goclilogin.StateDir("meso"),
 	}
 }

@@ -28,8 +28,8 @@ func TestLoginCarriesTheDeployedIdentifiers(t *testing.T) {
 	if login.KeyringService != "meso-cli" {
 		t.Errorf("KeyringService = %q, want meso-cli", login.KeyringService)
 	}
-	if login.LockDir != "/tmp/xdgstate/meso" {
-		t.Errorf("LockDir = %q, want the tool's own state directory", login.LockDir)
+	if login.StateDir != "/tmp/xdgstate/meso" {
+		t.Errorf("StateDir = %q, want the tool's own state directory", login.StateDir)
 	}
 }
 

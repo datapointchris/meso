@@ -42,7 +42,7 @@ func newAuthLoginCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := config.Load()
 			login := cfg.Login()
-			store := goclilogin.NewTokenStore(login.KeyringService)
+			store := goclilogin.NewTokenStore(login)
 
 			ctx, cancel := context.WithTimeout(cmd.Context(), loginTimeout)
 			defer cancel()
@@ -69,8 +69,14 @@ func newAuthLoginCommand() *cobra.Command {
 				}
 				return err
 			}
-			if err := store.Save(cfg.ClientID, token); err != nil {
-				return fmt.Errorf("save token to keychain: %w", err)
+			backend, err := store.Save(cfg.ClientID, token)
+			if err != nil {
+				return fmt.Errorf("save token: %w", err)
+			}
+			if backend == goclilogin.BackendFile {
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(),
+					"\nNo OS keyring on this host — the token is in %s, readable by this user only.\n",
+					store.FilePath())
 			}
 
 			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "\n✓ Logged in (%s)\n", cfg.ClientID)
@@ -87,7 +93,7 @@ func newAuthLogoutCommand() *cobra.Command {
 		Args:    usageArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := config.Load()
-			store := goclilogin.NewTokenStore(cfg.Login().KeyringService)
+			store := goclilogin.NewTokenStore(cfg.Login())
 
 			if err := store.Delete(cfg.ClientID); err != nil {
 				if errors.Is(err, goclilogin.ErrNotLoggedIn) {
@@ -113,7 +119,7 @@ func newAuthTokenCommand() *cobra.Command {
 		Args:    usageArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := config.Load()
-			store := goclilogin.NewTokenStore(cfg.Login().KeyringService)
+			store := goclilogin.NewTokenStore(cfg.Login())
 
 			source, err := goclilogin.TokenSource(cmd.Context(), cfg.Login(), store)
 			if errors.Is(err, goclilogin.ErrNotLoggedIn) {
@@ -142,6 +148,10 @@ type statusReport struct {
 	Issuer    string `json:"issuer"`
 	ExpiresAt string `json:"expires_at,omitempty"`
 	Expired   bool   `json:"expired"`
+
+	// Backend is where the token is kept. A host with no OS keyring stores it
+	// in a mode-600 file instead, and that is worth saying out loud.
+	Backend goclilogin.Backend `json:"backend,omitempty"`
 }
 
 func newAuthStatusCommand() *cobra.Command {
@@ -153,11 +163,11 @@ func newAuthStatusCommand() *cobra.Command {
 		Args:    usageArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := config.Load()
-			store := goclilogin.NewTokenStore(cfg.Login().KeyringService)
+			store := goclilogin.NewTokenStore(cfg.Login())
 
 			report := statusReport{ClientID: cfg.ClientID, Issuer: cfg.Issuer}
 
-			token, err := store.Load(cfg.ClientID)
+			token, backend, err := store.Load(cfg.ClientID)
 			switch {
 			case errors.Is(err, goclilogin.ErrNotLoggedIn):
 				// logged out is a valid state, reported on stdout, exit 1 (like gh)
@@ -168,6 +178,7 @@ func newAuthStatusCommand() *cobra.Command {
 				if !token.Expiry.IsZero() {
 					report.ExpiresAt = token.Expiry.Format(time.RFC3339)
 					report.Expired = time.Now().After(token.Expiry)
+					report.Backend = backend
 				}
 			}
 
@@ -206,5 +217,8 @@ func printStatus(cmd *cobra.Command, r statusReport) {
 			state = "expired — will refresh on next use"
 		}
 		_, _ = fmt.Fprintf(out, "  token:    %s (expires %s)\n", state, r.ExpiresAt)
+	}
+	if r.Backend == goclilogin.BackendFile {
+		_, _ = fmt.Fprintf(out, "  storage:  %s — no OS keyring on this host\n", r.Backend)
 	}
 }
