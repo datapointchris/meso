@@ -30,10 +30,17 @@ lives in `cmd/seed`. Handler tests are testcontainers-backed (`handlers/main_tes
 
 ### CLI layering
 
-`internal/config` (OIDC/API settings) → `internal/auth` (device grant + OS-keychain
-token store) → `internal/api` (typed REST client over the wire contract) →
-`internal/cli` (cobra command tree). Resource commands live one file per resource
-under `internal/cli`, each with a matching `internal/api/<resource>.go` client.
+`internal/config` (OIDC/API settings, and `Config.Login()` mapping onto goclilogin) →
+`internal/api` (typed REST client over the wire contract) → `internal/cli` (cobra command
+tree). Resource commands live one file per resource under `internal/cli`, each with a
+matching `internal/api/<resource>.go` client.
+
+The device grant, the OS-keychain token store and the refresh are
+`github.com/datapointchris/goclilogin`, shared with the icb, nomad and learning CLIs. Do
+not reintroduce a local `internal/auth`: the library exists because four CLIs each had one
+and a fix to any single copy left the other three broken. The refresh takes a machine-wide
+lock, because Authelia revokes the whole grant when two processes replay the same rotated
+refresh token.
 
 Top-level commands are **training nouns only**, and anything about the software rather
 than the training goes under `admin` (`internal/cli/admin.go`). The rule and the
