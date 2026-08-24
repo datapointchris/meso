@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/datapointchris/goclilogin"
 	"golang.org/x/oauth2"
 
 	"github.com/datapointchris/meso/cli/internal/api"
-	"github.com/datapointchris/meso/cli/internal/auth"
 	"github.com/datapointchris/meso/cli/internal/config"
 )
 
@@ -22,10 +22,10 @@ var errNeedsLogin = errors.New("not logged in")
 // persisting token source, so resource commands never touch tokens directly.
 func newAPIClient(ctx context.Context) (*api.Client, error) {
 	cfg := config.Load()
-	store := auth.NewTokenStore()
+	store := goclilogin.NewTokenStore(cfg.Login().KeyringService)
 
-	source, err := auth.TokenSource(ctx, cfg, store)
-	if errors.Is(err, auth.ErrNotLoggedIn) {
+	source, err := goclilogin.TokenSource(ctx, cfg.Login(), store)
+	if errors.Is(err, goclilogin.ErrNotLoggedIn) {
 		return nil, errNeedsLogin
 	}
 	if err != nil {
@@ -42,6 +42,12 @@ func newAPIClient(ctx context.Context) (*api.Client, error) {
 func handleAPIError(err error) error {
 	if errors.Is(err, errNeedsLogin) {
 		return fmt.Errorf("not logged in — run `meso auth login`")
+	}
+	// A refusal at the token endpoint arrives as the transport error of the
+	// request that triggered the refresh, so the URL and the raw OAuth error
+	// description are what reach the terminal unless they are named here.
+	if goclilogin.IsSessionRejected(err) {
+		return fmt.Errorf("session expired — run `meso auth login`")
 	}
 	var apiErr *api.APIError
 	if errors.As(err, &apiErr) && apiErr.Unauthorized() {

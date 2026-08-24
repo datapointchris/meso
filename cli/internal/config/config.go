@@ -4,20 +4,19 @@ package config
 
 import (
 	"os"
-	"strings"
+
+	"github.com/datapointchris/goclilogin"
 )
 
 const (
 	defaultIssuer  = "https://auth.ichrisbirch.com"
 	defaultAPIBase = "https://meso.ichrisbirch.com"
-)
 
-// Scopes requested at login. offline_access yields the refresh token; openid
-// and profile make the access token a standard OIDC one. The bearer.authz
-// scope is deliberately absent — Authelia permits only authorization_code,
-// refresh_token and client_credentials alongside it, which rules out the
-// device grant this CLI logs in with.
-var Scopes = []string{"openid", "profile", "offline_access"}
+	// keyringService namespaces meso's entries in the OS keychain. It is
+	// a deployed identifier rather than a path-derived one, so it keeps its
+	// spelling independently of the module or binary name.
+	keyringService = "meso-cli"
+)
 
 type Config struct {
 	Issuer   string
@@ -40,12 +39,7 @@ func Load() Config {
 // registered in the Authelia template. Machines whose hostname differs from
 // their logical name override with MESO_CLIENT_ID (pyinfra can template this).
 func defaultClientID() string {
-	host, err := os.Hostname()
-	if err != nil || host == "" {
-		return "meso-cli"
-	}
-	short := strings.ToLower(strings.SplitN(host, ".", 2)[0])
-	return "meso-cli-" + short
+	return goclilogin.ClientID("meso")
 }
 
 func getEnv(key, fallback string) string {
@@ -53,4 +47,17 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// Login is the goclilogin view of this config: which provider to authenticate
+// against, as which client, and where the token and its refresh lock live. The
+// lock sits beside the tool's other state rather than under the keyring service
+// name, which is where goclilogin would put it by default.
+func (c Config) Login() goclilogin.Config {
+	return goclilogin.Config{
+		Issuer:         c.Issuer,
+		ClientID:       c.ClientID,
+		KeyringService: keyringService,
+		LockDir:        goclilogin.StateDir("meso"),
+	}
 }

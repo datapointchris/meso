@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
+	"github.com/datapointchris/goclilogin"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 
-	"github.com/datapointchris/meso/cli/internal/auth"
 	"github.com/datapointchris/meso/cli/internal/config"
 )
 
@@ -40,17 +41,28 @@ func newAuthLoginCommand() *cobra.Command {
 		Args:    usageArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := config.Load()
-			store := auth.NewTokenStore()
+			login := cfg.Login()
+			store := goclilogin.NewTokenStore(login.KeyringService)
 
 			ctx, cancel := context.WithTimeout(cmd.Context(), loginTimeout)
 			defer cancel()
 
-			// pkg/browser hands the launcher's own stdout to this variable, and it
-			// defaults to os.Stdout — enough to put "Opening in existing browser
-			// session." on the stream `auth token` is piped from.
-			browser.Stdout = cmd.ErrOrStderr()
+			// pkg/browser hands the launcher subprocess os.Stdout and os.Stderr,
+			// which puts whatever the browser writes at startup — GPU warnings,
+			// favicon decode failures, a dbus complaint — in the middle of the
+			// user code and the verification URL. A launcher that fails is
+			// reported by OpenURL's error instead, so nothing diagnostic is lost
+			// by dropping the stream. Package-level vars are the library's only
+			// knob for it.
+			browser.Stdout = io.Discard
+			browser.Stderr = io.Discard
 
-			token, err := auth.Login(ctx, cfg, browser.OpenURL, cmd.ErrOrStderr())
+			token, err := goclilogin.Login(ctx, login, func(p goclilogin.DevicePrompt) {
+				goclilogin.WriteInstructions(cmd.ErrOrStderr(), login.ClientID, p)
+				if openErr := browser.OpenURL(p.BrowserURL()); openErr != nil {
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "(could not open a browser here: %v)\n", openErr)
+				}
+			})
 			if err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
 					return fmt.Errorf("timed out waiting for approval after %s; run `meso auth login` again", loginTimeout)
@@ -75,10 +87,10 @@ func newAuthLogoutCommand() *cobra.Command {
 		Args:    usageArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := config.Load()
-			store := auth.NewTokenStore()
+			store := goclilogin.NewTokenStore(cfg.Login().KeyringService)
 
 			if err := store.Delete(cfg.ClientID); err != nil {
-				if errors.Is(err, auth.ErrNotLoggedIn) {
+				if errors.Is(err, goclilogin.ErrNotLoggedIn) {
 					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Not logged in — nothing to remove.")
 					return nil
 				}
@@ -101,10 +113,10 @@ func newAuthTokenCommand() *cobra.Command {
 		Args:    usageArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := config.Load()
-			store := auth.NewTokenStore()
+			store := goclilogin.NewTokenStore(cfg.Login().KeyringService)
 
-			source, err := auth.TokenSource(cmd.Context(), cfg, store)
-			if errors.Is(err, auth.ErrNotLoggedIn) {
+			source, err := goclilogin.TokenSource(cmd.Context(), cfg.Login(), store)
+			if errors.Is(err, goclilogin.ErrNotLoggedIn) {
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Not logged in as %s. Run `meso auth login`.\n", cfg.ClientID)
 				return exitCode(1)
 			}
@@ -141,13 +153,13 @@ func newAuthStatusCommand() *cobra.Command {
 		Args:    usageArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg := config.Load()
-			store := auth.NewTokenStore()
+			store := goclilogin.NewTokenStore(cfg.Login().KeyringService)
 
 			report := statusReport{ClientID: cfg.ClientID, Issuer: cfg.Issuer}
 
 			token, err := store.Load(cfg.ClientID)
 			switch {
-			case errors.Is(err, auth.ErrNotLoggedIn):
+			case errors.Is(err, goclilogin.ErrNotLoggedIn):
 				// logged out is a valid state, reported on stdout, exit 1 (like gh)
 			case err != nil:
 				return fmt.Errorf("read token from keychain: %w", err)
