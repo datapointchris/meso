@@ -6,9 +6,9 @@ import type { Measurement } from './measurements'
 import type { LogEntry } from './log'
 import type { Session } from './sessions'
 
-export type CycleStatus = 'planned' | 'active' | 'paused' | 'complete'
+export type CycleStatus = 'planned' | 'active' | 'paused' | 'completed'
 
-export const CYCLE_STATUSES: CycleStatus[] = ['planned', 'active', 'paused', 'complete']
+export const CYCLE_STATUSES: CycleStatus[] = ['planned', 'active', 'paused', 'completed']
 
 // CycleWorkout is one entry in a cycle's ordered sequence, with the workout's
 // name/theme embedded for render. The periodization fields are nullable.

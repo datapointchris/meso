@@ -110,7 +110,24 @@ func TestCycle_List_Filters(t *testing.T) {
 	assert.Len(t, list("?status=paused"), 1)
 	assert.Len(t, list("?search=rehab"), 1)
 	assert.Len(t, list("?search=overhead"), 1) // matches goal_summary
-	assert.Empty(t, list("?status=complete"))
+	assert.Empty(t, list("?status=completed"))
+}
+
+// The terminal state is spelled `completed`. cycle_statuses is what enforces it, so
+// the shorter spelling fails the FK and surfaces as the 409 an unknown reference gets.
+func TestCycle_TerminalStatusIsCompleted(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+
+	rr := postJSON(t, mux, "/api/v1/cycles", map[string]any{
+		"name": "Finished block", "status": "completed",
+	})
+	require.Equal(t, http.StatusCreated, rr.Code)
+	assert.Equal(t, "completed", decodeCycle(t, rr.Body).Status)
+
+	rr = postJSON(t, mux, "/api/v1/cycles", map[string]any{
+		"name": "Retired spelling", "status": "complete",
+	})
+	assert.Equal(t, http.StatusConflict, rr.Code)
 }
 
 func TestCycle_Update_Partial_AndClearDate(t *testing.T) {

@@ -37,7 +37,7 @@ type lookupSeed struct {
 var lookups = []lookupSeed{
 	{"movement_kinds", []string{"exercise", "stretch", "yoga_pose"}},
 	{"relationship_kinds", []string{"alternate", "antagonist", "progression", "regression", "see_also"}},
-	{"cycle_statuses", []string{"planned", "active", "paused", "complete"}},
+	{"cycle_statuses", []string{"planned", "active", "paused", "completed"}},
 	{"set_kinds", []string{"working", "warmup", "amrap", "drop", "failure"}},
 	{"load_modes", []string{"weighted", "bodyweight", "timed", "assisted"}},
 }

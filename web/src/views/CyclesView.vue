@@ -276,7 +276,7 @@ function onCreated(created: Cycle) {
     color: var(--accent-contrast);
   }
 
-  &--complete {
+  &--completed {
     color: var(--text-muted);
   }
 }

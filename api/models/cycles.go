@@ -105,7 +105,7 @@ type CycleUpdate struct {
 }
 
 // CycleFilter carries the optional list-endpoint query params. Status scopes to one
-// lifecycle state (planned|active|paused|complete); Search matches name/goal.
+// lifecycle state (planned|active|paused|completed); Search matches name/goal.
 type CycleFilter struct {
 	Status string
 	Search string

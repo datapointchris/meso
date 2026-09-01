@@ -125,7 +125,7 @@ func seedTestLookups(url string) error {
 			return err
 		}
 	}
-	cycleStatuses := []string{"planned", "active", "paused", "complete"}
+	cycleStatuses := []string{"planned", "active", "paused", "completed"}
 	for _, s := range cycleStatuses {
 		if _, err := db.Exec(`INSERT INTO cycle_statuses (name) VALUES ($1) ON CONFLICT DO NOTHING`, s); err != nil {
 			return err
