@@ -38,7 +38,7 @@ func newCyclesCommand() *cobra.Command {
 func cycleFilterFlags(cmd *cobra.Command) func() api.CycleFilter {
 	var status, search string
 	f := cmd.Flags()
-	f.StringVar(&status, "status", "", "Only cycles with this status (planned|active|paused|complete)")
+	f.StringVar(&status, "status", "", "Only cycles with this status (planned|active|paused|completed)")
 	f.StringVar(&search, "search", "", "Match name or goal, case-insensitively")
 	return func() api.CycleFilter {
 		return api.CycleFilter{Status: status, Search: search}
@@ -138,7 +138,7 @@ func bindCycleWriteFlags(cmd *cobra.Command, c *cycleWriteFlags) {
 	f.Float64Var(&c.targetValue, "target-value", 0, "Target value to reach for the metric")
 	f.StringVar(&c.targetDate, "target-date", "", "Target date, YYYY-MM-DD (a race-anchored build)")
 	f.StringVar(&c.startDate, "start-date", "", "Start date, YYYY-MM-DD")
-	f.StringVar(&c.status, "status", "", "planned | active | paused | complete (default planned)")
+	f.StringVar(&c.status, "status", "", "planned | active | paused | completed (default planned)")
 	f.StringVar(&c.notes, "notes", "", "Notes (markdown)")
 }
 
