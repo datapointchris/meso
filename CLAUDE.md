@@ -50,8 +50,8 @@ non-domain command belongs there, not at the root.
 
 **A command that cannot answer offers the commands that can.** What an error owes is a
 fleet rule — `help.md` § "An error is the help screen for the failure in hand", whose
-canonical source is the shared cobra bootstrap at `~/tools/goclikit`. What
-is meso's own is the step past it: where the caller typed something valid and the CLI
+canonical source is the shared cobra bootstrap at `~/tools/goclikit`. What is meso's
+own is the step past it: where the caller typed something valid and the CLI
 still has nothing to show, the response is a list of runnable commands rather than a
 failure at all. `resolveIDOrName` in `internal/cli/helpers.go` is the pattern. It writes
 the menu itself and returns `exitCode`, which sets the process status without `Execute`
@@ -62,7 +62,7 @@ through `shellArg`, so a menu line can be pasted back as typed.
 **It reaches `show` on movements, workouts and cycles, and nothing else yet.** `metrics
 show`, `sessions show`, `log show` and every write verb still return plain errors through
 `handleAPIError` and `usageArgs`. Widening it is a 33-site change to how arguments are
-reported, and `help.md` puts that fix in `cobracmd` rather than per repo — so treat this
+reported, and `help.md` puts that fix in `goclikit` rather than per repo — so treat this
 as describing three commands, not the CLI.
 
 **A name is accepted where a command reads and never where it writes.** `show` resolves
