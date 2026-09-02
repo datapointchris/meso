@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/datapointchris/goclikit"
 	"github.com/datapointchris/goselfupdate/autoupdate"
-	"github.com/datapointchris/goselfupdate/cobracmd"
 	"github.com/spf13/cobra"
 )
 
@@ -68,7 +68,7 @@ func NewRootCommand() *cobra.Command {
 		RunE:          requireSubcommand,
 	}
 	// Flag mistakes become usageError → exit 2. Inherited by subcommands.
-	// cobracmd.Execute composes with this rather than replacing it, and keeping
+	// goclikit.Execute composes with this rather than replacing it, and keeping
 	// it here is what makes the tree self-classifying for anything driving
 	// NewRootCommand directly.
 	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return usageError{err} })
@@ -102,7 +102,7 @@ func NewRootCommand() *cobra.Command {
 // Execute runs the command tree and returns the process exit code.
 func Execute() int {
 	root := NewRootCommand()
-	err := cobracmd.Execute(context.Background(), root, autoupdate.Config{Update: updateConfig()})
+	err := goclikit.Execute(context.Background(), root, autoupdate.Config{Update: updateConfig()})
 	if err == nil {
 		return 0
 	}
@@ -114,7 +114,7 @@ func Execute() int {
 
 	// `update` writes its own ✓/✗ line, so printing here would report the same
 	// failure twice.
-	if errors.Is(err, cobracmd.ErrReported) {
+	if errors.Is(err, goclikit.ErrReported) {
 		return 1
 	}
 
@@ -126,7 +126,7 @@ func Execute() int {
 	}
 	// The library's classification, for a usage mistake cobra rejects before
 	// any RunE runs and the tree therefore never marks itself.
-	if errors.Is(err, cobracmd.ErrUsage) {
+	if errors.Is(err, goclikit.ErrUsage) {
 		return 2
 	}
 	return 1

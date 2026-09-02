@@ -5,8 +5,8 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/datapointchris/goclikit"
 	"github.com/datapointchris/goselfupdate"
-	"github.com/datapointchris/goselfupdate/cobracmd"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +26,7 @@ import (
 // prefix it would return whatever meso released most recently, which is not
 // this program.
 func newUpdateCommand() *cobra.Command {
-	return cobracmd.New(updateConfig())
+	return goclikit.UpdateCommand(updateConfig())
 }
 
 func updateConfig() goselfupdate.Config {
