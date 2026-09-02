@@ -50,7 +50,7 @@ non-domain command belongs there, not at the root.
 
 **A command that cannot answer offers the commands that can.** What an error owes is a
 fleet rule — `help.md` § "An error is the help screen for the failure in hand", whose
-canonical source is the shared cobra bootstrap at `~/tools/goselfupdate/cobracmd/`. What
+canonical source is the shared cobra bootstrap at `~/tools/goclikit`. What
 is meso's own is the step past it: where the caller typed something valid and the CLI
 still has nothing to show, the response is a list of runnable commands rather than a
 failure at all. `resolveIDOrName` in `internal/cli/helpers.go` is the pattern. It writes
