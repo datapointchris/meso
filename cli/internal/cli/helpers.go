@@ -149,7 +149,7 @@ func searchTerms(query string) []string {
 }
 
 // nameResolver is the per-resource half of resolving an <id-or-name> argument.
-// The judgement below is shared; what differs by noun is how to fetch one record,
+// The judgment below is shared; what differs by noun is how to fetch one record,
 // how to search by name, how to read a candidate's id and name back out, and what
 // `create` needs beyond the name.
 type nameResolver[T any] struct {

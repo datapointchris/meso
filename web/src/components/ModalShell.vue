@@ -4,7 +4,7 @@ import { onBeforeUnmount, onMounted } from 'vue'
 // The sheet every dialog sits in. Ten components had each hand-rolled this overlay,
 // which meant ten chances for the safe-area padding or the escape handling to drift.
 //
-// It rises from the bottom on a phone and centres on a wide screen, because a sheet
+// It rises from the bottom on a phone and centers on a wide screen, because a sheet
 // anchored to the bottom edge is the half of the screen a thumb can reach.
 withDefaults(
   defineProps<{

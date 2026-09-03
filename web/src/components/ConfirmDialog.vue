@@ -11,7 +11,7 @@ withDefaults(
     message: string
     /** The affirmative button's label. Say the verb, not "OK". */
     confirmLabel?: string
-    /** Colours the affirmative button as destructive. */
+    /** Colors the affirmative button as destructive. */
     danger?: boolean
     busy?: boolean
   }>(),
@@ -75,7 +75,7 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>()
   }
 
   // Outlined rather than filled: --negative is a light red that would need a different
-  // text colour per theme to stay readable, and the outline reads as destructive in both.
+  // text color per theme to stay readable, and the outline reads as destructive in both.
   &--danger {
     border-color: var(--negative);
     color: var(--negative);
