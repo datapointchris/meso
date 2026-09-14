@@ -22,6 +22,7 @@ func newSessionsCommand() *cobra.Command {
 			"then `promote` that one into a reusable workout. `finish` ends it.",
 		RunE: requireSubcommand,
 	}
+	withNotFoundHints(cmd, hintSessions)
 	cmd.AddCommand(
 		newSessionsLogCommand(),
 		newSessionsListCommand(),

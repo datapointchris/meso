@@ -21,6 +21,7 @@ func newMeasurementsCommand() *cobra.Command {
 			"over time with its improvement summary.",
 		RunE: requireSubcommand,
 	}
+	withNotFoundHints(cmd, hintMeasurements)
 	cmd.AddCommand(
 		newMeasurementsRecordCommand(),
 		newMeasurementsListCommand(),

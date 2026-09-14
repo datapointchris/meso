@@ -19,6 +19,7 @@ func newMetricsCommand() *cobra.Command {
 			"improvement), and a category. Measurements are recorded against these.",
 		RunE: requireSubcommand,
 	}
+	withNotFoundHints(cmd, hintMetrics)
 	cmd.AddCommand(
 		newMetricsListCommand(),
 		newMetricsShowCommand(),

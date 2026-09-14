@@ -22,6 +22,7 @@ func newCyclesCommand() *cobra.Command {
 			"edit/swap, reorder, remove).",
 		RunE: requireSubcommand,
 	}
+	withNotFoundHints(cmd, hintCycles)
 	cmd.AddCommand(
 		newCyclesListCommand(),
 		newCyclesShowCommand(),
@@ -295,8 +296,10 @@ func newCycleWorkoutsCommand() *cobra.Command {
 			"Entry ids come from `cycles show`.",
 		RunE: requireSubcommand,
 	}
+	withNotFoundHints(cmd, hintCycleEntries, hintCycles)
 	cmd.AddCommand(
-		newCycleWorkoutsAddCommand(),
+		// add takes a workout id as well as the cycle, so either can be the 404.
+		withNotFoundHints(newCycleWorkoutsAddCommand(), hintCycles, hintWorkouts),
 		newCycleWorkoutsUpdateCommand(),
 		newCycleWorkoutsReorderCommand(),
 		newCycleWorkoutsRemoveCommand(),

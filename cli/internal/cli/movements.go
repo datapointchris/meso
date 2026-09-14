@@ -28,6 +28,9 @@ func newMovementsCommand() *cobra.Command {
 			"update, or delete entries.",
 		RunE: requireSubcommand,
 	}
+	// show goes through resolveIDOrName, which answers a miss with computed
+	// candidates and never reaches the classifier. These reach the other verbs.
+	withNotFoundHints(cmd, hintMovements)
 	cmd.AddCommand(
 		newMovementsListCommand(),
 		newMovementsShowCommand(),

@@ -23,6 +23,7 @@ func newAdminFeedbackCommand() *cobra.Command {
 			"is, and the response is the same either way.",
 		RunE: requireSubcommand,
 	}
+	withNotFoundHints(cmd, hintFeedback)
 	cmd.AddCommand(
 		newFeedbackListCommand(),
 		newFeedbackShowCommand(),
