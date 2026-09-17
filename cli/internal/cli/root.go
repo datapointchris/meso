@@ -102,7 +102,7 @@ func NewRootCommand() *cobra.Command {
 // Execute runs the command tree and returns the process exit code.
 func Execute() int {
 	root := NewRootCommand()
-	err := goclikit.Execute(context.Background(), root, autoupdate.Config{Update: updateConfig()})
+	err := goclikit.Execute(context.Background(), root, autoupdate.Config{Update: updateConfig()}, goclikit.WithNotFound(notFound))
 	if err == nil {
 		return 0
 	}

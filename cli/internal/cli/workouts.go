@@ -22,6 +22,7 @@ func newWorkoutsCommand() *cobra.Command {
 			"their movement list (add, edit/swap, reorder, remove).",
 		RunE: requireSubcommand,
 	}
+	withNotFoundHints(cmd, hintWorkouts)
 	cmd.AddCommand(
 		newWorkoutsListCommand(),
 		newWorkoutsShowCommand(),
@@ -318,8 +319,12 @@ func newWorkoutMovementsCommand() *cobra.Command {
 			"reorder the list, or remove an entry. Entry ids come from `workouts show`.",
 		RunE: requireSubcommand,
 	}
+	// An entry id belongs to one workout and appears nowhere else, so this
+	// replaces the workouts set rather than adding to it. add also takes a
+	// movement id, which is the one verb here that can 404 on the library.
+	withNotFoundHints(cmd, hintWorkoutEntries, hintWorkouts)
 	cmd.AddCommand(
-		newWorkoutMovementsAddCommand(),
+		withNotFoundHints(newWorkoutMovementsAddCommand(), hintWorkouts, hintMovements),
 		newWorkoutMovementsUpdateCommand(),
 		newWorkoutMovementsReorderCommand(),
 		newWorkoutMovementsRemoveCommand(),

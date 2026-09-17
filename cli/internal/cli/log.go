@@ -20,6 +20,7 @@ func newLogCommand() *cobra.Command {
 			"list and filter them, and edit or delete.",
 		RunE: requireSubcommand,
 	}
+	withNotFoundHints(cmd, hintLog)
 	cmd.AddCommand(
 		newLogAddCommand(),
 		newLogListCommand(),
