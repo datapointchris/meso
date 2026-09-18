@@ -6,8 +6,8 @@ compiles into workouts, cycles, sessions, stats, and a journal, drivable by the
 Go CLI + Vue, Authelia edge auth, registry-pull deploy.
 
 - **What it is, why, and the domain model:** [`README.md`](README.md) — the README is the spec. Read it before adding an entity or endpoint.
-- **Reference build to copy patterns from:** `~/webapps/nomad/` (`CLAUDE.md`, `api/`, `cli/`, `.planning/cli-auth-design.md`).
-- **Universal rules live in `~/.claude/CLAUDE.md` and the fleet standards, and are not restated here.** `fleet standards applies meso` is which ones reach this repo — an enumeration in this line would drift, which is what the list that used to sit here did.
+- **Reference build to copy patterns from:** `~/webapps/nomad/` (`CLAUDE.md`, `api/`, `cli/`).
+- **Universal rules live in `~/.claude/CLAUDE.md` and the fleet standards, and are not restated here.** `fleet standards applies meso` is which ones reach this repo.
 - **Current progress and settled decisions:** `.planning/status.md` (gitignored).
 
 ## Architecture — three subsystems
@@ -35,13 +35,6 @@ lives in `cmd/seed`. Handler tests are testcontainers-backed (`handlers/main_tes
 tree). Resource commands live one file per resource under `internal/cli`, each with a
 matching `internal/api/<resource>.go` client.
 
-The device grant, the OS-keychain token store and the refresh are
-`github.com/datapointchris/goclilogin`, shared with the icb, nomad and learning CLIs. Do
-not reintroduce a local `internal/auth`: the library exists because four CLIs each had one
-and a fix to any single copy left the other three broken. The refresh takes a machine-wide
-lock, because Authelia revokes the whole grant when two processes replay the same rotated
-refresh token.
-
 Top-level commands are **training nouns only**, and anything about the software rather
 than the training goes under `admin` (`internal/cli/admin.go`). The rule and the
 HashiCorp precedent behind the verb are `standards/cli-design.md` § "`admin` is the
@@ -59,11 +52,9 @@ printing an `error:` line above it, and under `--json` it emits the same candida
 data. Every command it composes takes its path from `cmd.CommandPath()` and its values
 through `shellArg`, so a menu line can be pasted back as typed.
 
-**It reaches `show` on movements, workouts and cycles, and nothing else yet.** `metrics
-show`, `sessions show`, `log show` and every write verb still return plain errors through
-`handleAPIError` and `usageArgs`. Widening it is a 33-site change to how arguments are
-reported, and `help.md` puts that fix in `goclikit` rather than per repo — so treat this
-as describing three commands, not the CLI.
+**It reaches `show` on movements, workouts and cycles, and nothing else yet.** Every other
+verb returns plain errors through `handleAPIError` and `usageArgs`, and widening it belongs
+in `goclikit` rather than here — so treat this as describing three commands, not the CLI.
 
 **A name is accepted where a command reads and never where it writes.** `show` resolves
 `<id-or-name>`; `update`, `delete` and the composition verbs take ids. A fuzzy match that
@@ -89,13 +80,6 @@ seed-carries-only-the-FK-backbone) and product independence are fleet standards 
   which takes `feedback` from this repo as its example: stored and triaged here, never forwarded.
   Don't re-propose a push integration.
 
-The PK strategy, the `CHECK`-is-not-an-enum rule and the seed boundary are `standards/data.md`,
-which drew several of its examples from this schema — so the standard is the copy of record and
-the rules are not restated above, only the tables they land on.
-
-`standards/data.md` § Known gaps records that `measurements` and `cycles` are on
-`GENERATED ALWAYS AS IDENTITY` against the rule. That is still true here.
-
 Web conventions: every dialog goes in `components/ModalShell.vue`, every "are you sure" through
 `composables/useConfirm.ts` — never `window.confirm`. `npm run typecheck` must keep its `--build`
 flag; without it the root tsconfig is solution-style and nothing is checked.
@@ -103,15 +87,10 @@ flag; without it the root tsconfig is solution-style and nothing is checked.
 ## Local development
 
 ```bash
-# Full stack (Postgres + API + Caddy SPA):
-docker compose -f docker-compose.dev.yml up --build
-docker compose -f docker-compose.dev.yml run --rm --entrypoint ./meso-seed api  # seed once
-
-# Or run pieces directly:
-cd api && DATABASE_URL=postgres://meso:meso@localhost:5459/meso?sslmode=disable go run .   # applies migrations, serves :8088
-cd api && go run ./cmd/seed        # FK-backbone lookups + muscles (idempotent)
-cd web && npm run dev              # Vite :3001, proxies /api → :8088
-cd cli && go run . movements list  # needs `meso auth login` against Authelia
+docker compose -f docker-compose.dev.yml up --build                               # Postgres + API + Caddy SPA
+docker compose -f docker-compose.dev.yml run --rm --entrypoint ./meso-seed api    # seed once
+cd api && DATABASE_URL=postgres://meso:meso@localhost:5459/meso?sslmode=disable go run .   # migrates, serves :8088
+cd web && npm run dev                                                             # Vite :3001, proxies /api → :8088
 ```
 
 Ports: API **8088**, Postgres **5459**, Vite **3001**, Caddy web **8080**.
@@ -126,9 +105,6 @@ default `/var/run/docker.sock` needs nothing. This is a machine concern, not a r
 
 `task lint` and `task test` run these across all three subsystems; the per-subsystem
 verbs are `task {api,cli,web}:{lint,test}`.
-
-- **api / cli:** `gofmt -l .` (clean), `go vet ./...`, `go test ./...`
-- **web:** `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build`, `npm run format:check`
 
 `task cli:install` puts `meso` on your PATH at `$GOBIN` (falling back to `$GOPATH/bin`)
 with a git-derived version embedded via ldflags. A locally built one reports as a dev
