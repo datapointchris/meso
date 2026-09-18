@@ -36,14 +36,13 @@ func (e exitCode) Error() string { return "" }
 
 // requireSubcommand is the RunE for group commands (root, auth) that have no
 // action of their own: a bare invocation shows help (exit 0), but an unknown
-// subcommand is a usage error (exit 2) rather than cobra's default of silently
-// showing help.
+// subcommand is a usage error (exit 2) naming the subcommands near it, rather
+// than cobra's default of silently showing help.
 func requireSubcommand(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
 		return cmd.Help()
 	}
-	return usageError{fmt.Errorf("unknown command %q for %q\nRun '%s --help' for usage",
-		args[0], cmd.CommandPath(), cmd.CommandPath())}
+	return goclikit.UnknownCommand(cmd, args[0])
 }
 
 func NewRootCommand() *cobra.Command {
