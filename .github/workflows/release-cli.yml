@@ -38,11 +38,11 @@ jobs:
       tag: ${{ steps.resolve.outputs.tag }}
       previous: ${{ steps.resolve.outputs.previous }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: cli/go.mod
           cache-dependency-path: cli/go.sum
@@ -84,9 +84,9 @@ jobs:
         goarch: [amd64, arm64]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: cli/go.mod
           cache-dependency-path: cli/go.sum
@@ -124,7 +124,7 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
