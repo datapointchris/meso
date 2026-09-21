@@ -3,7 +3,7 @@
 
 # ─── Build stage ───────────────────────────────────────────────────────────
 # Node major must match local (npm lockfile formats diverge across majors).
-FROM node:26-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
@@ -21,6 +21,6 @@ COPY Caddyfile.docker /etc/caddy/Caddyfile
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD wget -qO- http://localhost/health || exit 1
+    CMD ["/bin/sh", "-c", "wget -qO- http://localhost/health || exit 1"]
 
 # Caddy's default CMD invokes /etc/caddy/Caddyfile; nothing to override.
