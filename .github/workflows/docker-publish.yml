@@ -1,4 +1,4 @@
-name: Bespoke CI
+name: Test, then publish the web and API Docker images
 
 on:
   push:
@@ -106,6 +106,9 @@ jobs:
   # whose receiver on app-ops-lxc runs deploy-meso.sh (git pull + docker compose
   # pull + up -d on meso-lxc). Same pattern as nomad/learning. The "Deploy to
   # Homelab (Manual)" workflow only re-fires that webhook for a no-commit redeploy.
+  #
+  # The receiver deploys only when the finished workflow's path is this file's,
+  # so renaming this file stops every deploy until hooks.json names the new one.
   images:
     name: Build & Push Image — ${{ matrix.service }}
     runs-on: ubuntu-latest
