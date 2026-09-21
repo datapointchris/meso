@@ -5,7 +5,7 @@ on:
 
 # Manual redeploy trigger.
 #
-# Normal deploys: push to main → CI builds and pushes images to ghcr.io →
+# Normal deploys: push to main → docker-publish.yml builds and pushes images to ghcr.io →
 # GitHub fires `workflow_run.completed` → app-ops webhook receives it →
 # `deploy-meso.sh` SSHes to meso-lxc and runs `docker compose pull && up -d`.
 #
