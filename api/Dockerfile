@@ -1,4 +1,5 @@
-FROM golang:1.26-alpine AS builder
+# Unversioned: go.mod is where the Go version lives, and this tag is never older.
+FROM golang:alpine AS builder
 WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
