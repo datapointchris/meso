@@ -2,7 +2,7 @@ module meso/api
 
 go 1.26.5
 
-toolchain go1.26.6
+toolchain go1.26.9
 
 require (
 	github.com/coreos/go-oidc/v3 v3.20.0

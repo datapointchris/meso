@@ -2,7 +2,7 @@ module github.com/datapointchris/meso/cli
 
 go 1.26.5
 
-toolchain go1.26.6
+toolchain go1.26.9
 
 require (
 	github.com/datapointchris/goclikit v0.2.0
