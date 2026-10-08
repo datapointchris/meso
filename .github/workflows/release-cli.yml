@@ -22,10 +22,9 @@ jobs:
   # the dotfiles installer resolves the newest one.
   #
   # Called rather than keyed off `workflow_run: [CI]`, which would skip the
-  # re-run: `ci.yml` and the generated `validate.yml` are BOTH named CI, so
-  # workflow_run cannot say which one passed and would happily release on the
-  # wrong one. Calling it costs a duplicate run and buys an unambiguous answer
-  # about this exact commit.
+  # re-run: workflow_run matches a title, and any hand-written workflow titled
+  # CI would make it release on the wrong one. Calling the file costs a
+  # duplicate run and buys an unambiguous answer about this exact commit.
   validate:
     uses: ./.github/workflows/validate.yml
     secrets: inherit
