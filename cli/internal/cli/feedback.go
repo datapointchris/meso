@@ -12,7 +12,7 @@ import (
 )
 
 func newAdminFeedbackCommand() *cobra.Command {
-	cmd := &cobra.Command{
+	cmd := asNamespace(&cobra.Command{
 		Use:   "feedback",
 		Short: "Read and triage feedback captured in the app",
 		Long: "Feedback is captured by the button in the web app — a papercut or an idea,\n" +
@@ -21,8 +21,7 @@ func newAdminFeedbackCommand() *cobra.Command {
 			"`list --json` is how it gets anywhere else.\n\n" +
 			"There is no bug/idea/improvement category on purpose: the body says what it\n" +
 			"is, and the response is the same either way.",
-		RunE: requireSubcommand,
-	}
+	})
 	withNotFoundHints(cmd, hintFeedback)
 	cmd.AddCommand(
 		newFeedbackListCommand(),

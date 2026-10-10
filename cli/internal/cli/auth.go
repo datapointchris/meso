@@ -20,15 +20,14 @@ import (
 const loginTimeout = 15 * time.Minute
 
 func newAuthCommand() *cobra.Command {
-	cmd := &cobra.Command{
+	cmd := asNamespace(&cobra.Command{
 		Use:   "auth",
 		Short: "Log in and out of the meso API",
 		Long: "Authenticate this machine against Authelia using the OAuth 2.0 device\n" +
 			"authorization grant. The CLI prints a code and a URL; approve it in any\n" +
 			"browser on any device, including from a different machine over SSH. The\n" +
 			"resulting token is stored in the OS keychain, never on disk.",
-		RunE: requireSubcommand,
-	}
+	})
 	cmd.AddCommand(newAuthLoginCommand(), newAuthLogoutCommand(), newAuthStatusCommand(), newAuthTokenCommand())
 	return cmd
 }

@@ -13,15 +13,14 @@ import (
 )
 
 func newSessionsCommand() *cobra.Command {
-	cmd := &cobra.Command{
+	cmd := asNamespace(&cobra.Command{
 		Use:   "sessions",
 		Short: "Log and review workout sessions — a workout performed on a date",
 		Long: "A session is the tracked instance of a workout: what was actually performed,\n" +
 			"set by set, and how it felt. Start one from a workout template (its movements\n" +
 			"copy in as the target) or start it free-form and add movements as they happen —\n" +
 			"then `promote` that one into a reusable workout. `finish` ends it.",
-		RunE: requireSubcommand,
-	}
+	})
 	withNotFoundHints(cmd, hintSessions)
 	cmd.AddCommand(
 		newSessionsLogCommand(),
@@ -339,15 +338,14 @@ func newSessionsDeleteCommand() *cobra.Command {
 // newSessionMovementCommand groups the per-entry sub-commands: composing the session
 // (add / rm) and logging against it (done, update).
 func newSessionMovementCommand() *cobra.Command {
-	cmd := &cobra.Command{
+	cmd := asNamespace(&cobra.Command{
 		Use:   "movement",
 		Short: "Compose and log the movements of a session",
 		Long: "Add movements to a session as they get performed, drop one added by mistake,\n" +
 			"adjust this session's target, or swap an entry for an alternate mid-session\n" +
 			"(the target and the logged sets carry over). What was actually performed is\n" +
 			"logged with `sessions set`. Entry ids come from `sessions show`.",
-		RunE: requireSubcommand,
-	}
+	})
 	cmd.AddCommand(
 		newSessionMovementAddCommand(),
 		newSessionMovementRemoveCommand(),
@@ -546,15 +544,14 @@ func buildSessionMovementPatch(cmd *cobra.Command, a *sessionTargetFlags) map[st
 // write in the app: `set add` with no flags repeats the last set, so a working set costs
 // one command rather than a form.
 func newSessionSetCommand() *cobra.Command {
-	cmd := &cobra.Command{
+	cmd := asNamespace(&cobra.Command{
 		Use:   "set",
 		Short: "Log the sets actually performed against an entry",
 		Long: "A set is one set as it happened. Adding one with no flags repeats the previous\n" +
 			"set — same reps, same load — falling back to the entry's target for the first,\n" +
 			"so only a set that differs needs describing. Reaching the target ticks the entry\n" +
 			"off. Entry ids come from `sessions show`.",
-		RunE: requireSubcommand,
-	}
+	})
 	cmd.AddCommand(
 		newSessionSetAddCommand(),
 		newSessionSetUpdateCommand(),

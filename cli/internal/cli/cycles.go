@@ -13,15 +13,14 @@ import (
 )
 
 func newCyclesCommand() *cobra.Command {
-	cmd := &cobra.Command{
+	cmd := asNamespace(&cobra.Command{
 		Use:   "cycles",
 		Short: "Plan and manage cycles — ordered sequences of workouts toward a goal",
 		Long: "A cycle (mesocycle) is a multi-week block of workouts aimed at a target — a\n" +
 			"race date, a working weight, restored range of motion. List and filter, inspect\n" +
 			"the sequence, create/update/delete cycles, and manage their workout list (add,\n" +
 			"edit/swap, reorder, remove).",
-		RunE: requireSubcommand,
-	}
+	})
 	withNotFoundHints(cmd, hintCycles)
 	cmd.AddCommand(
 		newCyclesListCommand(),
@@ -288,14 +287,13 @@ func newCyclesDeleteCommand() *cobra.Command {
 // newCycleWorkoutsCommand groups the sequence sub-commands: add / update / reorder /
 // rm operate on a cycle's ordered workout list.
 func newCycleWorkoutsCommand() *cobra.Command {
-	cmd := &cobra.Command{
+	cmd := asNamespace(&cobra.Command{
 		Use:   "workouts",
 		Short: "Manage a cycle's ordered workout sequence",
 		Long: "Add a workout to a cycle, edit or swap an entry's prescription (week/phase/\n" +
 			"frequency/intensity/conditions), reorder the sequence, or remove an entry.\n" +
 			"Entry ids come from `cycles show`.",
-		RunE: requireSubcommand,
-	}
+	})
 	withNotFoundHints(cmd, hintCycleEntries, hintCycles)
 	cmd.AddCommand(
 		// add takes a workout id as well as the cycle, so either can be the 404.

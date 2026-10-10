@@ -13,14 +13,13 @@ import (
 )
 
 func newMeasurementsCommand() *cobra.Command {
-	cmd := &cobra.Command{
+	cmd := asNamespace(&cobra.Command{
 		Use:   "measurements",
 		Short: "Record and review measurements — the tracked stat time series",
 		Long: "A measurement is a dated reading of a metric (define metrics first with\n" +
 			"`meso metrics define`). Record readings, list them, and view a metric's trend\n" +
 			"over time with its improvement summary.",
-		RunE: requireSubcommand,
-	}
+	})
 	withNotFoundHints(cmd, hintMeasurements)
 	cmd.AddCommand(
 		newMeasurementsRecordCommand(),

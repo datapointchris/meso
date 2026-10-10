@@ -20,14 +20,13 @@ import (
 var exportFormats = []string{"csv"}
 
 func newMovementsCommand() *cobra.Command {
-	cmd := &cobra.Command{
+	cmd := asNamespace(&cobra.Command{
 		Use:   "movements",
 		Short: "Browse and manage the movement library",
 		Long: "The unified library of exercises, stretches, and yoga poses. List and\n" +
 			"filter, inspect a movement's how-to/cues/faults and muscles, and create,\n" +
 			"update, or delete entries.",
-		RunE: requireSubcommand,
-	}
+	})
 	// show goes through resolveIDOrName, which answers a miss with computed
 	// candidates and never reaches the classifier. These reach the other verbs.
 	withNotFoundHints(cmd, hintMovements)
@@ -90,13 +89,12 @@ func printMusclesTable(out io.Writer, muscles []api.Muscle) {
 // newMovementsRelatedCommand groups the relationship sub-commands: add / rm a
 // directional relationship (alternate, antagonist, ...) between two movements.
 func newMovementsRelatedCommand() *cobra.Command {
-	cmd := &cobra.Command{
+	cmd := asNamespace(&cobra.Command{
 		Use:   "related",
 		Short: "Manage a movement's relationships (alternates, antagonists, ...)",
 		Long: "Relate one movement to another so the swap-alternate flow can offer it.\n" +
 			"Kinds: alternate | antagonist | progression | regression | see_also.",
-		RunE: requireSubcommand,
-	}
+	})
 	cmd.AddCommand(newMovementsRelatedAddCommand(), newMovementsRelatedRemoveCommand())
 	return cmd
 }

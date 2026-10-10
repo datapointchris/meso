@@ -11,14 +11,13 @@ import (
 )
 
 func newMetricsCommand() *cobra.Command {
-	cmd := &cobra.Command{
+	cmd := asNamespace(&cobra.Command{
 		Use:   "metrics",
 		Short: "Define and list the tracked-stat vocabulary",
 		Long: "A metric is a thing worth tracking over time — a lift's working weight, a 5k\n" +
 			"time, a knee-to-wall ROM. Each carries a unit, a direction (which way is\n" +
 			"improvement), and a category. Measurements are recorded against these.",
-		RunE: requireSubcommand,
-	}
+	})
 	withNotFoundHints(cmd, hintMetrics)
 	cmd.AddCommand(
 		newMetricsListCommand(),

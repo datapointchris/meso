@@ -34,19 +34,18 @@ type exitCode int
 
 func (e exitCode) Error() string { return "" }
 
-// requireSubcommand is the RunE for group commands (root, auth) that have no
-// action of their own: a bare invocation shows help (exit 0), but an unknown
-// subcommand is a usage error (exit 2) naming the subcommands near it, rather
-// than cobra's default of silently showing help.
-func requireSubcommand(cmd *cobra.Command, args []string) error {
-	if len(args) == 0 {
-		return cmd.Help()
-	}
-	return goclikit.UnknownCommand(cmd, args[0])
+// asNamespace marks a group with no action of its own, the root included. A
+// bare one shows help and exits 0. A word naming none of its subcommands exits
+// 2 naming the ones near it, with or without a flag after the word.
+//
+// Here rather than in each command file so this package's files import
+// goclikit in one place.
+func asNamespace(cmd *cobra.Command) *cobra.Command {
+	return goclikit.AsNamespace(cmd)
 }
 
 func NewRootCommand() *cobra.Command {
-	root := &cobra.Command{
+	root := asNamespace(&cobra.Command{
 		Use:   "meso",
 		Short: "meso — a mobile-first training CLI",
 		Long: "meso is a training log — the movement library, the workouts composed from\n" +
@@ -64,8 +63,7 @@ func NewRootCommand() *cobra.Command {
 		Version:       version,
 		SilenceUsage:  true, // usage is shown deliberately, not on every runtime error
 		SilenceErrors: true, // Execute prints errors itself, to stderr
-		RunE:          requireSubcommand,
-	}
+	})
 	// Flag mistakes become usageError → exit 2. Inherited by subcommands.
 	// goclikit.Execute composes with this rather than replacing it, and keeping
 	// it here is what makes the tree self-classifying for anything driving
@@ -100,8 +98,7 @@ func NewRootCommand() *cobra.Command {
 
 // Execute runs the command tree and returns the process exit code.
 func Execute() int {
-	root := NewRootCommand()
-	err := goclikit.Execute(context.Background(), root, autoupdate.Config{Update: updateConfig()}, goclikit.WithNotFound(notFound))
+	err := run(NewRootCommand(), autoupdate.Config{Update: updateConfig()})
 	if err == nil {
 		return 0
 	}
@@ -129,4 +126,13 @@ func Execute() int {
 		return 2
 	}
 	return 1
+}
+
+// run drives root through the shared bootstrap and returns its error.
+//
+// Separate from Execute, and taking the update config, so a test drives the
+// real tree with the version check suppressed and reads the error rather than
+// an exit code.
+func run(root *cobra.Command, config autoupdate.Config) error {
+	return goclikit.Execute(context.Background(), root, config, goclikit.WithNotFound(notFound))
 }

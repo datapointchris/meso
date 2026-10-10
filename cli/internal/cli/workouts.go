@@ -14,14 +14,13 @@ import (
 )
 
 func newWorkoutsCommand() *cobra.Command {
-	cmd := &cobra.Command{
+	cmd := asNamespace(&cobra.Command{
 		Use:   "workouts",
 		Short: "Build and manage workouts — ordered compositions of movements",
 		Long: "A workout is an ordered, themed list of prescribed movements. List and\n" +
 			"filter, inspect the composition, create/update/delete workouts, and manage\n" +
 			"their movement list (add, edit/swap, reorder, remove).",
-		RunE: requireSubcommand,
-	}
+	})
 	withNotFoundHints(cmd, hintWorkouts)
 	cmd.AddCommand(
 		newWorkoutsListCommand(),
@@ -312,13 +311,12 @@ func newWorkoutsDeleteCommand() *cobra.Command {
 // newWorkoutMovementsCommand groups the composition sub-commands: add / update /
 // reorder / rm operate on a workout's ordered movement list.
 func newWorkoutMovementsCommand() *cobra.Command {
-	cmd := &cobra.Command{
+	cmd := asNamespace(&cobra.Command{
 		Use:   "movements",
 		Short: "Manage a workout's ordered movement list",
 		Long: "Add a movement to a workout, edit or swap an entry's prescription,\n" +
 			"reorder the list, or remove an entry. Entry ids come from `workouts show`.",
-		RunE: requireSubcommand,
-	}
+	})
 	// An entry id belongs to one workout and appears nowhere else, so this
 	// replaces the workouts set rather than adding to it. add also takes a
 	// movement id, which is the one verb here that can 404 on the library.

@@ -18,14 +18,13 @@ import (
 // is Authelia at the edge, the same one every other command passes. The namespace is
 // where that check would go if it ever gained one.
 func newAdminCommand() *cobra.Command {
-	cmd := &cobra.Command{
+	cmd := asNamespace(&cobra.Command{
 		Use:   "admin",
 		Short: "Administer the app itself, as opposed to your training",
 		Long: "Commands about meso rather than about training. Everything else in this CLI\n" +
 			"operates your movement library, workouts, and history; these operate the\n" +
 			"application.",
-		RunE: requireSubcommand,
-	}
+	})
 	cmd.AddCommand(newAdminFeedbackCommand())
 	return cmd
 }
