@@ -169,6 +169,12 @@ jobs:
 
       - run: npm run build
 
+      # > custom:after:vue-web - the frontend unit tests
+      # The generated vue job builds and lints without testing, so the vitest
+      # suite runs here. The image workflow gates on this one.
+      - name: Unit tests
+        run: npm run test
+
   hooks:
     runs-on: ubuntu-latest
     steps:
