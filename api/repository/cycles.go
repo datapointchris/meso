@@ -99,8 +99,8 @@ func (r *CycleRepo) List(ctx context.Context, f models.CycleFilter) ([]models.Cy
 }
 
 // attachWorkouts loads every cycle_workout for the given cycles in one query, joined
-// with the workout's name/theme for render, and hangs each onto its cycle ordered by
-// position.
+// with the workout's name/theme for render and the last day it was performed, and
+// hangs each onto its cycle ordered by position.
 func (r *CycleRepo) attachWorkouts(ctx context.Context, cycles []models.Cycle, byID map[int64]int) error {
 	ids := make([]int64, 0, len(cycles))
 	for _, c := range cycles {
@@ -108,7 +108,10 @@ func (r *CycleRepo) attachWorkouts(ctx context.Context, cycles []models.Cycle, b
 	}
 	rows, err := r.pool.Query(ctx, `
 		SELECT cw.cycle_id, cw.id, cw.workout_id, w.name, w.theme, cw.position,
-			cw.week, cw.phase, cw.frequency, cw.intensity, cw.conditions
+			cw.week, cw.phase, cw.frequency, cw.intensity, cw.conditions,
+			(SELECT max(s.performed_on) FROM workout_sessions s
+				WHERE s.workout_id = cw.workout_id
+					AND EXISTS (SELECT 1 FROM session_movements sm WHERE sm.session_id = s.id AND sm.done))
 		FROM cycle_workouts cw
 		JOIN workouts w ON w.id = cw.workout_id
 		WHERE cw.cycle_id = ANY($1)
@@ -121,9 +124,15 @@ func (r *CycleRepo) attachWorkouts(ctx context.Context, cycles []models.Cycle, b
 	for rows.Next() {
 		var cycleID int64
 		var cw models.CycleWorkout
+		var lastPerformed *time.Time
 		if err := rows.Scan(&cycleID, &cw.ID, &cw.WorkoutID, &cw.WorkoutName, &cw.WorkoutTheme,
-			&cw.Position, &cw.Week, &cw.Phase, &cw.Frequency, &cw.Intensity, &cw.Conditions); err != nil {
+			&cw.Position, &cw.Week, &cw.Phase, &cw.Frequency, &cw.Intensity, &cw.Conditions,
+			&lastPerformed); err != nil {
 			return fmt.Errorf("scanning cycle workout: %w", err)
+		}
+		if lastPerformed != nil {
+			day := lastPerformed.Format(dateLayout)
+			cw.LastPerformedOn = &day
 		}
 		idx := byID[cycleID]
 		cycles[idx].Workouts = append(cycles[idx].Workouts, cw)

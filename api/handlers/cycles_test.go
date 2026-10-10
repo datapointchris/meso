@@ -77,6 +77,47 @@ func TestCycle_CreateWithWorkouts_AndGet(t *testing.T) {
 	assert.Len(t, decodeCycle(t, got.Body).Workouts, 2)
 }
 
+// Each workout in a cycle carries the last day it was performed, on the list and on
+// detail. A session opened from it and left with nothing done is not a performance,
+// and a workout never performed reads null.
+func TestCycle_WorkoutsCarryTheLastDayTheyWerePerformed(t *testing.T) {
+	mux := buildTestMux(setupTestDB(t))
+	squat := createMovement(t, mux, "Back Squat", "exercise")
+	legs := createWorkoutWithMovements(t, mux, "Leg Day", []map[string]any{{"movement_id": squat}})
+	rest := createWorkout(t, mux, "Rest Day")
+
+	session := func(date string, done bool) {
+		s := decodeSession(t, postJSON(t, mux, "/api/v1/sessions", map[string]any{
+			"workout_id": legs.ID, "performed_on": date,
+		}).Body)
+		if done {
+			require.Equal(t, http.StatusOK, patchJSON(t, mux,
+				"/api/v1/sessions/"+s.ID.String()+"/movements/"+itoa(s.Movements[0].ID),
+				map[string]any{"done": true}).Code)
+		}
+	}
+	session("2026-07-01", true)
+	session("2026-07-08", true)
+	session("2026-07-12", false)
+
+	created := decodeCycle(t, postJSON(t, mux, "/api/v1/cycles", map[string]any{
+		"name": "Base block", "status": "active",
+		"workouts": []map[string]any{{"workout_id": legs.ID}, {"workout_id": rest}},
+	}).Body)
+
+	var listed []models.Cycle
+	require.NoError(t, json.Unmarshal(getJSON(t, mux, "/api/v1/cycles").Body.Bytes(), &listed))
+	detail := decodeCycle(t, getJSON(t, mux, "/api/v1/cycles/"+itoa(created.ID)).Body)
+
+	require.Len(t, listed, 1)
+	for _, cycle := range []models.Cycle{listed[0], detail} {
+		require.Len(t, cycle.Workouts, 2)
+		require.NotNil(t, cycle.Workouts[0].LastPerformedOn)
+		assert.Equal(t, "2026-07-08", *cycle.Workouts[0].LastPerformedOn)
+		assert.Nil(t, cycle.Workouts[1].LastPerformedOn)
+	}
+}
+
 func TestCycle_Create_DefaultsStatusToPlanned(t *testing.T) {
 	mux := buildTestMux(setupTestDB(t))
 	created := decodeCycle(t, postJSON(t, mux, "/api/v1/cycles", map[string]any{"name": "Draft cycle"}).Body)

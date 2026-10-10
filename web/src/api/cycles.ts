@@ -11,7 +11,8 @@ export type CycleStatus = 'planned' | 'active' | 'paused' | 'completed'
 export const CYCLE_STATUSES: CycleStatus[] = ['planned', 'active', 'paused', 'completed']
 
 // CycleWorkout is one entry in a cycle's ordered sequence, with the workout's
-// name/theme embedded for render. The periodization fields are nullable.
+// name/theme embedded for render. The periodization fields are nullable, and
+// last_performed_on is null for a workout no session has performed.
 export interface CycleWorkout {
   id: number
   workout_id: number
@@ -23,6 +24,7 @@ export interface CycleWorkout {
   frequency: string | null
   intensity: string | null
   conditions: string | null
+  last_performed_on: string | null
 }
 
 export interface Cycle {

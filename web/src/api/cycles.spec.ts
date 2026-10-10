@@ -150,6 +150,7 @@ describe('cyclePrescriptionSummary', () => {
     frequency: null,
     intensity: null,
     conditions: null,
+    last_performed_on: null,
   }
 
   it('joins week · phase · frequency · intensity', () => {

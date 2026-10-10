@@ -9,18 +9,20 @@ import (
 )
 
 // CycleWorkout mirrors one entry in a cycle's ordered sequence, with the workout's
-// name/theme embedded for render. The periodization fields are nullable.
+// name/theme embedded for render. The periodization fields are nullable, and
+// LastPerformedOn is null for a workout no session has performed.
 type CycleWorkout struct {
-	Week         *int    `json:"week"`
-	Phase        *string `json:"phase"`
-	Frequency    *string `json:"frequency"`
-	Intensity    *string `json:"intensity"`
-	Conditions   *string `json:"conditions"`
-	WorkoutTheme *string `json:"workout_theme"`
-	WorkoutName  string  `json:"workout_name"`
-	ID           int64   `json:"id"`
-	WorkoutID    int64   `json:"workout_id"`
-	Position     int     `json:"position"`
+	Week            *int    `json:"week"`
+	Phase           *string `json:"phase"`
+	Frequency       *string `json:"frequency"`
+	Intensity       *string `json:"intensity"`
+	Conditions      *string `json:"conditions"`
+	WorkoutTheme    *string `json:"workout_theme"`
+	LastPerformedOn *string `json:"last_performed_on"`
+	WorkoutName     string  `json:"workout_name"`
+	ID              int64   `json:"id"`
+	WorkoutID       int64   `json:"workout_id"`
+	Position        int     `json:"position"`
 }
 
 // Cycle mirrors the API's cycle JSON. Workouts is embedded on read.

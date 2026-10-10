@@ -19,6 +19,7 @@ func sampleCycle() api.Cycle {
 	phase := "base"
 	freq := "3×/week"
 	intensity := "easy / Zone 2"
+	last := "2026-08-12"
 	return api.Cycle{
 		ID: 1, Name: "Return to 5k", GoalSummary: "12-week run return", Status: "active",
 		TargetMetric: &metric, TargetValue: &value, StartDate: &start, TargetDate: &target,
@@ -26,6 +27,7 @@ func sampleCycle() api.Cycle {
 			{
 				ID: 4, WorkoutID: 7, WorkoutName: "Base Week", Position: 1,
 				Week: &week, Phase: &phase, Frequency: &freq, Intensity: &intensity,
+				LastPerformedOn: &last,
 			},
 			{ID: 5, WorkoutID: 9, WorkoutName: "Build Week", Position: 2},
 		},
@@ -53,7 +55,7 @@ func TestPrintCycleDetail(t *testing.T) {
 	var buf bytes.Buffer
 	printCycleDetail(&buf, sampleCycle())
 	out := buf.String()
-	for _, want := range []string{"Return to 5k", "#1", "active", "Workouts:", "ENTRY", "Base Week", "base", "3×/week", "Build Week"} {
+	for _, want := range []string{"Return to 5k", "#1", "active", "Workouts:", "ENTRY", "Base Week", "base", "3×/week", "Build Week", "LAST", "2026-08-12", "never"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("detail missing %q:\n%s", want, out)
 		}

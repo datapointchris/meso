@@ -165,6 +165,8 @@ The research-backed plans (12-week run return, the shoulder rehab arc) ARE cycle
 - `Cycle`: `name`, `goal_summary: Text`, `target_metric: Text` (nullable FK → a Measurement metric, e.g. "deadlift working weight"), `target_value`, `target_date: Date` (nullable — for race-anchored builds), `start_date`, `status: Text` (lookup: `planned` | `active` | `paused` | `completed`), `notes: Text`
 - `CycleWorkout` (ordered join): `cycle_id`, `workout_id`, `position`, `week: Integer` (nullable), `phase: Text` (nullable — "base", "build", "taper"), `frequency: Text` ("2×/week"), `intensity: Text` (nullable — effort/HR target, not pace-only: "easy / Zone 2", per the "easy runs aren't easy" finding), `conditions: Text` (nullable — "when knee-to-wall symmetric, advance")
 
+On read, each `CycleWorkout` also carries `last_performed_on`: the newest day a session of that workout had a movement done, or null. It is derived from sessions and never stored. A session started from the workout and abandoned with nothing done does not count.
+
 Changing a cycle's `target_metric` clears any stale `target_value`, so a target never outlives the metric it was measured against.
 
 Three behaviors from the research make a cycle humane rather than a straightjacket — the top structural complaint about running apps:

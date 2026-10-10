@@ -548,11 +548,15 @@ func printCycleDetail(out io.Writer, c api.Cycle) {
 	}
 	_, _ = fmt.Fprintln(out, "\nWorkouts:")
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "  ENTRY\tWORKOUT\tWEEK\tPHASE\tFREQ\tINTENSITY\tCONDITIONS")
+	_, _ = fmt.Fprintln(tw, "  ENTRY\tWORKOUT\tWEEK\tPHASE\tFREQ\tLAST\tINTENSITY\tCONDITIONS")
 	for _, cw := range c.Workouts {
-		_, _ = fmt.Fprintf(tw, "  %d\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		last := "never"
+		if cw.LastPerformedOn != nil {
+			last = *cw.LastPerformedOn
+		}
+		_, _ = fmt.Fprintf(tw, "  %d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			cw.ID, fmt.Sprintf("%s (#%d)", cw.WorkoutName, cw.WorkoutID),
-			orDashIntPtr(cw.Week), orDashPtr(cw.Phase), orDashPtr(cw.Frequency),
+			orDashIntPtr(cw.Week), orDashPtr(cw.Phase), orDashPtr(cw.Frequency), last,
 			orDashPtr(cw.Intensity), orDashPtr(cw.Conditions))
 	}
 	_ = tw.Flush()

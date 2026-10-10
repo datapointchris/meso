@@ -8,17 +8,22 @@ import "time"
 // embeds the workout's name and theme (denormalized on read) so a cycle renders in
 // a single GET, mirroring how a WorkoutMovement embeds its movement. Every
 // prescription field is nullable — a mobility block may set none of them.
+//
+// LastPerformedOn is the newest day a session of this workout had a movement done,
+// as "2006-01-02", and null when none has. A session started from the workout and
+// abandoned with nothing done is not a performance of it.
 type CycleWorkout struct {
-	Week         *int    `json:"week"`
-	Phase        *string `json:"phase"`
-	Frequency    *string `json:"frequency"`
-	Intensity    *string `json:"intensity"`
-	Conditions   *string `json:"conditions"`
-	WorkoutTheme *string `json:"workout_theme"`
-	WorkoutName  string  `json:"workout_name"`
-	ID           int64   `json:"id"`
-	WorkoutID    int64   `json:"workout_id"`
-	Position     int     `json:"position"`
+	Week            *int    `json:"week"`
+	Phase           *string `json:"phase"`
+	Frequency       *string `json:"frequency"`
+	Intensity       *string `json:"intensity"`
+	Conditions      *string `json:"conditions"`
+	WorkoutTheme    *string `json:"workout_theme"`
+	LastPerformedOn *string `json:"last_performed_on"`
+	WorkoutName     string  `json:"workout_name"`
+	ID              int64   `json:"id"`
+	WorkoutID       int64   `json:"workout_id"`
+	Position        int     `json:"position"`
 }
 
 // CycleWorkoutInput is the write shape for one entry — used both when creating a
