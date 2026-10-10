@@ -158,10 +158,26 @@ jobs:
           } >release-notes.md
           cat release-notes.md
 
+      # A push to main that landed while this run built has its own run, which
+      # resolves its version from the same previous tag and so releases this
+      # commit's cli/ changes too. Two runs would otherwise both claim one tag,
+      # and GitHub answers 403 to tagging the older commit when the newer push
+      # changed a workflow file, because GITHUB_TOKEN holds no workflows
+      # permission.
+      - name: Leave the release to a newer push
+        id: tip
+        run: |
+          tip=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$tip" != "$GITHUB_SHA" ]; then
+            echo "main is at ${tip}, past ${GITHUB_SHA}; the run for ${tip} releases these commits"
+            echo "superseded=true" >>"$GITHUB_OUTPUT"
+          fi
+
       # Creates the tag as well as the release, at the commit being built. A
       # tag pushed by GITHUB_TOKEN cannot trigger another workflow, so tagging
       # in a separate job and firing this one on the tag would never run.
       - uses: softprops/action-gh-release@v2
+        if: steps.tip.outputs.superseded != 'true'
         with:
           tag_name: ${{ needs.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
