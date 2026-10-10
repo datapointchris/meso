@@ -45,6 +45,26 @@ func TestAFlagAfterAnUnknownWordRefusesTheWord(t *testing.T) {
 	}
 }
 
+// cobra answers --help before it validates arguments, so a mistyped word typed
+// with it would print the group's help and exit 0 as though the word had been
+// a subcommand.
+func TestAWordTypedWithHelpIsRefusedAtEveryGroup(t *testing.T) {
+	for _, args := range [][]string{
+		{"bogus", "--help"},
+		{"admin", "bogus", "--help"},
+		{"admin", "feedback", "bogus", "--help"},
+		{"sessions", "bogus", "-h"},
+	} {
+		err := runLine(t, args...)
+		if err == nil || !strings.Contains(err.Error(), `unknown command "bogus"`) {
+			t.Errorf("%v answered %v, want it to refuse \"bogus\"", args, err)
+		}
+		if !errors.Is(err, goclikit.ErrUsage) {
+			t.Errorf("%v is not a usage error, so it would not exit 2: %v", args, err)
+		}
+	}
+}
+
 // A word one slip from a subcommand is answered with the subcommand, at the
 // root and inside a group alike.
 func TestAnUnknownSubcommandNamesTheNearOnes(t *testing.T) {
