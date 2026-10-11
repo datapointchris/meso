@@ -4,7 +4,7 @@ A standalone, personal, mobile-first training app: a library of movements that c
 
 Self-hosted, single-user, no external users. Defined as much by what it leaves out — no videos, gamification, social feed, or motivation bloat — as by what it does.
 
-**Status:** live in production at `https://meso.ichrisbirch.com`, complete across every entity below. This file is the spec — read it before adding an entity or endpoint. Architecture and conventions are in [`CLAUDE.md`](CLAUDE.md); current progress and in-flight decisions in `.planning/status.md` (gitignored).
+**Status:** live in production at `https://meso.ichrisbirch.com`, complete across every entity below. This file is the spec — read it before adding an entity or endpoint. Architecture and conventions are in [`CLAUDE.md`](CLAUDE.md).
 
 The name is the thesis. A _mesocycle_ is the unit of training planning — a multi-week block aimed at a target. The app's value is that planning intelligence, unified across strength, running, mobility, and dance, not tracking-for-tracking's-sake. The block entity is named **Cycle** in the model.
 
@@ -74,7 +74,7 @@ Frontend container follows nomad: a Caddy image serving the built SPA with fallb
 
 ### Auth — Authelia cookie at the edge, Authelia JWT verified in the API
 
-Identical model to nomad; full design in `~/webapps/nomad/.planning/cli-auth-design.md`, Authelia itself in `~/homelab/containers/auth-lxc/README.md`.
+Identical model to nomad, whose `CLAUDE.md` describes it.
 
 - **Web**: Authelia **cookie SSO** at the Traefik edge. The browser redirects to `auth.ichrisbirch.com`, logs in once, and gets a session cookie. The Vue SPA stays on cookie auth; there is no app-issued JWT and no login page in meso itself.
 - **CLI**: `meso auth login` runs the OAuth 2.0 **device authorization grant** (RFC 8628) against Authelia as a **public client**, scopes `openid` + `profile` + `offline_access`. The CLI prints a code and a URL; approval happens in any browser on any device, which is what makes login work over SSH — a loopback redirect needs a browser that can reach a listener on the machine being logged into. The resulting access token is an **RFC 9068 JWT** (`typ=at+jwt`, RS256) that the API **verifies itself** against Authelia's JWKS. The token is kept in the **OS keychain**, or in a file only this user can read on a host with no keychain. `meso auth status` says which. Clients are registered **per (machine × app)** — `meso-cli-<host>` by default — so revocation is two-axis (machine, app). `meso auth` provides `login / logout / status --json / token` (the last for `curl -H "Authorization: Bearer $(meso auth token)"`).
@@ -408,7 +408,7 @@ Spun out of the ichrisbirch "Fitness Tracker" plan (2026-07-22). A different pur
 
 ## References
 
-- Reference build (stack + CLI + deploy to copy): `~/webapps/nomad/` — especially `CLAUDE.md`, `cli/`, and `.planning/cli-auth-design.md`.
+- Reference build (stack + CLI + deploy to copy): the nomad repo, especially its `CLAUDE.md` and `cli/`.
 - Cross-system architecture this app slots into: `~/dev/vision.md` (product front doors, CLI-primary, MCP retirement) and `~/dev/system.md`.
 - Authelia / homelab auth: `~/homelab/containers/auth-lxc/README.md`.
 - Source content migrated in: `~/shart/fitness/` — `ppl/*.md`, `general-workouts/apartment-*.md`, `flexibility-moves.md`, and the three research plans `shoulder-plan.md`, `lower-body-plan.md`, `dance-conditioning.md`.

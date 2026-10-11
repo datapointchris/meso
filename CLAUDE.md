@@ -8,7 +8,6 @@ Go CLI + Vue, Authelia edge auth, registry-pull deploy.
 - **What it is, why, and the domain model:** [`README.md`](README.md) — the README is the spec. Read it before adding an entity or endpoint.
 - **Reference build to copy patterns from:** `~/webapps/nomad/` (`CLAUDE.md`, `api/`, `cli/`).
 - **Universal rules live in `~/.claude/CLAUDE.md` and the fleet standards, and are not restated here.** `fleet standards applies meso` is which ones reach this repo.
-- **Current progress and settled decisions:** `.planning/status.md` (gitignored).
 
 ## Architecture — three subsystems
 
