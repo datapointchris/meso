@@ -49,7 +49,8 @@ type PreviousActuals struct {
 	Sets        int     `json:"sets"`
 }
 
-// Session mirrors the API's workout-session JSON. The id is a UUID7 string; the CLI
+// Session is the CLI's lean view of the API's workout-session JSON, carrying the fields
+// it renders and leaving out created_at. The id is a UUID7 string; the CLI
 // treats it opaquely (passes it through URLs, prints it) and never needs the uuid
 // package. WorkoutName is the template's name (null for a free-form session).
 // FinishedAt is null while the session is still being logged.
