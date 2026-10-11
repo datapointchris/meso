@@ -281,14 +281,16 @@ func printStatus(out io.Writer, r statusReport, d goclilogin.Deployment, loadErr
 		_, _ = fmt.Fprintln(out, "Logged in")
 	}
 	goclilogin.WriteDeployment(out, d)
+	// WriteDeployment's widest key is client_id, padded by two, so its values
+	// start in the column these rows pad to.
 	if r.ExpiresAt != "" {
 		state := "valid"
 		if r.Expired {
 			state = "expired — will refresh on next use"
 		}
-		_, _ = fmt.Fprintf(out, "  token     %s (expires %s)\n", state, r.ExpiresAt)
+		_, _ = fmt.Fprintf(out, "  %-11s%s (expires %s)\n", "token", state, r.ExpiresAt)
 	}
 	if r.Backend == goclilogin.BackendFile {
-		_, _ = fmt.Fprintf(out, "  storage   %s — no OS keyring on this host\n", r.Backend)
+		_, _ = fmt.Fprintf(out, "  %-11s%s — no OS keyring on this host\n", "storage", r.Backend)
 	}
 }
