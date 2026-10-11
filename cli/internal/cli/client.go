@@ -21,10 +21,14 @@ var errNeedsLogin = errors.New("not logged in")
 // oauth2 client injects (and refreshes) the bearer token on every request via the
 // persisting token source, so resource commands never touch tokens directly.
 func newAPIClient(ctx context.Context) (*api.Client, error) {
-	cfg := config.Load()
-	store := goclilogin.NewTokenStore(cfg.Login())
+	deployment, err := config.Load(ctx, apiOverride)
+	if err != nil {
+		return nil, err
+	}
+	login := config.Login(deployment)
+	store := goclilogin.NewTokenStore(login)
 
-	source, err := goclilogin.TokenSource(ctx, cfg.Login(), store)
+	source, err := goclilogin.TokenSource(ctx, login, store)
 	if errors.Is(err, goclilogin.ErrNotLoggedIn) {
 		return nil, errNeedsLogin
 	}
@@ -33,7 +37,7 @@ func newAPIClient(ctx context.Context) (*api.Client, error) {
 	}
 
 	httpClient := oauth2.NewClient(ctx, source)
-	return api.New(cfg.APIBase, httpClient), nil
+	return api.New(deployment.API.Value, httpClient), nil
 }
 
 // handleAPIError maps an error from a resource command to a message and exit

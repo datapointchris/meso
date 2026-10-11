@@ -30,7 +30,8 @@ lives in `cmd/seed`. Handler tests are testcontainers-backed (`handlers/main_tes
 
 ### CLI layering
 
-`internal/config` (OIDC/API settings, and `Config.Login()` mapping onto goclilogin) →
+`internal/config` (where the CLI is pointed, read from `~/.config/meso/config.toml` through
+goclilogin's `LoadDeployment`, and `Login()` mapping that onto goclilogin) →
 `internal/api` (typed REST client over the wire contract) → `internal/cli` (cobra command
 tree). Resource commands live one file per resource under `internal/cli`, each with a
 matching `internal/api/<resource>.go` client.
@@ -89,7 +90,7 @@ flag; without it the root tsconfig is solution-style and nothing is checked.
 ```bash
 docker compose -f docker-compose.dev.yml up --build                               # Postgres + API + Caddy SPA
 docker compose -f docker-compose.dev.yml run --rm --entrypoint ./meso-seed api    # seed once
-cd api && DATABASE_URL=postgres://meso:meso@localhost:5459/meso?sslmode=disable go run .   # migrates, serves :8088
+cd api && DATABASE_URL=postgres://meso:meso@localhost:5459/meso?sslmode=disable PUBLIC_URL=http://localhost:8088 go run .   # migrates, serves :8088
 cd web && npm run dev                                                             # Vite :3001, proxies /api → :8088
 ```
 

@@ -1,8 +1,14 @@
 package config
 
 import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/datapointchris/goclilogin"
 )
 
 // Login is the seam between meso's settings and goclilogin's, so what it
@@ -15,10 +21,11 @@ import (
 // forbids alongside the device grant.
 func TestLoginCarriesTheDeployedIdentifiers(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", "/tmp/xdgstate")
-	t.Setenv("MESO_OIDC_ISSUER", "https://auth.example.com")
-	t.Setenv("MESO_CLIENT_ID", "meso-cli-somehost")
 
-	login := Load().Login()
+	login := Login(goclilogin.Deployment{
+		Issuer:   goclilogin.Setting{Value: "https://auth.example.com"},
+		ClientID: goclilogin.Setting{Value: "meso-cli-somehost"},
+	})
 	if login.Issuer != "https://auth.example.com" {
 		t.Errorf("Issuer = %q", login.Issuer)
 	}
@@ -36,21 +43,43 @@ func TestLoginCarriesTheDeployedIdentifiers(t *testing.T) {
 	}
 }
 
-// An env var set to the empty string falls through to the default rather than
-// blanking the field — getEnv treats "" as unset.
-func TestLoad_EmptyEnvFallsThroughToDefault(t *testing.T) {
-	t.Setenv("MESO_API_BASE", "")
-	if got := Load().APIBase; got != defaultAPIBase {
-		t.Errorf("APIBase = %q, want the default %q", got, defaultAPIBase)
+// The file is the only source. A variable an earlier release read is ignored,
+// so a stale export cannot point the CLI somewhere the file does not say.
+func TestLoadReadsMesosOwnFileAndNoVariable(t *testing.T) {
+	configHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	t.Setenv("MESO_API_BASE", "https://stale.example.com")
+	t.Setenv("MESO_OIDC_ISSUER", "https://stale-auth.example.com")
+	t.Setenv("MESO_CLIENT_ID", "meso-cli-stale")
+
+	path := filepath.Join(configHome, "meso", "config.toml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	body := "api = \"https://meso.example.com\"\n" +
+		"issuer = \"https://auth.example.com\"\n" +
+		"client_id = \"meso-cli-workstation\"\n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	d, err := Load(context.Background(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Path != path || d.API.Value != "https://meso.example.com" ||
+		d.Issuer.Value != "https://auth.example.com" || d.ClientID.Value != "meso-cli-workstation" {
+		t.Errorf("Load() = %+v", d)
 	}
 }
 
-// The client id spells the machine into it, so one machine's token is revocable
-// without touching another's.
-func TestDefaultClientIDIsPerMachine(t *testing.T) {
-	t.Setenv("MESO_CLIENT_ID", "")
-	got := Load().ClientID
-	if !strings.HasPrefix(got, "meso-cli-") {
-		t.Errorf("ClientID = %q, want a meso-cli-<host> spelling", got)
+// With no file there is nothing to fall back to, and the error names the
+// command that writes one.
+func TestLoadWithNoFileNamesTheLogin(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	_, err := Load(context.Background(), "")
+	if !errors.Is(err, goclilogin.ErrNotConfigured) || !strings.Contains(err.Error(), "meso auth login <url>") {
+		t.Errorf("Load() error = %v, want ErrNotConfigured naming `meso auth login <url>`", err)
 	}
 }

@@ -1,70 +1,51 @@
-// Package config resolves the meso CLI's OIDC and API settings from
-// environment overrides layered over homelab defaults.
+// Package config says where the meso CLI is pointed and what it hands
+// goclilogin. Where it is pointed is one file, $XDG_CONFIG_HOME/meso/config.toml,
+// read through goclilogin's config-file contract: its api, issuer and client_id
+// keys, with --api the only thing that outranks them.
 package config
 
 import (
-	"os"
+	"context"
 	"slices"
 
 	"github.com/datapointchris/goclilogin"
 )
 
+// product names the config file's directory and the state directory.
+const product = "meso"
+
+// keyringService namespaces meso's entries in the OS keychain. It is a deployed
+// identifier rather than a path-derived one, so it keeps its spelling
+// independently of the module or binary name.
+const keyringService = "meso-cli"
+
 // loginScopes are goclilogin's defaults plus groups, which puts the caller's
 // groups in the access token so the API can admit the admin group to `meso admin`.
 var loginScopes = append(slices.Clone(goclilogin.DefaultScopes), "groups")
 
-const (
-	defaultIssuer  = "https://auth.ichrisbirch.com"
-	defaultAPIBase = "https://meso.ichrisbirch.com"
-
-	// keyringService namespaces meso's entries in the OS keychain. It is
-	// a deployed identifier rather than a path-derived one, so it keeps its
-	// spelling independently of the module or binary name.
-	keyringService = "meso-cli"
-)
-
-type Config struct {
-	Issuer   string
-	ClientID string
-	APIBase  string
+// Load reads the deployment every command talks to. api is the --api flag's
+// value, and outranks the file's when it is not empty.
+func Load(ctx context.Context, api string) (goclilogin.Deployment, error) {
+	return goclilogin.LoadDeployment(ctx, product, api)
 }
 
-// Load resolves settings. Precedence per CLI conventions: env var > default.
-// A config file layer can slot in below env later without changing callers.
-func Load() Config {
-	return Config{
-		Issuer:   getEnv("MESO_OIDC_ISSUER", defaultIssuer),
-		ClientID: getEnv("MESO_CLIENT_ID", defaultClientID()),
-		APIBase:  getEnv("MESO_API_BASE", defaultAPIBase),
-	}
+// ForLogin is the deployment `meso auth login` logs in to: the file's values,
+// with whatever it lacks filled in from api, the API's metadata and clientID.
+func ForLogin(ctx context.Context, api, clientID string) (goclilogin.Deployment, error) {
+	return goclilogin.DeploymentForLogin(ctx, product, api, clientID)
 }
 
-// defaultClientID derives the per-(machine × app) Authelia client_id from the
-// short hostname: `macmini.trusted` → `meso-cli-macmini`, matching the clients
-// registered in the Authelia template. Machines whose hostname differs from
-// their logical name override with MESO_CLIENT_ID (pyinfra can template this).
-func defaultClientID() string {
-	return goclilogin.ClientID("meso")
-}
-
-func getEnv(key, fallback string) string {
-	if v, ok := os.LookupEnv(key); ok && v != "" {
-		return v
-	}
-	return fallback
-}
-
-// Login is the goclilogin view of this config: which provider to authenticate
+// Login is the goclilogin view of a deployment: which provider to authenticate
 // against, as which client, and where its state lives. StateDir holds the
 // refresh lock and the fallback token file, and naming the tool's own directory
 // keeps both beside its other state rather than under the keyring service name,
 // which is where goclilogin would put them by default.
-func (c Config) Login() goclilogin.Config {
+func Login(d goclilogin.Deployment) goclilogin.Config {
 	return goclilogin.Config{
-		Issuer:         c.Issuer,
-		ClientID:       c.ClientID,
+		Issuer:         d.Issuer.Value,
+		ClientID:       d.ClientID.Value,
 		KeyringService: keyringService,
-		StateDir:       goclilogin.StateDir("meso"),
+		StateDir:       goclilogin.StateDir(product),
 		Scopes:         loginScopes,
 	}
 }
