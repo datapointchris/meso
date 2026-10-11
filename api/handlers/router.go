@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"meso/api/auth"
 	"meso/api/middleware"
 	"meso/api/repository"
 )
@@ -19,7 +20,11 @@ func admin(h http.HandlerFunc) http.Handler { return middleware.RequireGroup(Adm
 // the single source of truth for the route table: main() serves it in production and
 // the handler tests build it against a throwaway Postgres, so the two can never drift
 // — a route added here is exercised by both.
-func NewRouter(pool *pgxpool.Pool) *http.ServeMux {
+//
+// metadata serves the RFC 9728 document. main passes nil while PUBLIC_URL is
+// unset, because only the deployment knows the address it is reached at, and
+// the route is then absent.
+func NewRouter(pool *pgxpool.Pool, metadata http.Handler) *http.ServeMux {
 	movementRepo := repository.NewMovementRepo(pool)
 	movementH := NewMovementHandler(movementRepo)
 	workoutRepo := repository.NewWorkoutRepo(pool)
@@ -38,6 +43,12 @@ func NewRouter(pool *pgxpool.Pool) *http.ServeMux {
 		repository.NewReviewRepo(sessionRepo, measurementRepo, logRepo, cycleRepo))
 
 	mux := http.NewServeMux()
+
+	// Unauthenticated (auth middleware exempts the path): a CLI reads it before
+	// it holds a token.
+	if metadata != nil {
+		mux.Handle("GET "+auth.ProtectedResourcePath, metadata)
+	}
 
 	// Health — unauthenticated (auth middleware exempts /health).
 	// Returns 503 on DB failure so docker/k8s healthchecks detect outages.
