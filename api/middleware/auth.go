@@ -68,12 +68,12 @@ func RequireAuth(verifier TokenVerifier, serviceToken string, logger *slog.Logge
 					identity, err := verifier.Verify(r.Context(), raw)
 					if errors.Is(err, auth.ErrProviderUnavailable) {
 						logger.ErrorContext(r.Context(), "identity provider unreachable", "error", err, "path", r.URL.Path)
-						http.Error(w, "identity provider unavailable", http.StatusServiceUnavailable)
+						refuse(w, http.StatusServiceUnavailable, "the identity provider is unavailable")
 						return
 					}
 					if err != nil {
 						logger.WarnContext(r.Context(), "bearer token rejected", "error", err, "path", r.URL.Path)
-						http.Error(w, "unauthorized", http.StatusUnauthorized)
+						refuse(w, http.StatusUnauthorized, noCredential)
 						return
 					}
 					ctx := context.WithValue(r.Context(), identityKey, identity)
@@ -87,12 +87,12 @@ func RequireAuth(verifier TokenVerifier, serviceToken string, logger *slog.Logge
 					return
 				}
 				logger.WarnContext(r.Context(), "service token rejected", "path", r.URL.Path)
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				refuse(w, http.StatusUnauthorized, noCredential)
 				return
 			}
 
 			if r.Header.Get("Remote-User") == "" {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				refuse(w, http.StatusUnauthorized, noCredential)
 				return
 			}
 			ctx := context.WithValue(r.Context(), groupsKey, edgeGroups(r.Header.Get("Remote-Groups")))
@@ -112,19 +112,24 @@ func edgeGroups(header string) []string {
 	return groups
 }
 
-// RequireGroup refuses with 403 a caller RequireAuth did not place in group. The
-// refusal is the {"error","message"} envelope every handler writes, which is the
-// one shape a client decodes a reason from.
+// noCredential is every 401's message. It is one sentence whichever check
+// failed, so a refusal tells a caller nothing about which credential came close.
+const noCredential = "the request carries no credential this API accepts"
+
+// refuse writes the {"error","message"} envelope every handler writes, which is
+// the one shape a client decodes a reason from.
+func refuse(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": http.StatusText(status), "message": message})
+}
+
+// RequireGroup refuses with 403 a caller RequireAuth did not place in group.
 func RequireGroup(group string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		groups, _ := r.Context().Value(groupsKey).([]string)
 		if !slices.Contains(groups, group) {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]string{
-				"error":   http.StatusText(http.StatusForbidden),
-				"message": "this needs membership in the " + group + " group",
-			})
+			refuse(w, http.StatusForbidden, "this needs membership in the "+group+" group")
 			return
 		}
 		next.ServeHTTP(w, r)
