@@ -6,8 +6,14 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"meso/api/middleware"
 	"meso/api/repository"
 )
+
+// AdminGroup is the identity provider's group that operates the app.
+const AdminGroup = "admin"
+
+func admin(h http.HandlerFunc) http.Handler { return middleware.RequireGroup(AdminGroup, h) }
 
 // NewRouter wires repositories → handlers → routes and returns the API mux. It is
 // the single source of truth for the route table: main() serves it in production and
@@ -141,12 +147,13 @@ func NewRouter(pool *pgxpool.Pool) *http.ServeMux {
 	// Feedback — in-app capture of papercuts and ideas about meso itself. The only
 	// non-training resource here: the web app POSTs, and the reads/writes below serve
 	// the CLI's `meso admin feedback` namespace. meso owns this data outright and
-	// forwards it nowhere — whoever wants it reads it back out.
-	mux.HandleFunc("GET /api/v1/feedback", feedbackH.List)
+	// forwards it nowhere — whoever wants it reads it back out. Any signed-in user
+	// captures, and only the admin group reads, edits or deletes.
+	mux.Handle("GET /api/v1/feedback", admin(feedbackH.List))
 	mux.HandleFunc("POST /api/v1/feedback", feedbackH.Create)
-	mux.HandleFunc("GET /api/v1/feedback/{id}", feedbackH.Get)
-	mux.HandleFunc("PUT /api/v1/feedback/{id}", feedbackH.Update)
-	mux.HandleFunc("DELETE /api/v1/feedback/{id}", feedbackH.Delete)
+	mux.Handle("GET /api/v1/feedback/{id}", admin(feedbackH.Get))
+	mux.Handle("PUT /api/v1/feedback/{id}", admin(feedbackH.Update))
+	mux.Handle("DELETE /api/v1/feedback/{id}", admin(feedbackH.Delete))
 
 	// Review — the capstone read: active cycles + recent sessions/measurements/log
 	// in one payload, for Claude to draft the next cycle from real history (Phase 6).

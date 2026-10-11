@@ -57,7 +57,7 @@ func main() {
 	var handler http.Handler = handlers.NewRouter(pool)
 
 	if cfg.Env == "development" {
-		handler = middleware.DevCORS(handler)
+		handler = middleware.DevCORS(middleware.DevGroups(handler, handlers.AdminGroup))
 	} else {
 		verifier, verifierErr := auth.NewVerifier(ctx, cfg.OIDCIssuer, cfg.CLIClientIDPrefix)
 		if verifierErr != nil {

@@ -191,7 +191,7 @@ func buildTestMux(pool *database.TestPool) *http.ServeMux {
 	return handlers.NewRouter(pool.Pool)
 }
 
-func postJSON(t *testing.T, mux *http.ServeMux, path string, body any) *httptest.ResponseRecorder {
+func postJSON(t *testing.T, mux http.Handler, path string, body any) *httptest.ResponseRecorder {
 	t.Helper()
 	b, err := json.Marshal(body)
 	require.NoError(t, err)
@@ -202,7 +202,7 @@ func postJSON(t *testing.T, mux *http.ServeMux, path string, body any) *httptest
 	return rr
 }
 
-func putJSON(t *testing.T, mux *http.ServeMux, path string, body any) *httptest.ResponseRecorder {
+func putJSON(t *testing.T, mux http.Handler, path string, body any) *httptest.ResponseRecorder {
 	t.Helper()
 	b, err := json.Marshal(body)
 	require.NoError(t, err)
@@ -213,7 +213,7 @@ func putJSON(t *testing.T, mux *http.ServeMux, path string, body any) *httptest.
 	return rr
 }
 
-func patchJSON(t *testing.T, mux *http.ServeMux, path string, body any) *httptest.ResponseRecorder {
+func patchJSON(t *testing.T, mux http.Handler, path string, body any) *httptest.ResponseRecorder {
 	t.Helper()
 	b, err := json.Marshal(body)
 	require.NoError(t, err)
@@ -224,7 +224,7 @@ func patchJSON(t *testing.T, mux *http.ServeMux, path string, body any) *httptes
 	return rr
 }
 
-func getJSON(t *testing.T, mux *http.ServeMux, path string) *httptest.ResponseRecorder {
+func getJSON(t *testing.T, mux http.Handler, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	rr := httptest.NewRecorder()
@@ -232,7 +232,7 @@ func getJSON(t *testing.T, mux *http.ServeMux, path string) *httptest.ResponseRe
 	return rr
 }
 
-func deleteReq(t *testing.T, mux *http.ServeMux, path string) *httptest.ResponseRecorder {
+func deleteReq(t *testing.T, mux http.Handler, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodDelete, path, nil)
 	rr := httptest.NewRecorder()

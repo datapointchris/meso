@@ -322,7 +322,7 @@ Go request/response structs per entity (Create / response / Update shapes) with 
 /api/v1/log                       CRUD dated entries
 /api/v1/stats                     aggregations for the stats page
 /api/v1/review                    GET structured recent history (sessions+measurements+log) for `meso review`
-/api/v1/feedback                  CRUD + ?status=&search= — the web app POSTs, `meso admin feedback` reads
+/api/v1/feedback                  CRUD + ?status=&search= — any user POSTs, only the admin group reads, edits or deletes
 /health                           unauthenticated liveness (exempt from edge auth)
 ```
 
@@ -350,7 +350,9 @@ meso update [--check]            replace this binary with the newest cli/v* rele
 meso admin feedback list [--open --done --search] | show <id> | add | edit | done <id> | delete
 ```
 
-**`admin` is the namespace for operating the app, as distinct from using it.** Every other top-level command is a training noun, which is what lets `meso --help` read as a description of the domain; commands about the software itself go under `admin` instead of diluting that. The convention is HashiCorp's (`vault operator`, `consul operator`, `nomad operator`), named `admin` because "operator" there means cluster and consensus lifecycle and meso has no cluster. There is no separate privilege today — meso is single-user and Authelia at the edge is the real check — but the namespace is where one would go.
+**`admin` is the namespace for operating the app, as distinct from using it.** Every other top-level command is a training noun, which is what lets `meso --help` read as a description of the domain; commands about the software itself go under `admin` instead of diluting that. The convention is HashiCorp's (`vault operator`, `consul operator`, `nomad operator`), named `admin` because "operator" there means cluster and consensus lifecycle and meso has no cluster.
+
+**The server refuses administration to anyone outside the identity provider's `admin` group, the way a web app hides its admin pages.** The CLI still carries `meso admin`, so a stranger holding it can read the help and cannot run it. Reading, editing and deleting feedback answer 403 to a non-member, and capturing it needs only a login. The API reads the group from `Remote-Groups` on a browser request, which the edge strips from inbound traffic before ForwardAuth sets it. A CLI request carries it in the access token's `groups` claim, which is why the CLI requests the `groups` scope. A login without that scope carries no groups, and `meso auth login` replaces it.
 
 `update` is the one exception, and it sits at the root rather than under `admin`. meso checks once a day for a newer release and prints a single line — `meso v0.4.0 available (running v0.3.3) — run \`meso update\`` — and that sentence is built from the binary name by the shared library, with no way to name a nested command. Under `admin` the notice would point at a command that does not exist. `meso admin update` still works for one release, hidden from help. The check never installs anything and never prints an error; set `NO_AUTO_UPDATE` or `MESO_NO_AUTO_UPDATE` to turn it off.
 
