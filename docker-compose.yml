@@ -25,6 +25,10 @@ services:
     image: ghcr.io/datapointchris/meso-api:latest
     restart: unless-stopped
     env_file: /etc/meso/.env.api
+    environment:
+      # The address the edge serves this API at. Its RFC 9728 metadata names it,
+      # and a CLI logging in refuses that document unless it matches exactly.
+      PUBLIC_URL: https://meso.ichrisbirch.com
     depends_on:
       postgres:
         condition: service_healthy

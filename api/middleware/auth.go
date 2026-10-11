@@ -53,11 +53,12 @@ const (
 //
 // /health is exempt: docker-compose healthchecks and k8s liveness/readiness
 // probes hit this endpoint without credentials, and gating it would cause
-// orchestrators to mark a healthy service as unhealthy.
+// orchestrators to mark a healthy service as unhealthy. The RFC 9728 metadata
+// is exempt too, because a CLI reads it to learn where to get its first token.
 func RequireAuth(verifier TokenVerifier, serviceToken string, logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/health" {
+			if r.URL.Path == "/health" || r.URL.Path == auth.ProtectedResourcePath {
 				next.ServeHTTP(w, r)
 				return
 			}

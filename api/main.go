@@ -54,7 +54,13 @@ func main() {
 	defer pool.Close()
 	slog.Info("connected to database")
 
-	var handler http.Handler = handlers.NewRouter(pool)
+	router := handlers.NewRouter(pool)
+	if cfg.PublicURL != "" {
+		router.Handle("GET "+auth.ProtectedResourcePath, auth.ProtectedResourceMetadata(cfg.PublicURL, cfg.OIDCIssuer))
+	} else {
+		slog.Warn("PUBLIC_URL is unset, so no RFC 9728 metadata is served and `meso auth login <url>` cannot discover the issuer")
+	}
+	var handler http.Handler = router
 
 	if cfg.Env == "development" {
 		handler = middleware.DevCORS(middleware.DevGroups(handler, handlers.AdminGroup))

@@ -21,6 +21,11 @@
 		reverse_proxy api:8088
 	}
 
+	# RFC 9728 metadata, read by `meso auth login <url>` before it holds a token.
+	handle /.well-known/oauth-protected-resource {
+		reverse_proxy api:8088
+	}
+
 	handle {
 		root * /srv/dist
 
