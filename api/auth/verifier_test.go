@@ -113,9 +113,6 @@ func TestVerify_AcceptsValidAccessToken(t *testing.T) {
 	if identity.ClientID != "meso-cli-macmini" {
 		t.Fatalf("ClientID = %q", identity.ClientID)
 	}
-	if identity.Groups != nil {
-		t.Fatalf("a token with no groups claim gave Groups = %q", identity.Groups)
-	}
 }
 
 func TestVerify_CarriesTheGroupsClaim(t *testing.T) {

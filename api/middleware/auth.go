@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -45,8 +46,9 @@ const (
 // falling through would let a caller pair a junk token with a forged header.
 //
 // Each route puts the caller's groups on the request for RequireGroup: a JWT's
-// groups claim, or the edge's Remote-Groups header, which the edge strips from
-// every inbound request before ForwardAuth sets it. The service token names no
+// groups claim, or the edge's Remote-Groups header. The edge proxy must remove
+// any client-supplied Remote-Groups before ForwardAuth sets it. Otherwise any
+// signed-in browser user can name their own groups. The service token names no
 // user and carries no group.
 //
 // /health is exempt: docker-compose healthchecks and k8s liveness/readiness
@@ -109,12 +111,19 @@ func edgeGroups(header string) []string {
 	return groups
 }
 
-// RequireGroup refuses with 403 a caller RequireAuth did not place in group.
+// RequireGroup refuses with 403 a caller RequireAuth did not place in group. The
+// refusal is the {"error","message"} envelope every handler writes, which is the
+// one shape a client decodes a reason from.
 func RequireGroup(group string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		groups, _ := r.Context().Value(groupsKey).([]string)
 		if !slices.Contains(groups, group) {
-			http.Error(w, "forbidden: this needs membership in the "+group+" group", http.StatusForbidden)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"error":   http.StatusText(http.StatusForbidden),
+				"message": "this needs membership in the " + group + " group",
+			})
 			return
 		}
 		next.ServeHTTP(w, r)

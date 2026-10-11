@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -76,6 +77,28 @@ func TestRequireGroup_AdmitsOnlyACallerRequireAuthPlacedInTheGroup(t *testing.T)
 				t.Fatalf("status = %d, want %d", rec.Code, tc.wantStatus)
 			}
 		})
+	}
+}
+
+// Every CLI decodes a reason only from the {"error","message"} envelope, so an
+// admin command refused in plain text printed a bare 403.
+func TestRequireGroup_RefusesInTheEnvelopeEveryCLIDecodes(t *testing.T) {
+	handler, _ := next()
+	mw := middlewareWith(nil, RequireGroup("admin", handler))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/feedback", nil)
+	req.Header.Set("Remote-User", "guest")
+	rec := httptest.NewRecorder()
+	mw.ServeHTTP(rec, req)
+
+	var envelope struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("refusal body %q is not the JSON envelope: %v", rec.Body.String(), err)
+	}
+	if rec.Code != http.StatusForbidden || envelope.Message != "this needs membership in the admin group" {
+		t.Fatalf("status %d, envelope %+v", rec.Code, envelope)
 	}
 }
 
