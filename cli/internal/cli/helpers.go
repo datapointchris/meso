@@ -309,19 +309,21 @@ func printNameCandidates[T any](cmd *cobra.Command, raw string, refs []nameRef, 
 }
 
 // printNoNameMatch offers the two things worth doing when a name is absent:
-// browse what does exist, or add the thing that does not. searchable is false
-// when the argument held nothing to search on, where offering to create it by
-// that name would be offering nonsense.
+// browse what does exist, or add the thing that does not. No create is offered
+// when searchable is false, because the argument held nothing to search on. None
+// is offered for an argument that parses as an id either. That caller was most
+// likely looking for a record, and a create line would name a new one after it.
 func printNoNameMatch[T any](cmd *cobra.Command, raw string, searchable bool, asJSON bool, r nameResolver[T]) {
 	if asJSON {
 		_ = encodeJSON(cmd.OutOrStdout(), map[string]any{"query": raw, "matches": []nameRef{}})
 		return
 	}
+	_, idErr := strconv.ParseInt(raw, 10, 64)
 	out := cmd.ErrOrStderr()
 	_, _ = fmt.Fprintf(out, "No %s matches %q. From here:\n\n", r.noun, raw)
 	tw := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 	_, _ = fmt.Fprintf(tw, "  %s list\tbrowse every %s\n", groupPath(cmd), r.noun)
-	if searchable {
+	if searchable && idErr != nil {
 		create := fmt.Sprintf("  %s create %s", groupPath(cmd), shellArg(raw))
 		if r.createFlags != "" {
 			create += " " + r.createFlags
