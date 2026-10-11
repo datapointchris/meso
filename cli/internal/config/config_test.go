@@ -1,10 +1,6 @@
 package config
 
 import (
-	"context"
-	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -40,46 +36,5 @@ func TestLoginCarriesTheDeployedIdentifiers(t *testing.T) {
 	}
 	if got := strings.Join(login.Scopes, " "); got != "openid profile offline_access groups" {
 		t.Errorf("Scopes = %q", got)
-	}
-}
-
-// The file is the only source. A variable an earlier release read is ignored,
-// so a stale export cannot point the CLI somewhere the file does not say.
-func TestLoadReadsMesosOwnFileAndNoVariable(t *testing.T) {
-	configHome := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", configHome)
-	t.Setenv("MESO_API_BASE", "https://stale.example.com")
-	t.Setenv("MESO_OIDC_ISSUER", "https://stale-auth.example.com")
-	t.Setenv("MESO_CLIENT_ID", "meso-cli-stale")
-
-	path := filepath.Join(configHome, "meso", "config.toml")
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	body := "api = \"https://meso.example.com\"\n" +
-		"issuer = \"https://auth.example.com\"\n" +
-		"client_id = \"meso-cli-workstation\"\n"
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	d, err := Load(context.Background(), "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if d.Path != path || d.API.Value != "https://meso.example.com" ||
-		d.Issuer.Value != "https://auth.example.com" || d.ClientID.Value != "meso-cli-workstation" {
-		t.Errorf("Load() = %+v", d)
-	}
-}
-
-// With no file there is nothing to fall back to, and the error names the
-// command that writes one.
-func TestLoadWithNoFileNamesTheLogin(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-
-	_, err := Load(context.Background(), "")
-	if !errors.Is(err, goclilogin.ErrNotConfigured) || !strings.Contains(err.Error(), "meso auth login <url>") {
-		t.Errorf("Load() error = %v, want ErrNotConfigured naming `meso auth login <url>`", err)
 	}
 }

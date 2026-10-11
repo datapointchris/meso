@@ -35,6 +35,12 @@ func ForLogin(ctx context.Context, api, clientID string) (goclilogin.Deployment,
 	return goclilogin.DeploymentForLogin(ctx, product, api, clientID)
 }
 
+// DefaultClientID is the client id login derives when neither the file nor
+// --client-id names one: meso-cli-<short hostname>.
+func DefaultClientID() string {
+	return goclilogin.ClientID(product)
+}
+
 // Login is the goclilogin view of a deployment: which provider to authenticate
 // against, as which client, and where its state lives. StateDir holds the
 // refresh lock and the fallback token file, and naming the tool's own directory

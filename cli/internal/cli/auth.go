@@ -25,12 +25,14 @@ func newAuthCommand() *cobra.Command {
 		Short: "Log in and out of the meso API",
 		Long: "Authenticate this machine against Authelia using the OAuth 2.0 device\n" +
 			"authorization grant. The CLI prints a code and a URL; approve it in any\n" +
-			"browser on any device, including from a different machine over SSH. The\n" +
-			"resulting token is stored in the OS keychain, never on disk.\n" +
+			"browser on any device, including from a different machine over SSH.\n" +
 			"\n" +
-			"Where the CLI is pointed comes from one file, ~/.config/meso/config.toml:\n" +
-			"api, issuer and client_id. `meso auth login <url>` fills in whatever it\n" +
-			"lacks, and `meso auth status` prints all three and the file's path.",
+			"The token is kept in the OS keychain, or in a file only this user can read\n" +
+			"on a host with no keychain. `meso auth status` says which.\n" +
+			"\n" +
+			"Where the CLI is pointed comes from one config file. `meso auth status`\n" +
+			"prints its path and its api, issuer and client_id, and `meso auth login\n" +
+			"<url>` fills in whatever it lacks.",
 	})
 	cmd.AddCommand(newAuthLoginCommand(), newAuthLogoutCommand(), newAuthStatusCommand(), newAuthTokenCommand())
 	return cmd
@@ -125,16 +127,17 @@ func newAuthLogoutCommand() *cobra.Command {
 		Args:    usageArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			// Only the client id is needed to find the token, so a file that
-			// lacks the other two keys still logs out.
+			// lacks the other two keys still logs out. A file naming no client
+			// falls back to the hostname's, which every release before the
+			// config file logged in as, so its token cannot outlive the logout.
 			deployment, err := config.Load(cmd.Context(), apiOverride)
-			clientID := deployment.ClientID.Value
-			switch {
-			case clientID == "" && errors.Is(err, goclilogin.ErrNotConfigured):
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), "Not logged in — nothing to remove.")
-				return nil
-			case clientID == "":
+			if err != nil && !errors.Is(err, goclilogin.ErrNotConfigured) {
 				return err
 			}
+			if deployment.ClientID.Value == "" {
+				deployment.ClientID.Value = config.DefaultClientID()
+			}
+			clientID := deployment.ClientID.Value
 			store := goclilogin.NewTokenStore(config.Login(deployment))
 
 			if err := store.Delete(clientID); err != nil {
