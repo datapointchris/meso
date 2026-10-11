@@ -106,8 +106,8 @@ default `/var/run/docker.sock` needs nothing. This is a machine concern, not a r
 `task lint` and `task test` run these across all three subsystems; the per-subsystem
 verbs are `task {api,cli,web}:{lint,test}`.
 
-`task cli:install` puts `meso` on your PATH at `$GOBIN` (falling back to `$GOPATH/bin`)
-with a git-derived version embedded via ldflags. A locally built one reports as a dev
+`task cli:install` writes `meso` to `~/.local/bin`, replacing the installed release, with a
+git-derived version embedded via ldflags. A locally built one reports as a dev
 build and refuses to self-update — that is `standards/go.md` § "A module in a
 subdirectory needs the full module path and a prefixed tag", not a defect to fix.
 Released binaries come from CI on a `cli/v*` tag.

@@ -9,10 +9,10 @@ vars:
   # repo; install the released one.
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo dev
-  # GOBIN wins when set; resolving GOPATH first would install somewhere that is
-  # never on PATH on a machine that sets GOBIN.
-  INSTALL_DIR:
-    sh: gobin=$(go env GOBIN); [ -n "$gobin" ] || gobin="$(go env GOPATH)/bin"; echo "$gobin"
+  # ~/.local/bin is where the released binary lives and precedes ~/go/bin on
+  # PATH, so a dev build written to $GOBIN would sit behind the release.
+  INSTALL_DIR: '{{.HOME}}/.local/bin'
+  DB_DEV: postgres://meso:meso@localhost:5459/meso?sslmode=disable
 
 tasks:
   default:
@@ -46,9 +46,10 @@ tasks:
       - go build -ldflags "-s -w -X github.com/datapointchris/meso/cli/internal/cli.version={{.VERSION}}" -o ../bin/meso .
 
   cli:install:
-    desc: Install the meso CLI to $GOBIN (falls back to $GOPATH/bin)
+    desc: Build the meso CLI into ~/.local/bin, replacing the installed release
     dir: cli
     cmds:
+      - mkdir -p {{.INSTALL_DIR}}
       - go build -ldflags "-s -w -X github.com/datapointchris/meso/cli/internal/cli.version={{.VERSION}}" -o {{.INSTALL_DIR}}/meso .
       - 'echo "installed meso {{.VERSION}} -> {{.INSTALL_DIR}}/meso"'
 
@@ -69,7 +70,7 @@ tasks:
           echo "gofmt needed on:"; echo "$unformatted"; exit 1
         fi
 
-  cli:fmt:
+  cli:format:
     desc: Format the CLI sources
     dir: cli
     cmds:
@@ -96,17 +97,17 @@ tasks:
           echo "gofmt needed on:"; echo "$unformatted"; exit 1
         fi
 
-  api:run:
-    desc: Run the API against the local dev database
+  api:dev:
+    desc: Run the API from source in the foreground, against the dev database
     dir: api
     cmds:
-      - DATABASE_URL=postgres://meso:meso@localhost:5459/meso?sslmode=disable go run .
+      - DATABASE_URL={{.DB_DEV}} go run .
 
-  api:seed:
-    desc: Load the FK-backbone lookups (idempotent)
+  dev-db:seed:
+    desc: Load the FK-backbone lookups into the dev database (idempotent)
     dir: api
     cmds:
-      - go run ./cmd/seed
+      - DATABASE_URL={{.DB_DEV}} go run ./cmd/seed
 
   # ---------------------------------------------------------------------------
   # Web
