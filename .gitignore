@@ -1,6 +1,3 @@
-# Local planning (per convention, not tracked)
-.planning/
-
 # Go — compiled binaries and test/coverage output
 /api/meso-api
 /api/api
@@ -26,7 +23,6 @@ dist/
 # Editor
 .idea/
 .vscode/
-.planning
 
 # vue-tsc --build writes these next to the tsconfigs it checks.
 *.tsbuildinfo
