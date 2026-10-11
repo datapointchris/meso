@@ -1,0 +1,275 @@
+name: Release
+
+# Pull requests are validated by validate.yml on its own trigger, so this
+# workflow runs only where there is something to publish.
+on:
+  push:
+    branches: [main]
+
+# Scoped per job rather than here: validate only reads, and it is the job that
+# runs the most third-party code.
+permissions:
+  contents: read
+
+# Two pushes to main inside one run's window would otherwise race: both resolve
+# the same next CLI version from the same newest tag, and the later run finds
+# the earlier run's release and replaces its binaries, checksums and notes with
+# a build of its own commit, under a tag that still names the first. Nothing
+# about that fails.
+# Never cancel-in-progress: a canceled release can leave a tag with no release.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/meso
+
+jobs:
+  # The repo's generated baseline: lint, format, typecheck, build and the unit
+  # tests for web, and the Go jobs for api and cli. Without it, this workflow
+  # publishes whatever is on main, tested or not.
+  #
+  # Called rather than keyed off `workflow_run`, which names a workflow rather
+  # than a commit: it reports only that some run finished, so a release can be
+  # cut from a tree that is not the one that passed.
+  validate:
+    uses: ./.github/workflows/validate.yml
+
+  # The images the deploy host pulls, web and api. They need validate for a
+  # sharper reason than the CLI release does: a pushed `:latest` is what the
+  # deploy pulls, so a red commit that built an image would be running before
+  # anyone read the run.
+  #
+  # Deploy is automatic and lives outside this file. When this workflow
+  # finishes, GitHub fires a repo `workflow_run` webhook, and its receiver pulls
+  # the new images and restarts the compose stack. The manual redeploy workflow
+  # only re-fires that webhook, for a redeploy with no new commit.
+  #
+  # The receiver deploys only when the finished workflow's path is this file's,
+  # so renaming this file stops every deploy until the receiver names the new one.
+  images:
+    name: Build & Push Image — ${{ matrix.service }}
+    runs-on: ubuntu-26.04
+    needs: [validate]
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: web
+            dockerfile: web/Dockerfile
+            context: web
+          - service: api
+            dockerfile: api/Dockerfile
+            context: api
+    steps:
+      - uses: actions/checkout@v7
+      # SHA-pinned because they are third-party and the major tag moves. The
+      # login action below is handed a token with packages: write.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # Two tags a build. `:latest` is what the compose file on the host names.
+      # `:sha-<short>` never moves, so a manifest can name a version rather
+      # than a moment, and a rollback is a manifest edit.
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest
+      - name: Build and push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  # The Go CLI is a nested module with its own version, tagged `cli/v1.2.3`
+  # rather than a bare `v*`, so it cannot collide with the app's tag namespace.
+  # An installer resolves the latest release carrying this prefix. svu's --log.directory confines the release to commits touching `cli/`, so an
+  # api/ or web/ change releases nothing, whatever conventional type its commit
+  # carries.
+  #
+  # svu rather than go-semantic-release, which the single-module repos use: its
+  # provider hardcodes the tag prefix to `v` and parses candidate tags as bare
+  # semver, so it can neither write `cli/v0.4.0` nor read the `cli/v0.3.3` it
+  # would bump from. Monorepo support there is closed wontfix.
+  version:
+    name: Resolve the CLI version
+    needs: validate
+    runs-on: ubuntu-26.04
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      previous: ${{ steps.resolve.outputs.previous }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+      - run: go install github.com/caarlos0/svu/v3@v3.4.1
+
+      # --v0 keeps a breaking change on a 0.x line a minor bump. Reaching 1.0
+      # states that the interface is stable, which is a decision to take
+      # deliberately rather than one the next `feat!:` takes on its own.
+      #
+      # svu only prints a version, and prints the current one unchanged when
+      # nothing under cli/ is releasable. That equality is what gates the two
+      # jobs below.
+      #
+      # svu exits 1 when no tag matches --tag.pattern, so it cannot name the
+      # first release: there is no version for it to bump. That case is decided
+      # here instead, at cli/v0.1.0 — the version svu itself starts a repo at.
+      # The condition is the absent tag rather than a failed svu, because
+      # treating any svu failure as a first release turns a broken run into a
+      # published one.
+      - name: Resolve the next version
+        id: resolve
+        run: |
+          previous=$(git tag --list 'cli/v*' --sort=-version:refname | head -1)
+          echo "previous=${previous}" >>"$GITHUB_OUTPUT"
+          if [ -z "$previous" ]; then
+            next='cli/v0.1.0'
+          else
+            next=$(svu next --tag.pattern 'cli/v*' --tag.prefix 'cli/v' --log.directory cli --v0)
+            if [ "$next" = "$previous" ]; then
+              echo "No releasable commits under cli/ since ${previous}"
+              exit 0
+            fi
+          fi
+          echo "Releasing ${next} (previous: ${previous:-none})"
+          echo "tag=${next}" >>"$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: version
+    if: needs.version.outputs.tag != ''
+    runs-on: ubuntu-26.04
+
+    strategy:
+      fail-fast: false
+      matrix:
+        goos: [linux, darwin]
+        goarch: [amd64, arm64]
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+
+      # The archive name is `meso_<version>_<os>_<arch>`. goselfupdate, which
+      # `meso update` runs, matches the OS and the Go arch as delimited words in
+      # an asset's name, so the underscores are what make an asset findable.
+      # CGO off so the binary runs on a machine without the build host's libc.
+      - name: Build and archive
+        working-directory: cli
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          version="${TAG#cli/}"
+          version_num="${version#v}"
+          mkdir -p ../dist
+          go build -trimpath \
+            -ldflags "-s -w -X github.com/datapointchris/meso/cli/internal/cli.version=${version}" \
+            -o ../dist/meso .
+          tar -czf "../dist/meso_${version_num}_${GOOS}_${GOARCH}.tar.gz" -C ../dist meso
+          rm ../dist/meso
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: meso-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    name: Publish the CLI release
+    needs: [version, build]
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: meso-*
+          path: dist
+          merge-multiple: true
+
+      # `--` rather than `./*`: both stop a leading-dash filename being read as
+      # an option, but sha256sum echoes its argument verbatim, so `./*` writes
+      # every entry as ./name while the release asset is named name.
+      - name: Generate checksums
+        run: cd dist && sha256sum -- *.tar.gz > checksums.txt
+
+      # Not `generate_release_notes`, which lists every merged PR since the last
+      # published release. Trunk-based development leaves none to list.
+      - name: Build release notes
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+          PREVIOUS: ${{ needs.version.outputs.previous }}
+        run: |
+          range="${PREVIOUS:+${PREVIOUS}..}HEAD"
+          {
+            echo '## Changes'
+            echo
+            git log --no-merges --pretty='- %s (%h)' "$range" -- cli
+            if [ -n "$PREVIOUS" ]; then
+              echo
+              echo "**Full changelog**: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${PREVIOUS}...${TAG}"
+            fi
+          } >release-notes.md
+          cat release-notes.md
+
+      # A push to main that landed while this run built has its own run, which
+      # resolves its version from the same previous tag and so releases this
+      # commit's cli/ changes too. Two runs would otherwise both claim one tag,
+      # and GitHub answers 403 to tagging the older commit when the newer push
+      # changed a workflow file, because GITHUB_TOKEN holds no workflows
+      # permission.
+      - name: Leave the release to a newer push
+        id: tip
+        run: |
+          tip=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$tip" != "$GITHUB_SHA" ]; then
+            echo "main is at ${tip}, past ${GITHUB_SHA}; the run for ${tip} releases these commits"
+            echo "superseded=true" >>"$GITHUB_OUTPUT"
+          fi
+
+      # Creates the tag as well as the release, at the commit being built. A tag
+      # pushed with GITHUB_TOKEN cannot trigger another workflow, so tagging in
+      # one job and firing the build on the tag would never run at all.
+      # SHA-pinned because it is third-party, the major tag moves, and this job
+      # holds contents: write.
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        if: steps.tip.outputs.superseded != 'true'
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          files: dist/*
+          body_path: release-notes.md
