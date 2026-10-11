@@ -37,6 +37,7 @@ services:
       DATABASE_URL: postgres://meso:meso@postgres:5432/meso?sslmode=disable
       PORT: '8088'
       ENV: development
+      PUBLIC_URL: http://localhost:8088
     ports:
       - '8088:8088'
     depends_on:

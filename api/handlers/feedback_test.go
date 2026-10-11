@@ -36,7 +36,7 @@ func (v verifiedAs) Verify(context.Context, string) (auth.Identity, error) {
 // request carrying headers the edge or the CLI would set.
 func asCaller(pool *database.TestPool, verifier middleware.TokenVerifier, headers map[string]string) http.Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	authed := middleware.RequireAuth(verifier, "", logger)(handlers.NewRouter(pool.Pool))
+	authed := middleware.RequireAuth(verifier, "", logger)(handlers.NewRouter(pool.Pool, nil))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		for name, value := range headers {
 			r.Header.Set(name, value)

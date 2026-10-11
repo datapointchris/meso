@@ -127,6 +127,18 @@ func TestRequireAuth_HealthIsExempt(t *testing.T) {
 	}
 }
 
+func TestRequireAuth_ProtectedResourceMetadataIsExempt(t *testing.T) {
+	handler, called := next()
+	mw := middlewareWith(&fakeVerifier{err: auth.ErrUnauthorized}, handler)
+
+	rec := httptest.NewRecorder()
+	mw.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, auth.ProtectedResourcePath, nil))
+
+	if !*called || rec.Code != http.StatusOK {
+		t.Fatalf("a CLI with no token yet was refused the metadata: called %v, status %d", *called, rec.Code)
+	}
+}
+
 func TestRequireAuth_RejectsUnauthenticated(t *testing.T) {
 	handler, called := next()
 	mw := middlewareWith(&fakeVerifier{err: auth.ErrUnauthorized}, handler)

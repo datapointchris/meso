@@ -12,6 +12,11 @@ type Config struct {
 	// accepted here.
 	OIDCIssuer        string
 	CLIClientIDPrefix string
+	// PublicURL is the address clients reach this API at, which its RFC 9728
+	// metadata names as the resource. A CLI logging in through that document
+	// refuses it unless the two match exactly. Empty serves no metadata, since
+	// only the deployment knows the address it is reached at.
+	PublicURL string
 	// ServiceToken is the shared secret for internal service-to-service calls
 	// on the docker network that bypass the edge. Empty disables that path.
 	ServiceToken string
@@ -24,6 +29,7 @@ func Load() *Config {
 		Env:               getEnv("ENV", "development"),
 		OIDCIssuer:        getEnv("OIDC_ISSUER", "https://auth.ichrisbirch.com"),
 		CLIClientIDPrefix: getEnv("CLI_CLIENT_ID_PREFIX", "meso-cli-"),
+		PublicURL:         getEnv("PUBLIC_URL", ""),
 		ServiceToken:      getEnv("MESO_SERVICE_TOKEN", ""),
 	}
 }

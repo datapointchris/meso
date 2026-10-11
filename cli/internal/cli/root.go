@@ -21,6 +21,10 @@ var version = "dev"
 // NewRootCommand, so a test never inherits the previous one's value.
 var noInput bool
 
+// apiOverride is bound to the persistent --api flag, the one value that outranks
+// the config file. Package-level for the reason noInput is.
+var apiOverride string
+
 // usageError marks an invocation mistake (bad flag/args) so Execute can return
 // exit code 2, distinct from a runtime failure (1). Per CLI conventions.
 type usageError struct{ err error }
@@ -72,6 +76,8 @@ func NewRootCommand() *cobra.Command {
 
 	root.PersistentFlags().BoolVar(&noInput, "no-input", false,
 		"Never prompt; fail naming the flag that would have answered")
+	root.PersistentFlags().StringVar(&apiOverride, "api", "",
+		"Use this API instead of the config file's; it must trust the file's login server")
 
 	// Free -v for a future --verbose flag: cobra's auto version flag claims -v,
 	// but the CLI convention reserves -v for verbose and -V/--version for

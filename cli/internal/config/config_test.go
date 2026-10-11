@@ -3,6 +3,8 @@ package config
 import (
 	"strings"
 	"testing"
+
+	"github.com/datapointchris/goclilogin"
 )
 
 // Login is the seam between meso's settings and goclilogin's, so what it
@@ -15,10 +17,11 @@ import (
 // forbids alongside the device grant.
 func TestLoginCarriesTheDeployedIdentifiers(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", "/tmp/xdgstate")
-	t.Setenv("MESO_OIDC_ISSUER", "https://auth.example.com")
-	t.Setenv("MESO_CLIENT_ID", "meso-cli-somehost")
 
-	login := Load().Login()
+	login := Login(goclilogin.Deployment{
+		Issuer:   goclilogin.Setting{Value: "https://auth.example.com"},
+		ClientID: goclilogin.Setting{Value: "meso-cli-somehost"},
+	})
 	if login.Issuer != "https://auth.example.com" {
 		t.Errorf("Issuer = %q", login.Issuer)
 	}
@@ -33,24 +36,5 @@ func TestLoginCarriesTheDeployedIdentifiers(t *testing.T) {
 	}
 	if got := strings.Join(login.Scopes, " "); got != "openid profile offline_access groups" {
 		t.Errorf("Scopes = %q", got)
-	}
-}
-
-// An env var set to the empty string falls through to the default rather than
-// blanking the field — getEnv treats "" as unset.
-func TestLoad_EmptyEnvFallsThroughToDefault(t *testing.T) {
-	t.Setenv("MESO_API_BASE", "")
-	if got := Load().APIBase; got != defaultAPIBase {
-		t.Errorf("APIBase = %q, want the default %q", got, defaultAPIBase)
-	}
-}
-
-// The client id spells the machine into it, so one machine's token is revocable
-// without touching another's.
-func TestDefaultClientIDIsPerMachine(t *testing.T) {
-	t.Setenv("MESO_CLIENT_ID", "")
-	got := Load().ClientID
-	if !strings.HasPrefix(got, "meso-cli-") {
-		t.Errorf("ClientID = %q, want a meso-cli-<host> spelling", got)
 	}
 }
