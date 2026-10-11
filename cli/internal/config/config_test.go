@@ -10,9 +10,9 @@ import (
 // that released versions already wrote under, and the lock belongs beside the
 // tool's other state rather than under goclilogin's default.
 //
-// The scope set is goclilogin's DefaultScopes and is tested there. It must not
-// carry authelia.bearer.authz, which Authelia forbids alongside the device
-// grant.
+// The scope set is goclilogin's DefaultScopes plus groups, which the API reads to
+// admit the admin group. It must not carry authelia.bearer.authz, which Authelia
+// forbids alongside the device grant.
 func TestLoginCarriesTheDeployedIdentifiers(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", "/tmp/xdgstate")
 	t.Setenv("MESO_OIDC_ISSUER", "https://auth.example.com")
@@ -30,6 +30,9 @@ func TestLoginCarriesTheDeployedIdentifiers(t *testing.T) {
 	}
 	if login.StateDir != "/tmp/xdgstate/meso" {
 		t.Errorf("StateDir = %q, want the tool's own state directory", login.StateDir)
+	}
+	if got := strings.Join(login.Scopes, " "); got != "openid profile offline_access groups" {
+		t.Errorf("Scopes = %q", got)
 	}
 }
 

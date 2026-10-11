@@ -37,8 +37,9 @@ func newAPIClient(ctx context.Context) (*api.Client, error) {
 }
 
 // handleAPIError maps an error from a resource command to a message and exit
-// code: not-logged-in and 401 both point at `meso auth login`; everything else is
-// a runtime error. Returns the error to return from RunE.
+// code: not-logged-in and 401 both point at `meso auth login`, and a 403 names the
+// admin group; everything else is a runtime error. Returns the error to return
+// from RunE.
 func handleAPIError(err error) error {
 	if errors.Is(err, errNeedsLogin) {
 		return fmt.Errorf("not logged in — run `meso auth login`")
@@ -52,6 +53,12 @@ func handleAPIError(err error) error {
 	var apiErr *api.APIError
 	if errors.As(err, &apiErr) && apiErr.Unauthorized() {
 		return fmt.Errorf("session rejected by the API — run `meso auth login` to re-authenticate")
+	}
+	// A token minted without the groups scope carries no groups, so a member of
+	// admin holding one is refused until a fresh login.
+	if errors.As(err, &apiErr) && apiErr.Forbidden() {
+		return fmt.Errorf("refused by the API — this needs membership in the admin group. " +
+			"If you are a member, `meso auth login` mints a token carrying your groups")
 	}
 	return err
 }

@@ -23,7 +23,8 @@ func newAdminCommand() *cobra.Command {
 		Short: "Administer the app itself, as opposed to your training",
 		Long: "Commands about meso rather than about training. Everything else in this CLI\n" +
 			"operates your movement library, workouts, and history; these operate the\n" +
-			"application.",
+			"application. Reading, editing and deleting feedback need membership in the\n" +
+			"admin group, and the server refuses everyone else.",
 	})
 	cmd.AddCommand(newAdminFeedbackCommand())
 	return cmd

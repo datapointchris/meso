@@ -53,6 +53,10 @@ func (e *APIError) Error() string {
 // a "run `meso auth login`" hint rather than a raw API error.
 func (e *APIError) Unauthorized() bool { return e.StatusCode == http.StatusUnauthorized }
 
+// Forbidden reports whether the error is a 403, which the API answers to a caller
+// outside the group a route requires.
+func (e *APIError) Forbidden() bool { return e.StatusCode == http.StatusForbidden }
+
 // NotFound reports whether the error is a 404 — used to give resource commands a
 // clean "no such movement" message.
 func (e *APIError) NotFound() bool { return e.StatusCode == http.StatusNotFound }
