@@ -65,16 +65,16 @@ tasks:
     cmds:
       - go vet ./...
       - |
-        unformatted=$(gofmt -l .)
+        unformatted=$(gofumpt -l .)
         if [ -n "$unformatted" ]; then
-          echo "gofmt needed on:"; echo "$unformatted"; exit 1
+          echo "gofumpt needed on:"; echo "$unformatted"; exit 1
         fi
 
   cli:format:
     desc: Format the CLI sources
     dir: cli
     cmds:
-      - gofmt -w .
+      - gofumpt -w .
 
   # ---------------------------------------------------------------------------
   # API — module meso/api
@@ -92,16 +92,16 @@ tasks:
     cmds:
       - go vet ./...
       - |
-        unformatted=$(gofmt -l .)
+        unformatted=$(gofumpt -l .)
         if [ -n "$unformatted" ]; then
-          echo "gofmt needed on:"; echo "$unformatted"; exit 1
+          echo "gofumpt needed on:"; echo "$unformatted"; exit 1
         fi
 
   api:format:
     desc: Format the API sources
     dir: api
     cmds:
-      - gofmt -w .
+      - gofumpt -w .
 
   api:dev:
     desc: Run the API from source in the foreground, against the dev database
