@@ -51,7 +51,7 @@ func asNamespace(cmd *cobra.Command) *cobra.Command {
 func NewRootCommand() *cobra.Command {
 	root := asNamespace(&cobra.Command{
 		Use:   "meso",
-		Short: "meso — a mobile-first training CLI",
+		Short: "A mobile-first training log",
 		Long: "meso is a training log — the movement library, the workouts composed from\n" +
 			"it, the cycles that sequence those, the sessions where they were actually\n" +
 			"performed, and the measurements and journal alongside.\n" +
@@ -85,19 +85,47 @@ func NewRootCommand() *cobra.Command {
 		f.Shorthand = ""
 	}
 
-	root.AddCommand(newAuthCommand())
-	root.AddCommand(withAPIFlag(newMovementsCommand()))
-	root.AddCommand(withAPIFlag(newWorkoutsCommand()))
-	root.AddCommand(withAPIFlag(newSessionsCommand()))
-	root.AddCommand(withAPIFlag(newMetricsCommand()))
-	root.AddCommand(withAPIFlag(newMeasurementsCommand()))
-	root.AddCommand(withAPIFlag(newStatsCommand()))
-	root.AddCommand(withAPIFlag(newLogCommand()))
-	root.AddCommand(withAPIFlag(newCyclesCommand()))
-	root.AddCommand(withAPIFlag(newReviewCommand()))
-	root.AddCommand(withAPIFlag(newAdminCommand()))
-	root.AddCommand(newUpdateCommand())
+	useHelp(root)
+
+	// Planning comes first because the library and its compositions are what a
+	// session draws on, and everything about the app rather than the training
+	// sits in the last section.
+	root.AddGroup(
+		&cobra.Group{ID: groupPlanning, Title: "Planning commands:"},
+		&cobra.Group{ID: groupRecord, Title: "Training record commands:"},
+		&cobra.Group{ID: groupReview, Title: "Review commands:"},
+		&cobra.Group{ID: groupApp, Title: "App commands:"},
+	)
+	root.SetCompletionCommandGroupID(groupApp)
+	root.AddCommand(
+		inGroup(groupPlanning, withAPIFlag(newMovementsCommand())),
+		inGroup(groupPlanning, withAPIFlag(newWorkoutsCommand())),
+		inGroup(groupPlanning, withAPIFlag(newCyclesCommand())),
+		inGroup(groupRecord, withAPIFlag(newSessionsCommand())),
+		inGroup(groupRecord, withAPIFlag(newLogCommand())),
+		inGroup(groupRecord, withAPIFlag(newMeasurementsCommand())),
+		inGroup(groupRecord, withAPIFlag(newMetricsCommand())),
+		inGroup(groupReview, withAPIFlag(newStatsCommand())),
+		inGroup(groupReview, withAPIFlag(newReviewCommand())),
+		inGroup(groupApp, withAPIFlag(newAdminCommand())),
+		inGroup(groupApp, newAuthCommand()),
+		inGroup(groupApp, newUpdateCommand()),
+	)
 	return root
+}
+
+// The root's help sections.
+const (
+	groupPlanning = "planning"
+	groupRecord   = "record"
+	groupReview   = "review"
+	groupApp      = "app"
+)
+
+// inGroup puts cmd under the root's section id.
+func inGroup(id string, cmd *cobra.Command) *cobra.Command {
+	cmd.GroupID = id
+	return cmd
 }
 
 // withAPIFlag declares --api on cmd and everything under it. Only the commands
