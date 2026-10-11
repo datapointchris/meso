@@ -97,6 +97,12 @@ tasks:
           echo "gofmt needed on:"; echo "$unformatted"; exit 1
         fi
 
+  api:format:
+    desc: Format the API sources
+    dir: api
+    cmds:
+      - gofmt -w .
+
   api:dev:
     desc: Run the API from source in the foreground, against the dev database
     dir: api
@@ -138,6 +144,12 @@ tasks:
       - npm run lint
       - npm run format:check
 
+  web:format:
+    desc: Format the SPA sources
+    dir: web
+    cmds:
+      - npm run format
+
   # ---------------------------------------------------------------------------
   # Aggregate
   # ---------------------------------------------------------------------------
@@ -148,6 +160,13 @@ tasks:
       - task: api:lint
       - task: cli:lint
       - task: web:lint
+
+  format:
+    desc: Format every subsystem
+    cmds:
+      - task: api:format
+      - task: cli:format
+      - task: web:format
 
   test:
     desc: Test every subsystem
