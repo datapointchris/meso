@@ -21,8 +21,8 @@ var version = "dev"
 // NewRootCommand, so a test never inherits the previous one's value.
 var noInput bool
 
-// apiOverride is bound to the persistent --api flag, the one value that outranks
-// the config file. Package-level for the reason noInput is.
+// apiOverride is bound to --api, the one value that outranks the config file.
+// Package-level for the reason noInput is.
 var apiOverride string
 
 // usageError marks an invocation mistake (bad flag/args) so Execute can return
@@ -76,8 +76,6 @@ func NewRootCommand() *cobra.Command {
 
 	root.PersistentFlags().BoolVar(&noInput, "no-input", false,
 		"Never prompt; fail naming the flag that would have answered")
-	root.PersistentFlags().StringVar(&apiOverride, "api", "",
-		"Use this API instead of the config file's; it must trust the file's login server")
 
 	// Free -v for a future --verbose flag: cobra's auto version flag claims -v,
 	// but the CLI convention reserves -v for verbose and -V/--version for
@@ -88,18 +86,26 @@ func NewRootCommand() *cobra.Command {
 	}
 
 	root.AddCommand(newAuthCommand())
-	root.AddCommand(newMovementsCommand())
-	root.AddCommand(newWorkoutsCommand())
-	root.AddCommand(newSessionsCommand())
-	root.AddCommand(newMetricsCommand())
-	root.AddCommand(newMeasurementsCommand())
-	root.AddCommand(newStatsCommand())
-	root.AddCommand(newLogCommand())
-	root.AddCommand(newCyclesCommand())
-	root.AddCommand(newReviewCommand())
-	root.AddCommand(newAdminCommand())
+	root.AddCommand(withAPIFlag(newMovementsCommand()))
+	root.AddCommand(withAPIFlag(newWorkoutsCommand()))
+	root.AddCommand(withAPIFlag(newSessionsCommand()))
+	root.AddCommand(withAPIFlag(newMetricsCommand()))
+	root.AddCommand(withAPIFlag(newMeasurementsCommand()))
+	root.AddCommand(withAPIFlag(newStatsCommand()))
+	root.AddCommand(withAPIFlag(newLogCommand()))
+	root.AddCommand(withAPIFlag(newCyclesCommand()))
+	root.AddCommand(withAPIFlag(newReviewCommand()))
+	root.AddCommand(withAPIFlag(newAdminCommand()))
 	root.AddCommand(newUpdateCommand())
 	return root
+}
+
+// withAPIFlag declares --api on cmd and everything under it. Only the commands
+// that reach the API carry it, so one that never reads it does not offer it.
+func withAPIFlag(cmd *cobra.Command) *cobra.Command {
+	cmd.PersistentFlags().StringVar(&apiOverride, "api", "",
+		"Use this API instead of the config file's; it must trust the file's login server")
+	return cmd
 }
 
 // Execute runs the command tree and returns the process exit code.

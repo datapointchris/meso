@@ -102,7 +102,7 @@ func TestAuthLogout_RemovesATokenStoredBeforeTheConfigFileExisted(t *testing.T) 
 func TestAuthLogin_RefusesAURLDisagreeingWithAPI(t *testing.T) {
 	isolateAuth(t)
 
-	_, err := runMeso(t, "--api", "https://one.example.com", "auth", "login", "https://two.example.com")
+	_, err := runMeso(t, "auth", "login", "--api", "https://one.example.com", "https://two.example.com")
 	var usage usageError
 	if !errors.As(err, &usage) {
 		t.Fatalf("want a usageError, got %T: %v", err, err)

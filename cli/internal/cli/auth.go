@@ -34,7 +34,7 @@ func newAuthCommand() *cobra.Command {
 			"prints its path and its api, issuer and client_id, and `meso auth login\n" +
 			"<url>` fills in whatever it lacks.",
 	})
-	cmd.AddCommand(newAuthLoginCommand(), newAuthLogoutCommand(), newAuthStatusCommand(), newAuthTokenCommand())
+	cmd.AddCommand(withAPIFlag(newAuthLoginCommand()), newAuthLogoutCommand(), withAPIFlag(newAuthStatusCommand()), withAPIFlag(newAuthTokenCommand()))
 	return cmd
 }
 
@@ -130,7 +130,8 @@ func newAuthLogoutCommand() *cobra.Command {
 			// lacks the other two keys still logs out. A file naming no client
 			// falls back to the hostname's, which every release before the
 			// config file logged in as, so its token cannot outlive the logout.
-			deployment, err := config.Load(cmd.Context(), apiOverride)
+			// No API is asked, so logout takes no --api.
+			deployment, err := config.Load(cmd.Context(), "")
 			if err != nil && !errors.Is(err, goclilogin.ErrNotConfigured) {
 				return err
 			}
