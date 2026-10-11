@@ -2,7 +2,7 @@
 #
 # app-ops Traefik forwards meso.ichrisbirch.com → this container on :80 (with the
 # Authelia middleware), which then splits paths between the API and the static
-# SPA. meso ships no MCP, so there is no /mcp route (unlike nomad).
+# SPA.
 #
 # When this stack moves to k3s, this Caddyfile becomes an Ingress object's path
 # rules; the static-serve portion stays as a Deployment.
