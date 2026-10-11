@@ -20,7 +20,9 @@ func newAdminFeedbackCommand() *cobra.Command {
 			"gets read and worked through. meso keeps it and forwards it nowhere;\n" +
 			"`list --json` is how it gets anywhere else.\n\n" +
 			"There is no bug/idea/improvement category on purpose: the body says what it\n" +
-			"is, and the response is the same either way.",
+			"is, and the response is the same either way.\n\n" +
+			"Capturing feedback needs only a login. Reading, editing and deleting it need\n" +
+			"membership in the admin group.",
 	})
 	withNotFoundHints(cmd, hintFeedback)
 	cmd.AddCommand(
