@@ -64,7 +64,7 @@ func NewRouter(pool *pgxpool.Pool, metadata http.Handler) *http.ServeMux {
 
 	mux.HandleFunc("GET /api/v1/", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"message": "meso API", "version": "0.1.0"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"message": "meso API"})
 	})
 
 	// Movements — the unified exercise/stretch/pose library (Phase 1).
