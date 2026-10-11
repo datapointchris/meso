@@ -109,6 +109,7 @@ func NewRootCommand() *cobra.Command {
 		inGroup(groupReview, withAPIFlag(newReviewCommand())),
 		inGroup(groupApp, withAPIFlag(newAdminCommand())),
 		inGroup(groupApp, newAuthCommand()),
+		inGroup(groupApp, newConfigCommand()),
 		inGroup(groupApp, newUpdateCommand()),
 	)
 	return root

@@ -29,6 +29,10 @@ func Load(ctx context.Context, api string) (goclilogin.Deployment, error) {
 	return goclilogin.LoadDeployment(ctx, product, api)
 }
 
+// Path is the config file, whether or not one is there, and "" where no home
+// directory resolves.
+func Path() string { return goclilogin.ConfigPath(product) }
+
 // ForLogin is the deployment `meso auth login` logs in to: the file's values,
 // with whatever it lacks filled in from api, the API's metadata and clientID.
 func ForLogin(ctx context.Context, api, clientID string) (goclilogin.Deployment, error) {
