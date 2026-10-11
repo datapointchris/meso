@@ -3,9 +3,12 @@ package middleware
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
+	"slices"
+	"strings"
 
 	"meso/api/auth"
 )
@@ -18,7 +21,10 @@ type TokenVerifier interface {
 
 type contextKey string
 
-const identityKey contextKey = "identity"
+const (
+	identityKey contextKey = "identity"
+	groupsKey   contextKey = "groups"
+)
 
 // RequireAuth authorizes a request by one of three routes.
 //
@@ -38,6 +44,12 @@ const identityKey contextKey = "identity"
 // path trusts the header, which is only sound for requests that actually
 // traverse Traefik. A request carrying any bearer credential never reaches it:
 // falling through would let a caller pair a junk token with a forged header.
+//
+// Each route puts the caller's groups on the request for RequireGroup: a JWT's
+// groups claim, or the edge's Remote-Groups header. The edge proxy must remove
+// any client-supplied Remote-Groups before ForwardAuth sets it. Otherwise any
+// signed-in browser user can name their own groups. The service token names no
+// user and carries no group.
 //
 // /health is exempt: docker-compose healthchecks and k8s liveness/readiness
 // probes hit this endpoint without credentials, and gating it would cause
@@ -64,6 +76,7 @@ func RequireAuth(verifier TokenVerifier, serviceToken string, logger *slog.Logge
 						return
 					}
 					ctx := context.WithValue(r.Context(), identityKey, identity)
+					ctx = context.WithValue(ctx, groupsKey, identity.Groups)
 					next.ServeHTTP(w, r.WithContext(ctx))
 					return
 				}
@@ -81,9 +94,48 @@ func RequireAuth(verifier TokenVerifier, serviceToken string, logger *slog.Logge
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
-			next.ServeHTTP(w, r)
+			ctx := context.WithValue(r.Context(), groupsKey, edgeGroups(r.Header.Get("Remote-Groups")))
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// edgeGroups splits the comma-separated Remote-Groups header ForwardAuth sets.
+func edgeGroups(header string) []string {
+	var groups []string
+	for group := range strings.SplitSeq(header, ",") {
+		if group = strings.TrimSpace(group); group != "" {
+			groups = append(groups, group)
+		}
+	}
+	return groups
+}
+
+// RequireGroup refuses with 403 a caller RequireAuth did not place in group. The
+// refusal is the {"error","message"} envelope every handler writes, which is the
+// one shape a client decodes a reason from.
+func RequireGroup(group string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		groups, _ := r.Context().Value(groupsKey).([]string)
+		if !slices.Contains(groups, group) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"error":   http.StatusText(http.StatusForbidden),
+				"message": "this needs membership in the " + group + " group",
+			})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// DevGroups places every request in groups. Development runs no identity
+// provider and no RequireAuth, so every caller is the developer.
+func DevGroups(next http.Handler, groups ...string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), groupsKey, groups)))
+	})
 }
 
 // IdentityFrom returns the identity established by a verified bearer token.

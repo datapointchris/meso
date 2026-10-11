@@ -4,9 +4,14 @@ package config
 
 import (
 	"os"
+	"slices"
 
 	"github.com/datapointchris/goclilogin"
 )
+
+// loginScopes are goclilogin's defaults plus groups, which puts the caller's
+// groups in the access token so the API can admit the admin group to `meso admin`.
+var loginScopes = append(slices.Clone(goclilogin.DefaultScopes), "groups")
 
 const (
 	defaultIssuer  = "https://auth.ichrisbirch.com"
@@ -60,5 +65,6 @@ func (c Config) Login() goclilogin.Config {
 		ClientID:       c.ClientID,
 		KeyringService: keyringService,
 		StateDir:       goclilogin.StateDir("meso"),
+		Scopes:         loginScopes,
 	}
 }

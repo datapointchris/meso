@@ -35,6 +35,9 @@ const discoveryTimeout = 10 * time.Second
 type Identity struct {
 	Subject  string
 	ClientID string
+	// Groups is the token's groups claim. Authelia emits it only to a client
+	// that requests the groups scope and binds a claims policy listing it.
+	Groups []string
 }
 
 // Verifier checks token signatures against the issuer's JWKS and the claims
@@ -125,11 +128,12 @@ func fetchDiscovery(ctx context.Context, issuer string) (discoveryDocument, erro
 }
 
 type accessTokenClaims struct {
-	Issuer   string `json:"iss"`
-	Subject  string `json:"sub"`
-	ClientID string `json:"client_id"`
-	Expiry   int64  `json:"exp"`
-	IssuedAt int64  `json:"iat"`
+	Issuer   string   `json:"iss"`
+	Subject  string   `json:"sub"`
+	ClientID string   `json:"client_id"`
+	Expiry   int64    `json:"exp"`
+	IssuedAt int64    `json:"iat"`
+	Groups   []string `json:"groups"`
 }
 
 // Verify checks the signature and then every claim this API relies on. It
@@ -165,7 +169,7 @@ func (v *Verifier) Verify(ctx context.Context, raw string) (Identity, error) {
 		return Identity{}, fmt.Errorf("%w: expired", ErrUnauthorized)
 	}
 
-	return Identity{Subject: claims.Subject, ClientID: claims.ClientID}, nil
+	return Identity{Subject: claims.Subject, ClientID: claims.ClientID, Groups: claims.Groups}, nil
 }
 
 // requireAccessTokenType rejects anything not typed as an RFC 9068 access

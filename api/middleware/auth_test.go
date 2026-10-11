@@ -2,11 +2,13 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"meso/api/auth"
@@ -43,6 +45,70 @@ func middlewareWith(v TokenVerifier, handler http.Handler) http.Handler {
 func middlewareWithServiceToken(v TokenVerifier, serviceToken string, handler http.Handler) http.Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	return RequireAuth(v, serviceToken, logger)(handler)
+}
+
+func TestRequireGroup_AdmitsOnlyACallerRequireAuthPlacedInTheGroup(t *testing.T) {
+	cases := []struct {
+		name       string
+		verifier   TokenVerifier
+		headers    map[string]string
+		wantStatus int
+	}{
+		{"edge member, padded list", nil, map[string]string{"Remote-User": "chris", "Remote-Groups": " dev ,admin "}, http.StatusOK},
+		{"edge non-member", nil, map[string]string{"Remote-User": "guest", "Remote-Groups": "dev,administrators"}, http.StatusForbidden},
+		{
+			"JWT member", &fakeVerifier{identity: auth.Identity{Subject: "chris", Groups: []string{"admin"}}},
+			map[string]string{"Authorization": "Bearer a.b.c"},
+			http.StatusOK,
+		},
+		{"service token", nil, map[string]string{"Authorization": "Bearer " + testServiceToken}, http.StatusForbidden},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			handler, _ := next()
+			mw := middlewareWithServiceToken(tc.verifier, testServiceToken, RequireGroup("admin", handler))
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/feedback", nil)
+			for name, value := range tc.headers {
+				req.Header.Set(name, value)
+			}
+			rec := httptest.NewRecorder()
+			mw.ServeHTTP(rec, req)
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d", rec.Code, tc.wantStatus)
+			}
+		})
+	}
+}
+
+// Every CLI decodes a reason only from the {"error","message"} envelope, so an
+// admin command refused in plain text printed a bare 403.
+func TestRequireGroup_RefusesInTheEnvelopeEveryCLIDecodes(t *testing.T) {
+	handler, _ := next()
+	mw := middlewareWith(nil, RequireGroup("admin", handler))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/feedback", nil)
+	req.Header.Set("Remote-User", "guest")
+	rec := httptest.NewRecorder()
+	mw.ServeHTTP(rec, req)
+
+	var envelope struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("refusal body %q is not the JSON envelope: %v", rec.Body.String(), err)
+	}
+	if rec.Code != http.StatusForbidden || envelope.Message != "this needs membership in the admin group" {
+		t.Fatalf("status %d, envelope %+v", rec.Code, envelope)
+	}
+}
+
+func TestDevGroups_PlacesEveryRequestInTheNamedGroups(t *testing.T) {
+	handler, called := next()
+	rec := httptest.NewRecorder()
+	DevGroups(RequireGroup("admin", handler), "admin").ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/feedback", nil))
+	if !*called || rec.Code != http.StatusOK {
+		t.Fatalf("development request was refused: status %d", rec.Code)
+	}
 }
 
 func TestRequireAuth_HealthIsExempt(t *testing.T) {
@@ -115,7 +181,7 @@ func TestRequireAuth_AcceptsVerifiedBearerAndExposesIdentity(t *testing.T) {
 	if !ok {
 		t.Fatal("handler could not read the identity from the request context")
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("identity = %+v, want %+v", got, want)
 	}
 }
