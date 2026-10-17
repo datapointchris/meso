@@ -125,11 +125,13 @@ jobs:
 
       - run: npm run build
 
-      # > custom:after:vue-web - the frontend unit tests
-      # The generated vue job builds and lints without testing, so the vitest
-      # suite runs here. The image workflow gates on this one.
-      - name: Unit tests
-        run: npm run test
+      # test:unit where the component has one, because test is where a
+      # frontend hangs its browser run or a second build; otherwise test. A
+      # component with neither has no suite, which is not a failure.
+      - name: Test
+        run: |
+          script=$(node -p "const s = require('./package.json').scripts ?? {}; s['test:unit'] ? 'test:unit' : s.test ? 'test' : ''")
+          if [ -n "$script" ]; then npm run "$script"; fi
 
   hooks:
     runs-on: ubuntu-26.04
