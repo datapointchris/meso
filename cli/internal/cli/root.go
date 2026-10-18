@@ -40,14 +40,25 @@ func NewRootCommand() *cobra.Command {
 			"it, the cycles that sequence those, the sessions where they were actually\n" +
 			"performed, and the measurements and journal alongside.\n" +
 			"\n" +
+			"A training day starts with `meso sessions log --from-workout <id>`, which\n" +
+			"copies the workout's movements in as targets; `meso workouts list` finds\n" +
+			"the id. `meso sessions set add` logs each set as it happens, and\n" +
+			"`meso sessions finish` closes the session. `meso review` reads the recent\n" +
+			"weeks back in one payload.\n" +
+			"\n" +
+			"`meso sessions log` starts a training session; `meso log add` writes a\n" +
+			"journal entry. A workout is the plan and a session is what was performed,\n" +
+			"so changing a session's sets never changes the workout it came from.\n" +
+			"\n" +
 			"The noun comes first and the verb last, so moving from reading to acting\n" +
 			"changes only the verb: `meso workouts show 3` becomes\n" +
 			"`meso workouts edit 3`. Every top-level noun is a training noun — anything\n" +
 			"about the app rather than the training lives under `meso admin`. Every\n" +
-			"list and show takes --json.\n" +
-			"\n" +
-			"Run any partial command with no arguments or --help to see what comes\n" +
-			"next. Authenticate once with `meso auth login`.",
+			"list and show takes --json. Authenticate once with `meso auth login`.",
+		Example: "  meso workouts list                    the workouts a session can start from\n" +
+			"  meso sessions log --from-workout 1    start a session from workout 1\n" +
+			"  meso sessions set add 018f... 42      log a set like the last one\n" +
+			"  meso review --since 12w               the last twelve weeks in one read",
 		Version:       version,
 		SilenceUsage:  true, // usage is shown deliberately, not on every runtime error
 		SilenceErrors: true, // Execute prints errors itself, to stderr
@@ -67,6 +78,7 @@ func NewRootCommand() *cobra.Command {
 	root.InitDefaultVersionFlag()
 	if f := root.Flags().Lookup("version"); f != nil {
 		f.Shorthand = ""
+		f.Usage = "Print which release of meso this is"
 	}
 
 	useHelp(root)
