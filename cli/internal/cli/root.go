@@ -9,6 +9,7 @@ import (
 
 	"github.com/datapointchris/goclikit"
 	"github.com/datapointchris/goselfupdate/autoupdate"
+	"github.com/datapointchris/gotermstyle/cobrahelp"
 	"github.com/spf13/cobra"
 )
 
@@ -81,7 +82,7 @@ func NewRootCommand() *cobra.Command {
 		f.Usage = "Print which release of meso this is"
 	}
 
-	useHelp(root)
+	cobrahelp.Install(root)
 
 	// Planning comes first because the library and its compositions are what a
 	// session draws on, and everything about the app rather than the training
