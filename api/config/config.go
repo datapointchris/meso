@@ -6,16 +6,22 @@ type Config struct {
 	DatabaseURL string
 	Port        string
 	Env         string
-	// OIDCIssuer is the identity provider whose JWKS signs the CLI's access
-	// tokens. CLIClientIDPrefix is the per-product half of the client naming
+	// OIDCIssuer is the identity provider. It signs the CLI's access tokens,
+	// and it logs the SPA's browsers in.
+	OIDCIssuer string
+	// CLIClientIDPrefix is the per-product half of the CLI client naming
 	// (`meso-cli-laptop`), and is what stops another product's token being
 	// accepted here.
-	OIDCIssuer        string
 	CLIClientIDPrefix string
-	// PublicURL is the address clients reach this API at, which its RFC 9728
-	// metadata names as the resource. A CLI logging in through that document
-	// refuses it unless the two match exactly. Empty serves no metadata, since
-	// only the deployment knows the address it is reached at.
+	// WebClientID and WebClientSecret are the confidential client this API logs
+	// the SPA's browsers in as. Production refuses to start without the secret.
+	WebClientID     string
+	WebClientSecret string
+	// PublicURL is the address clients reach this API at. Its RFC 9728 metadata
+	// names it as the resource, and a CLI logging in through that document
+	// refuses it unless the two match exactly. The browser login's callback is
+	// under it too. Empty serves no metadata, since only the deployment knows
+	// the address it is reached at, and production refuses to start without it.
 	PublicURL string
 	// ServiceToken is the shared secret for internal service-to-service calls
 	// on the docker network that bypass the edge. Empty disables that path.
@@ -29,6 +35,8 @@ func Load() *Config {
 		Env:               getEnv("ENV", "development"),
 		OIDCIssuer:        getEnv("OIDC_ISSUER", "https://auth.ichrisbirch.com"),
 		CLIClientIDPrefix: getEnv("CLI_CLIENT_ID_PREFIX", "meso-cli-"),
+		WebClientID:       getEnv("WEB_CLIENT_ID", "meso-web"),
+		WebClientSecret:   getEnv("WEB_CLIENT_SECRET", ""),
 		PublicURL:         getEnv("PUBLIC_URL", ""),
 		ServiceToken:      getEnv("MESO_SERVICE_TOKEN", ""),
 	}
