@@ -1,4 +1,4 @@
-name: Deploy to Homelab (Manual)
+name: Redeploy (Manual)
 
 on:
   workflow_dispatch:
@@ -6,12 +6,12 @@ on:
 # Manual redeploy trigger.
 #
 # Normal deploys: push to main → release.yml builds and pushes images to ghcr.io →
-# GitHub fires `workflow_run.completed` → app-ops webhook receives it →
-# `deploy-meso.sh` SSHes to meso-lxc and runs `docker compose pull && up -d`.
+# GitHub fires `workflow_run.completed` → the deployment's webhook receiver
+# accepts it and runs `docker compose pull && up -d` on the production host.
 #
 # This workflow is for "redeploy whatever is currently :latest on ghcr.io
 # without making a new commit". It does not rebuild — it only fires the webhook
-# so the LXC pulls the current :latest images and restarts the containers.
+# so the host pulls the current :latest images and restarts the containers.
 #
 # The payload names release.yml as its workflow. The receiver refuses any
 # other path, which keeps the generated CI's completion from deploying.
@@ -21,7 +21,7 @@ jobs:
     name: Trigger redeploy
     runs-on: ubuntu-26.04
     steps:
-      - name: Trigger homelab deploy webhook
+      - name: Trigger deploy webhook
         run: |
           PAYLOAD="{\"action\":\"completed\",\"workflow_run\":{\"id\":${{ github.run_id }},\"path\":\".github/workflows/release.yml\",\"conclusion\":\"success\",\"head_branch\":\"main\"},\"repository\":{\"full_name\":\"${{ github.repository }}\",\"name\":\"meso\"}}"
           SIGNATURE=$(echo -n "$PAYLOAD" | openssl dgst -sha256 -hmac '${{ secrets.WEBHOOK_SECRET }}' | cut -d' ' -f2)
