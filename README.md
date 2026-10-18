@@ -8,11 +8,11 @@ Self-hosted, single-user, no external users. Defined as much by what it leaves o
 
 The name is the thesis. A _mesocycle_ is the unit of training planning — a multi-week block aimed at a target. The app's value is that planning intelligence, unified across strength, running, mobility, and dance, not tracking-for-tracking's-sake. The block entity is named **Cycle** in the model.
 
-> **Why standalone, and modeled on nomad.** meso is a **product front door** in the sense of `~/dev/vision.md`: its own data store, its own web surface, and its own `meso` CLI — a clean-break app that does not depend on ichrisbirch. It follows the **nomad** product model wholesale (Go API + Go CLI + Vue, Authelia auth at the edge, registry-pull deploy), because nomad is the reference build for exactly this shape and copying its proven stack — including the fiddly CLI auth flow — beats reinventing it.
+> **Why standalone, and modeled on nomad.** meso is a **product front door**: its own data store, its own web surface, and its own `meso` CLI — a clean-break app that does not depend on ichrisbirch. It follows the **nomad** product model wholesale (Go API + Go CLI + Vue, Authelia auth at the edge, registry-pull deploy), because nomad is the reference build for exactly this shape and copying its proven stack — including the fiddly CLI auth flow — beats reinventing it.
 
 <!-- -->
 
-> **No MCP — ever.** The entire ecosystem is retiring MCP in favor of CLI front doors (`~/dev/vision.md`, "CLI-primary and MCP retirement"). meso is built CLI-first from day one and never ships an MCP server. The `meso` CLI is the agent surface: Claude drives it via Bash.
+> **No MCP — ever.** The entire ecosystem is retiring MCP in favor of CLI front doors. meso is built CLI-first from day one and never ships an MCP server. The `meso` CLI is the agent surface: Claude drives it via Bash.
 
 <!-- -->
 
@@ -236,7 +236,7 @@ This is an iOS-in-the-gym app; mobile-first is the whole point, not a later pass
 - The "active session" view is the highest-traffic screen. One big **Log set** per movement, which sends nothing and lets the server repeat the last set; the plan sits above it as a line of text rather than a row of inputs. Nothing on it scores you — "3 movements · 20 sets", not "2/5 done".
 - **Nothing irreversible without a dialog, and never `window.confirm`** — a system alert lands its buttons wherever iOS decides and its "OK" says nothing about what is being agreed to, which is the wrong shape for a destructive action taken one-handed mid-workout.
 - **Choosing anything is a search box over tap targets, never a native `<select>` or `<input type="date">`.** Both hand off to an OS picker whose density is fixed and small, and both cost several interactions where one would do. The library picker and the date field are in-app components for that reason.
-- Ships as an **installable PWA** so it opens like an app from the home screen — matching the mobile-PWA write-surface in `~/dev/vision.md` and the gym-mobile need. Full **offline session logging + sync is deferred past v1** (a large add); v1 is a responsive PWA that needs connectivity. UUID7 PKs keep offline-create possible when it's built.
+- Ships as an **installable PWA** so it opens like an app from the home screen, because logging happens on a phone at the gym. Full **offline session logging + sync is deferred past v1** (a large add); v1 is a responsive PWA that needs connectivity. UUID7 PKs keep offline-create possible when it's built.
 - The mobile patterns established here (breakpoints, touch components) should stay design-variable-driven so they compose with the design-style-switcher idea.
 
 ### Seed vs. import
@@ -409,7 +409,6 @@ Spun out of the ichrisbirch "Fitness Tracker" plan (2026-07-22). A different pur
 ## References
 
 - Reference build (stack + CLI + deploy to copy): the nomad repo, especially its `CLAUDE.md` and `cli/`.
-- Cross-system architecture this app slots into: `~/dev/vision.md` (product front doors, CLI-primary, MCP retirement) and `~/dev/system.md`.
 - Authelia / homelab auth: `~/homelab/containers/auth-lxc/README.md`.
 - Source content migrated in: `~/shart/fitness/` — `ppl/*.md`, `general-workouts/apartment-*.md`, `flexibility-moves.md`, and the three research plans `shoulder-plan.md`, `lower-body-plan.md`, `dance-conditioning.md`.
 - Goals & rotation the app formalizes: `~/shart/fitness/goals.md`, `~/shart/fitness/program.md`.
