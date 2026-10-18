@@ -2,6 +2,7 @@
 // mirror the Go API's JSON wire contract; the DB owns id, timestamps, and the
 // entry_date default.
 import { http } from './client'
+import { setWindow, type TimeWindow } from './window'
 
 // LogEntry is one dated journal entry: a markdown body with free-form tags and an
 // optional mood. The id is a UUID7 string. mood is null when unset.
@@ -33,16 +34,13 @@ export interface LogEntryUpdate {
   mood?: string | null
 }
 
-export interface LogFilter {
-  from?: string
-  to?: string
+export interface LogFilter extends TimeWindow {
   tag?: string
 }
 
 function queryString(filter: LogFilter): string {
   const params = new URLSearchParams()
-  if (filter.from) params.set('from', filter.from)
-  if (filter.to) params.set('to', filter.to)
+  setWindow(params, filter)
   if (filter.tag) params.set('tag', filter.tag)
   const q = params.toString()
   return q ? `?${q}` : ''

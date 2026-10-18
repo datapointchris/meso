@@ -138,9 +138,9 @@ func TestSession_List_Filters(t *testing.T) {
 	require.Len(t, all, 3)
 	// Newest first.
 	assert.Equal(t, "2026-07-15", all[0].PerformedOn)
-	assert.Len(t, list("?from=2026-07-01"), 2)
-	assert.Len(t, list("?to=2026-06-30"), 1)
-	assert.Len(t, list("?from=2026-07-01&to=2026-07-10"), 1)
+	assert.Len(t, list("?since=2026-07-01T00:00:00Z"), 2)
+	assert.Len(t, list("?until=2026-07-01T00:00:00Z"), 1)
+	assert.Len(t, list("?since=2026-07-01T00:00:00Z&until=2026-07-11T00:00:00Z"), 1)
 	assert.Len(t, list("?workout_id="+itoa(workout.ID)), 2)
 
 	// unfinished is what the app asks for to find the session worth resuming.
@@ -149,7 +149,7 @@ func TestSession_List_Filters(t *testing.T) {
 	assert.Len(t, list("?unfinished"), 2)
 
 	// Malformed filters -> 400.
-	assert.Equal(t, http.StatusBadRequest, getJSON(t, mux, "/api/v1/sessions?from=notadate").Code)
+	assert.Equal(t, http.StatusBadRequest, getJSON(t, mux, "/api/v1/sessions?since=notadate").Code)
 	assert.Equal(t, http.StatusBadRequest, getJSON(t, mux, "/api/v1/sessions?workout_id=abc").Code)
 }
 

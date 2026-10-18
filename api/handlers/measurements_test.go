@@ -196,8 +196,8 @@ func TestMeasurement_RecordListFilterUpdateDelete(t *testing.T) {
 	all := list("?metric=deadlift-working-weight")
 	require.Len(t, all, 3)
 	assert.Equal(t, "2026-07-22", all[0].MeasuredOn) // newest first
-	assert.Len(t, list("?from=2026-07-10"), 2)
-	assert.Len(t, list("?to=2026-07-01"), 1)
+	assert.Len(t, list("?since=2026-07-10T00:00:00Z"), 2)
+	assert.Len(t, list("?until=2026-07-02T00:00:00Z"), 1)
 
 	// Update value/notes; metric stays fixed.
 	up := putJSON(t, mux, "/api/v1/measurements/"+itoa(first.ID), map[string]any{
@@ -227,7 +227,7 @@ func TestMeasurement_Validation(t *testing.T) {
 		"metric": "bodyweight", "value": 100, "measured_on": "last tuesday",
 	}).Code)
 	// Bad list filter -> 400.
-	assert.Equal(t, http.StatusBadRequest, getJSON(t, mux, "/api/v1/measurements?from=nope").Code)
+	assert.Equal(t, http.StatusBadRequest, getJSON(t, mux, "/api/v1/measurements?since=nope").Code)
 	// Non-numeric id -> 400; well-formed but absent -> 404.
 	assert.Equal(t, http.StatusBadRequest, getJSON(t, mux, "/api/v1/measurements/abc").Code)
 	assert.Equal(t, http.StatusNotFound, getJSON(t, mux, "/api/v1/measurements/999999").Code)
@@ -284,8 +284,8 @@ func TestMetric_Trend_SeriesAndSummary(t *testing.T) {
 	assert.Equal(t, -150.0, *trend.Change) // improvement for a lower_better metric
 	assert.Equal(t, 3, trend.Count)
 
-	// Windowed by ?from — only the two on/after the bound.
-	windowed := decodeTrend(t, getJSON(t, mux, "/api/v1/metrics/5k-time/trend?from=2026-07-15").Body)
+	// Windowed by ?since — only the two on/after the bound.
+	windowed := decodeTrend(t, getJSON(t, mux, "/api/v1/metrics/5k-time/trend?since=2026-07-15T00:00:00Z").Body)
 	assert.Len(t, windowed.Points, 2)
 
 	// A defined-but-unmeasured metric trends empty (not null), summary nil.

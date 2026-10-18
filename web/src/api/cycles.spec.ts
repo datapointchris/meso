@@ -90,22 +90,14 @@ describe('reviewApi', () => {
     fetchMock.mockReset()
   })
 
-  it('passes the since window and hits /api/v1/review', async () => {
+  it('passes the window and hits /api/v1/review', async () => {
     fetchMock.mockResolvedValue(
-      jsonResponse({ since: '2026-05-01', active_cycles: [], sessions: [], measurements: [], log_entries: [] }),
+      jsonResponse({ since: '2026-05-01', until: '', active_cycles: [], sessions: [], measurements: [], log_entries: [] }),
     )
-    await reviewApi.get('12w')
+    await reviewApi.get({ since: '2026-05-01T00:00:00-04:00' })
     const url = fetchMock.mock.calls[0][0] as string
     expect(url).toContain('/api/v1/review?')
-    expect(url).toContain('since=12w')
-  })
-
-  it('omits the query string when no window is given', async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse({ since: '2026-06-24', active_cycles: [], sessions: [], measurements: [], log_entries: [] }),
-    )
-    await reviewApi.get()
-    expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/review')
+    expect(new URL(url, 'http://meso.test').searchParams.get('since')).toBe('2026-05-01T00:00:00-04:00')
   })
 })
 

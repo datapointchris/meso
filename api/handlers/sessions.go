@@ -25,13 +25,18 @@ func NewSessionHandler(sessions *repository.SessionRepo, workouts *repository.Wo
 }
 
 // List handles GET /api/v1/sessions with optional filters:
-// ?workout_id=&from=&to=&unfinished=. unfinished is how the app finds the session to
-// offer resuming, so it takes no value beyond being present.
+// ?workout_id=&since=&until=&unfinished=. unfinished is how the app finds the session
+// to offer resuming, so it takes no value beyond being present.
 func (h *SessionHandler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	first, last, err := readWindow(q)
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
 	filter := models.WorkoutSessionFilter{
-		From:       q.Get("from"),
-		To:         q.Get("to"),
+		From:       first,
+		To:         last,
 		Unfinished: q.Has("unfinished") && q.Get("unfinished") != "false",
 	}
 	if raw := q.Get("workout_id"); raw != "" {

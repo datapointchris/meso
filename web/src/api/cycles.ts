@@ -5,6 +5,7 @@ import { http } from './client'
 import type { Measurement } from './measurements'
 import type { LogEntry } from './log'
 import type { Session } from './sessions'
+import { setWindow, type TimeWindow } from './window'
 
 export type CycleStatus = 'planned' | 'active' | 'paused' | 'completed'
 
@@ -106,8 +107,10 @@ export const cyclesApi = {
 
 // Review is the capstone read: active cycles plus recent sessions, measurements, and
 // log entries in one window, the substrate for drafting the next cycle with Claude.
+// since and until are the first and last days covered, empty where the window is open.
 export interface Review {
   since: string
+  until: string
   active_cycles: Cycle[]
   sessions: Session[]
   measurements: Measurement[]
@@ -115,9 +118,11 @@ export interface Review {
 }
 
 export const reviewApi = {
-  get: (since?: string) => {
-    const q = since ? `?${new URLSearchParams({ since }).toString()}` : ''
-    return http.get<Review>(`/review${q}`)
+  get: (bounds: TimeWindow = {}) => {
+    const params = new URLSearchParams()
+    setWindow(params, bounds)
+    const q = params.toString()
+    return http.get<Review>(`/review${q ? `?${q}` : ''}`)
   },
 }
 

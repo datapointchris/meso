@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, reactive, watch, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { sessionsApi, setCount, isInProgress, type Session, type SessionFilter } from '@/api/sessions'
+import { sessionsApi, setCount, isInProgress, type Session } from '@/api/sessions'
+import { dayWindow } from '@/api/window'
 import type { Workout } from '@/api/workouts'
 import { ApiError } from '@/api/client'
 import DateField from '@/components/DateField.vue'
@@ -22,17 +23,14 @@ const pendingDelete = ref<Session | null>(null)
 const deleting = ref(false)
 
 // Server-side date filtering (the API owns the params), one definition shared with
-// the CLI.
+// the CLI. The pickers hold days, and both days are inside the window.
 const filter = reactive<{ from: string; to: string }>({ from: '', to: '' })
 
 async function load() {
   loading.value = true
   error.value = ''
-  const query: SessionFilter = {}
-  if (filter.from) query.from = filter.from
-  if (filter.to) query.to = filter.to
   try {
-    sessions.value = await sessionsApi.list(query)
+    sessions.value = await sessionsApi.list(dayWindow(filter.from, filter.to))
   } catch (e) {
     error.value = e instanceof ApiError ? e.message : 'Failed to load sessions'
   } finally {

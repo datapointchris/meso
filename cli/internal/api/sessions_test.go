@@ -14,17 +14,15 @@ func TestListSessions_QueryAndDecode(t *testing.T) {
 	client := New(srv.URL, staticTokenClient("t"))
 
 	wid := int64(1)
-	sessions, err := client.ListSessions(context.Background(), SessionFilter{From: "2026-07-01", WorkoutID: &wid})
+	sessions, err := client.ListSessions(context.Background(), SessionFilter{WorkoutID: &wid})
 	if err != nil {
 		t.Fatalf("ListSessions: %v", err)
 	}
 	if got.method != http.MethodGet || got.path != "/api/v1/sessions" {
 		t.Errorf("request = %s %s", got.method, got.path)
 	}
-	for _, want := range []string{"from=2026-07-01", "workout_id=1"} {
-		if !containsParam(got.query, want) {
-			t.Errorf("query %q missing %q", got.query, want)
-		}
+	if !containsParam(got.query, "workout_id=1") {
+		t.Errorf("query %q missing workout_id=1", got.query)
 	}
 	if len(sessions) != 1 || sessions[0].ID != "018f-aaa" {
 		t.Fatalf("decoded = %+v", sessions)

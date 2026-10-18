@@ -49,11 +49,10 @@ describe('measurements api', () => {
 
   it('builds a filtered measurement list query', async () => {
     fetchMock.mockResolvedValue(jsonResponse([]))
-    await measurementsApi.list({ metric: '5k-time', from: '2026-07-01' })
+    await measurementsApi.list({ metric: '5k-time' })
     const url = fetchMock.mock.calls[0][0] as string
     expect(url).toContain('/api/v1/measurements?')
     expect(url).toContain('metric=5k-time')
-    expect(url).toContain('from=2026-07-01')
   })
 
   it('omits the query string when no filter is set', async () => {
@@ -71,12 +70,10 @@ describe('measurements api', () => {
     expect(JSON.parse(init.body as string)).toEqual({ metric: '5k-time', value: 1650, measured_on: '2026-07-27' })
   })
 
-  it('builds a trend path with an encoded metric name and window', async () => {
+  it('builds a trend path with an encoded metric name', async () => {
     fetchMock.mockResolvedValue(jsonResponse(trend({ metric: '5k-time', count: 0 })))
-    await metricsApi.trend('5k-time', { from: '2026-07-01' })
-    const url = fetchMock.mock.calls[0][0] as string
-    expect(url).toContain('/api/v1/metrics/5k-time/trend?')
-    expect(url).toContain('from=2026-07-01')
+    await metricsApi.trend('5k-time')
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/metrics/5k-time/trend')
   })
 
   it('defines a metric via POST /metrics', async () => {

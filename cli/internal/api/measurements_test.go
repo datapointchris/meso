@@ -14,17 +14,15 @@ func TestListMeasurements_QueryAndDecode(t *testing.T) {
 	client := New(srv.URL, staticTokenClient("t"))
 
 	measurements, err := client.ListMeasurements(context.Background(),
-		MeasurementFilter{Metric: "deadlift-working-weight", From: "2026-07-01"})
+		MeasurementFilter{Metric: "deadlift-working-weight"})
 	if err != nil {
 		t.Fatalf("ListMeasurements: %v", err)
 	}
 	if got.method != http.MethodGet || got.path != "/api/v1/measurements" {
 		t.Errorf("request = %s %s", got.method, got.path)
 	}
-	for _, want := range []string{"metric=deadlift-working-weight", "from=2026-07-01"} {
-		if !containsParam(got.query, want) {
-			t.Errorf("query %q missing %q", got.query, want)
-		}
+	if !containsParam(got.query, "metric=deadlift-working-weight") {
+		t.Errorf("query %q missing the metric", got.query)
 	}
 	if len(measurements) != 2 || measurements[1].Value != 202.5 {
 		t.Fatalf("decoded = %+v", measurements)
@@ -86,15 +84,12 @@ func TestTrend_QueryPathAndDecode(t *testing.T) {
 	}`)
 	client := New(srv.URL, staticTokenClient("t"))
 
-	trend, err := client.Trend(context.Background(), "5k-time", MeasurementFilter{From: "2026-07-01"})
+	trend, err := client.Trend(context.Background(), "5k-time", Window{})
 	if err != nil {
 		t.Fatalf("Trend: %v", err)
 	}
 	if got.method != http.MethodGet || got.path != "/api/v1/metrics/5k-time/trend" {
 		t.Errorf("request = %s %s", got.method, got.path)
-	}
-	if !containsParam(got.query, "from=2026-07-01") {
-		t.Errorf("query %q missing from", got.query)
 	}
 	if trend.Count != 2 || trend.Change == nil || *trend.Change != -150 {
 		t.Fatalf("decoded = %+v", trend)

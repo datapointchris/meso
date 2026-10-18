@@ -66,11 +66,11 @@ func TestLog_CreateGetListFilterUpdateDelete(t *testing.T) {
 	}
 
 	all := list("")
-	require.Len(t, all, 3)                          // created(07-20), 07-25, 07-10
-	assert.Equal(t, "2026-07-25", all[0].EntryDate) // newest first
-	assert.Len(t, list("?from=2026-07-15"), 2)      // 07-20, 07-25
-	assert.Len(t, list("?to=2026-07-10"), 1)        // only 07-10
-	assert.Len(t, list("?tag=knee"), 1)             // only the tagged entry
+	require.Len(t, all, 3)                                // created(07-20), 07-25, 07-10
+	assert.Equal(t, "2026-07-25", all[0].EntryDate)       // newest first
+	assert.Len(t, list("?since=2026-07-15T00:00:00Z"), 2) // 07-20, 07-25
+	assert.Len(t, list("?until=2026-07-11T00:00:00Z"), 1) // only 07-10
+	assert.Len(t, list("?tag=knee"), 1)                   // only the tagged entry
 	assert.Len(t, list("?tag=nope"), 0)
 
 	// Update — change body/tags/date; a nil field is left unchanged.
@@ -104,7 +104,7 @@ func TestLog_Validation(t *testing.T) {
 		"body": "x", "entry_date": "last tuesday",
 	}).Code)
 	// Bad list filter -> 400.
-	assert.Equal(t, http.StatusBadRequest, getJSON(t, mux, "/api/v1/log?from=nope").Code)
+	assert.Equal(t, http.StatusBadRequest, getJSON(t, mux, "/api/v1/log?since=nope").Code)
 	// Malformed uuid -> 400; well-formed but absent -> 404.
 	assert.Equal(t, http.StatusBadRequest, getJSON(t, mux, "/api/v1/log/not-a-uuid").Code)
 	assert.Equal(t, http.StatusNotFound, getJSON(t, mux, "/api/v1/log/00000000-0000-0000-0000-000000000000").Code)

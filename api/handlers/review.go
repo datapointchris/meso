@@ -15,12 +15,16 @@ func NewReviewHandler(repo *repository.ReviewRepo) *ReviewHandler {
 	return &ReviewHandler{repo: repo}
 }
 
-// Review handles GET /api/v1/review?since=30d — the capstone read that pulls active
-// cycles plus recent sessions, measurements, and log entries into one payload for
-// Claude to reason over. An unparsable since is a 400.
+// Review handles GET /api/v1/review?since=&until= — the capstone read that pulls
+// active cycles plus the sessions, measurements, and log entries in the window into
+// one payload for Claude to reason over. An unparsable bound is a 400.
 func (h *ReviewHandler) Review(w http.ResponseWriter, r *http.Request) {
-	since := r.URL.Query().Get("since")
-	review, err := h.repo.Review(r.Context(), since)
+	first, last, err := readWindow(r.URL.Query())
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	review, err := h.repo.Review(r.Context(), first, last)
 	if err != nil {
 		if errors.Is(err, repository.ErrInvalid) {
 			writeBadRequest(w, err.Error())

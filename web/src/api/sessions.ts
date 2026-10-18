@@ -4,6 +4,7 @@
 import { http } from './client'
 import type { LoadMode, MovementKind } from './movements'
 import type { Workout } from './workouts'
+import { setWindow, type TimeWindow } from './window'
 
 // SetKind tags what a set was for. Everything is a working set unless it says otherwise,
 // which is why the vocabulary costs nothing to ignore.
@@ -136,18 +137,15 @@ export interface SessionPromote {
   estimated_minutes?: number | null
 }
 
-export interface SessionFilter {
+export interface SessionFilter extends TimeWindow {
   workout_id?: number
-  from?: string
-  to?: string
   unfinished?: boolean
 }
 
 function queryString(filter: SessionFilter): string {
   const params = new URLSearchParams()
   if (filter.workout_id !== undefined) params.set('workout_id', String(filter.workout_id))
-  if (filter.from) params.set('from', filter.from)
-  if (filter.to) params.set('to', filter.to)
+  setWindow(params, filter)
   if (filter.unfinished) params.set('unfinished', 'true')
   const q = params.toString()
   return q ? `?${q}` : ''

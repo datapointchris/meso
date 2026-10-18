@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/datapointchris/goclikit"
 	"github.com/spf13/cobra"
@@ -158,18 +159,22 @@ func newSessionsLogCommand() *cobra.Command {
 
 func newSessionsListCommand() *cobra.Command {
 	var (
-		from, to           string
+		window             timeWindow
 		workout            int64
 		unfinished, asJSON bool
 	)
 	cmd := &cobra.Command{
 		Use:   "list [flags]",
 		Short: "List sessions, newest first, optionally filtered by date or workout",
-		Example: "  meso sessions list\n  meso sessions list --unfinished\n" +
-			"  meso sessions list --from 2026-07-01 --to 2026-07-31 --json",
+		Example: "  meso sessions list\n  meso sessions list --unfinished\n  meso sessions list --since 2w\n" +
+			"  meso sessions list --since 2026-07-01 --until 2026-07-31 --json",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			filter := api.SessionFilter{From: from, To: to, Unfinished: unfinished}
+			w, err := window.resolve(cmd, time.Now())
+			if err != nil {
+				return err
+			}
+			filter := api.SessionFilter{Window: w, Unfinished: unfinished}
 			if cmd.Flags().Changed("workout") {
 				filter.WorkoutID = &workout
 			}
@@ -188,9 +193,8 @@ func newSessionsListCommand() *cobra.Command {
 			return nil
 		},
 	}
+	window.bind(cmd, "")
 	f := cmd.Flags()
-	f.StringVar(&from, "from", "", "Only sessions on or after this date (YYYY-MM-DD)")
-	f.StringVar(&to, "to", "", "Only sessions on or before this date (YYYY-MM-DD)")
 	f.Int64Var(&workout, "workout", 0, "Only sessions of this workout")
 	f.BoolVar(&unfinished, "unfinished", false, "Only sessions still in progress")
 	f.BoolVar(&asJSON, "json", false, "Output sessions as JSON to stdout")

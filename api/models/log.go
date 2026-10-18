@@ -39,8 +39,9 @@ type FitnessLogEntryUpdate struct {
 	Tags      *[]string `json:"tags"`
 }
 
-// FitnessLogEntryFilter carries the list-endpoint query params. From/To bound
-// entry_date (inclusive) as "2006-01-02" strings; Tag scopes to entries carrying it.
+// FitnessLogEntryFilter carries the list endpoint's optional filters. From and To are
+// the first and last entry_date days, both inclusive, read from ?since= and ?until=;
+// Tag scopes to entries carrying it.
 type FitnessLogEntryFilter struct {
 	From string
 	To   string

@@ -174,8 +174,9 @@ type WorkoutSessionUpdate struct {
 	Felt            *string `json:"felt"`
 }
 
-// WorkoutSessionFilter carries the optional list-endpoint query params. From and To
-// bound performed_on (inclusive) as "2006-01-02" strings; WorkoutID scopes to one
+// WorkoutSessionFilter carries the list endpoint's optional filters. From and To are
+// the first and last performed_on days, both inclusive, read from ?since= and ?until=;
+// WorkoutID scopes to one
 // template's sessions. Unfinished scopes to sessions still in progress, which is how
 // the app finds the one to offer resuming.
 type WorkoutSessionFilter struct {

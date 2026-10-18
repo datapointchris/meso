@@ -7,21 +7,25 @@ import (
 
 // Review mirrors the API's capstone read: active cycles plus the recent sessions,
 // measurements, and log entries in the window. `meso review --json` prints this
-// verbatim for Claude to reason over.
+// verbatim for Claude to reason over. Since and Until are the first and last days
+// covered, empty where the window is open.
 type Review struct {
 	Since        string        `json:"since"`
+	Until        string        `json:"until"`
 	ActiveCycles []Cycle       `json:"active_cycles"`
 	Sessions     []Session     `json:"sessions"`
 	Measurements []Measurement `json:"measurements"`
 	LogEntries   []LogEntry    `json:"log_entries"`
 }
 
-// GetReview returns the review payload for the given window (GET /api/v1/review).
-// since is a relative duration like "30d"; empty uses the server's default window.
-func (c *Client) GetReview(ctx context.Context, since string) (Review, error) {
+// GetReview returns the review payload for the window (GET /api/v1/review). An open
+// window is every row.
+func (c *Client) GetReview(ctx context.Context, w Window) (Review, error) {
 	path := "/api/v1/review"
-	if since != "" {
-		path += "?" + url.Values{"since": {since}}.Encode()
+	q := url.Values{}
+	w.set(q)
+	if len(q) > 0 {
+		path += "?" + q.Encode()
 	}
 	var review Review
 	if err := c.get(ctx, path, &review); err != nil {

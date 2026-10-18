@@ -24,10 +24,9 @@ describe('log api', () => {
 
   it('builds a filtered list query', async () => {
     fetchMock.mockResolvedValue(jsonResponse([]))
-    await logApi.list({ from: '2026-07-01', tag: 'strength' })
+    await logApi.list({ tag: 'strength' })
     const url = fetchMock.mock.calls[0][0] as string
     expect(url).toContain('/api/v1/log?')
-    expect(url).toContain('from=2026-07-01')
     expect(url).toContain('tag=strength')
   })
 

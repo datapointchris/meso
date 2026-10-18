@@ -30,19 +30,13 @@ type LogEntryCreate struct {
 
 // LogFilter carries the optional list-endpoint query params.
 type LogFilter struct {
-	From string
-	To   string
-	Tag  string
+	Window
+	Tag string
 }
 
 func (f LogFilter) query() string {
 	q := url.Values{}
-	if f.From != "" {
-		q.Set("from", f.From)
-	}
-	if f.To != "" {
-		q.Set("to", f.To)
-	}
+	f.set(q)
 	if f.Tag != "" {
 		q.Set("tag", f.Tag)
 	}

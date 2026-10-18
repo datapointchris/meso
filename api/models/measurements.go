@@ -99,8 +99,9 @@ type MeasurementUpdate struct {
 	Notes      *string  `json:"notes"`
 }
 
-// MeasurementFilter carries the list-endpoint query params. Metric scopes to one
-// series; From/To bound measured_on (inclusive) as "2006-01-02" strings.
+// MeasurementFilter carries the list endpoint's optional filters. Metric scopes to one
+// series; From and To are the first and last measured_on days, both inclusive, read
+// from ?since= and ?until=.
 type MeasurementFilter struct {
 	Metric string
 	From   string

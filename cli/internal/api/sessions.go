@@ -112,20 +112,14 @@ type SessionPromote struct {
 
 // SessionFilter carries the optional list-endpoint query params.
 type SessionFilter struct {
+	Window
 	WorkoutID  *int64
-	From       string
-	To         string
 	Unfinished bool
 }
 
 func (f SessionFilter) query() string {
 	q := url.Values{}
-	if f.From != "" {
-		q.Set("from", f.From)
-	}
-	if f.To != "" {
-		q.Set("to", f.To)
-	}
+	f.set(q)
 	if f.WorkoutID != nil {
 		q.Set("workout_id", strconv.FormatInt(*f.WorkoutID, 10))
 	}

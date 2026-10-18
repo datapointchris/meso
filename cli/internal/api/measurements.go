@@ -112,9 +112,8 @@ type Stats struct {
 
 // MeasurementFilter carries the list-endpoint query params.
 type MeasurementFilter struct {
+	Window
 	Metric string
-	From   string
-	To     string
 }
 
 func (f MeasurementFilter) query() string {
@@ -122,12 +121,7 @@ func (f MeasurementFilter) query() string {
 	if f.Metric != "" {
 		q.Set("metric", f.Metric)
 	}
-	if f.From != "" {
-		q.Set("from", f.From)
-	}
-	if f.To != "" {
-		q.Set("to", f.To)
-	}
+	f.set(q)
 	if len(q) == 0 {
 		return ""
 	}
@@ -177,15 +171,10 @@ func (c *Client) DeleteMetric(ctx context.Context, name string) error {
 }
 
 // Trend returns one metric's series + summary (GET /api/v1/metrics/{name}/trend),
-// optionally windowed by from/to.
-func (c *Client) Trend(ctx context.Context, metric string, f MeasurementFilter) (MetricTrend, error) {
+// optionally windowed.
+func (c *Client) Trend(ctx context.Context, metric string, w Window) (MetricTrend, error) {
 	q := url.Values{}
-	if f.From != "" {
-		q.Set("from", f.From)
-	}
-	if f.To != "" {
-		q.Set("to", f.To)
-	}
+	w.set(q)
 	path := "/api/v1/metrics/" + url.PathEscape(metric) + "/trend"
 	if len(q) > 0 {
 		path += "?" + q.Encode()

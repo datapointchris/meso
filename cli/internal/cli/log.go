@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/datapointchris/goclikit"
 	"github.com/spf13/cobra"
@@ -71,16 +72,21 @@ func newLogAddCommand() *cobra.Command {
 
 func newLogListCommand() *cobra.Command {
 	var (
-		from, to, tag string
-		asJSON        bool
+		window timeWindow
+		tag    string
+		asJSON bool
 	)
 	cmd := &cobra.Command{
 		Use:     "list [flags]",
 		Short:   "List journal entries, newest first, optionally filtered",
-		Example: "  meso log list\n  meso log list --from 2026-07-01 --tag strength --json",
+		Example: "  meso log list\n  meso log list --since 2026-07-01 --tag strength --json",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			filter := api.LogFilter{From: from, To: to, Tag: tag}
+			w, err := window.resolve(cmd, time.Now())
+			if err != nil {
+				return err
+			}
+			filter := api.LogFilter{Window: w, Tag: tag}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
 				return handleAPIError(err)
@@ -96,9 +102,8 @@ func newLogListCommand() *cobra.Command {
 			return nil
 		},
 	}
+	window.bind(cmd, "")
 	f := cmd.Flags()
-	f.StringVar(&from, "from", "", "Only entries on or after this date (YYYY-MM-DD)")
-	f.StringVar(&to, "to", "", "Only entries on or before this date (YYYY-MM-DD)")
 	f.StringVar(&tag, "tag", "", "Only entries carrying this tag")
 	f.BoolVar(&asJSON, "json", false, "Output entries as JSON to stdout")
 	return cmd

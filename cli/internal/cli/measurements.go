@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/datapointchris/goclikit"
 	"github.com/spf13/cobra"
@@ -74,16 +75,21 @@ func newMeasurementsRecordCommand() *cobra.Command {
 
 func newMeasurementsListCommand() *cobra.Command {
 	var (
-		metric, from, to string
-		asJSON           bool
+		window timeWindow
+		metric string
+		asJSON bool
 	)
 	cmd := &cobra.Command{
 		Use:     "list [flags]",
 		Short:   "List measurements, newest first, optionally filtered",
-		Example: "  meso measurements list --metric deadlift-working-weight\n  meso measurements list --from 2026-07-01 --json",
+		Example: "  meso measurements list --metric deadlift-working-weight\n  meso measurements list --since 2026-07-01 --json",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			filter := api.MeasurementFilter{Metric: metric, From: from, To: to}
+			w, err := window.resolve(cmd, time.Now())
+			if err != nil {
+				return err
+			}
+			filter := api.MeasurementFilter{Window: w, Metric: metric}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
 				return handleAPIError(err)
@@ -99,30 +105,33 @@ func newMeasurementsListCommand() *cobra.Command {
 			return nil
 		},
 	}
+	window.bind(cmd, "")
 	f := cmd.Flags()
 	f.StringVar(&metric, "metric", "", "Only readings of this metric")
-	f.StringVar(&from, "from", "", "Only readings on or after this date (YYYY-MM-DD)")
-	f.StringVar(&to, "to", "", "Only readings on or before this date (YYYY-MM-DD)")
 	f.BoolVar(&asJSON, "json", false, "Output measurements as JSON to stdout")
 	return cmd
 }
 
 func newMeasurementsTrendCommand() *cobra.Command {
 	var (
-		from, to string
-		asJSON   bool
+		window timeWindow
+		asJSON bool
 	)
 	cmd := &cobra.Command{
 		Use:     "trend <metric> [flags]",
 		Short:   "Show a metric's trend over time with its improvement summary",
-		Example: "  meso measurements trend deadlift-working-weight\n  meso measurements trend 5k-time --from 2026-07-01 --json",
+		Example: "  meso measurements trend deadlift-working-weight\n  meso measurements trend 5k-time --since 12w --json",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			w, err := window.resolve(cmd, time.Now())
+			if err != nil {
+				return err
+			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
 				return handleAPIError(err)
 			}
-			trend, err := client.Trend(cmd.Context(), args[0], api.MeasurementFilter{From: from, To: to})
+			trend, err := client.Trend(cmd.Context(), args[0], w)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -133,10 +142,8 @@ func newMeasurementsTrendCommand() *cobra.Command {
 			return nil
 		},
 	}
-	f := cmd.Flags()
-	f.StringVar(&from, "from", "", "Only points on or after this date (YYYY-MM-DD)")
-	f.StringVar(&to, "to", "", "Only points on or before this date (YYYY-MM-DD)")
-	f.BoolVar(&asJSON, "json", false, "Output the trend as JSON to stdout")
+	window.bind(cmd, "")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the trend as JSON to stdout")
 	return cmd
 }
 

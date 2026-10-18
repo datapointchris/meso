@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -12,7 +13,7 @@ import (
 
 func newReviewCommand() *cobra.Command {
 	var (
-		since  string
+		window timeWindow
 		asJSON bool
 	)
 	cmd := &cobra.Command{
@@ -23,14 +24,18 @@ func newReviewCommand() *cobra.Command {
 			"intended surface for Claude to read (via Bash) and draft the next cycle from real\n" +
 			"history, then persist it with ordinary `meso cycles` writes. There is no\n" +
 			"server-side AI; the reasoning happens in the conversation.",
-		Example: "  meso review\n  meso review --since 12w --json",
+		Example: "  meso review\n  meso review --since 12w --json\n  meso review --since 2026-07-01 --until 2026-07-31",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			w, err := window.resolve(cmd, time.Now())
+			if err != nil {
+				return err
+			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
 				return handleAPIError(err)
 			}
-			review, err := client.GetReview(cmd.Context(), since)
+			review, err := client.GetReview(cmd.Context(), w)
 			if err != nil {
 				return handleAPIError(err)
 			}
@@ -41,14 +46,20 @@ func newReviewCommand() *cobra.Command {
 			return nil
 		},
 	}
-	f := cmd.Flags()
-	f.StringVar(&since, "since", "", "Look-back window: a count and a unit, e.g. 30d, 12w, 6m (default 30d)")
-	f.BoolVar(&asJSON, "json", false, "Output the full review payload as JSON — the surface for Claude")
+	window.bind(cmd, "30d")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "Output the full review payload as JSON — the surface for Claude")
 	return cmd
 }
 
 func printReview(out io.Writer, r api.Review) {
-	_, _ = fmt.Fprintf(out, "Review since %s\n", r.Since)
+	first, last := r.Since, r.Until
+	if first == "" {
+		first = "the first row"
+	}
+	if last == "" {
+		last = "now"
+	}
+	_, _ = fmt.Fprintf(out, "Review %s through %s\n", first, last)
 
 	_, _ = fmt.Fprintf(out, "\nActive cycles: %d\n", len(r.ActiveCycles))
 	for _, c := range r.ActiveCycles {

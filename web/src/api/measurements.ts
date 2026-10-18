@@ -1,6 +1,7 @@
 // Typed access to the metrics, measurements, and stats endpoints. Types mirror the
 // Go API's JSON wire contract; the DB owns id, timestamps, and source defaults.
 import { http } from './client'
+import { setWindow, type TimeWindow } from './window'
 
 export type MetricDirection = 'higher_better' | 'lower_better'
 export type MetricCategory = 'strength' | 'cardio' | 'mobility' | 'body'
@@ -115,17 +116,14 @@ export interface Stats {
   sessions: SessionStats
 }
 
-export interface MeasurementFilter {
+export interface MeasurementFilter extends TimeWindow {
   metric?: string
-  from?: string
-  to?: string
 }
 
 function queryString(filter: MeasurementFilter): string {
   const params = new URLSearchParams()
   if (filter.metric) params.set('metric', filter.metric)
-  if (filter.from) params.set('from', filter.from)
-  if (filter.to) params.set('to', filter.to)
+  setWindow(params, filter)
   const q = params.toString()
   return q ? `?${q}` : ''
 }
@@ -136,10 +134,9 @@ export const metricsApi = {
   define: (body: MetricDefinitionCreate) => http.post<MetricDefinition>('/metrics', body),
   update: (name: string, body: MetricDefinitionUpdate) => http.put<MetricDefinition>(`/metrics/${encodeURIComponent(name)}`, body),
   remove: (name: string) => http.del(`/metrics/${encodeURIComponent(name)}`),
-  trend: (name: string, window: { from?: string; to?: string } = {}) => {
+  trend: (name: string, bounds: TimeWindow = {}) => {
     const params = new URLSearchParams()
-    if (window.from) params.set('from', window.from)
-    if (window.to) params.set('to', window.to)
+    setWindow(params, bounds)
     const q = params.toString()
     return http.get<MetricTrend>(`/metrics/${encodeURIComponent(name)}/trend${q ? `?${q}` : ''}`)
   },

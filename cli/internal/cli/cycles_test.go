@@ -136,7 +136,7 @@ func TestPrintReview(t *testing.T) {
 	var buf bytes.Buffer
 	printReview(&buf, review)
 	out := buf.String()
-	for _, want := range []string{"Review since 2026-05-01", "Active cycles: 1", "Current block", "Sessions: 1", "Push Day", "--json"} {
+	for _, want := range []string{"Review 2026-05-01 through now", "Active cycles: 1", "Current block", "Sessions: 1", "Push Day", "--json"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("review output missing %q:\n%s", want, out)
 		}

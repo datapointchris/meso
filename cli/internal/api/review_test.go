@@ -3,7 +3,9 @@ package api
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"testing"
+	"time"
 )
 
 func TestGetReview_QueryAndDecode(t *testing.T) {
@@ -16,15 +18,22 @@ func TestGetReview_QueryAndDecode(t *testing.T) {
 	}`)
 	client := New(srv.URL, staticTokenClient("t"))
 
-	review, err := client.GetReview(context.Background(), "12w")
+	// A bound goes on the wire in the machine's offset, whatever zone it was built in.
+	since := time.Date(2026, 5, 1, 4, 0, 0, 0, time.UTC)
+	until := time.Date(2026, 8, 1, 4, 0, 0, 0, time.UTC)
+	review, err := client.GetReview(context.Background(), Window{Since: since, Until: until})
 	if err != nil {
 		t.Fatalf("GetReview: %v", err)
 	}
 	if got.method != http.MethodGet || got.path != "/api/v1/review" {
 		t.Errorf("request = %s %s", got.method, got.path)
 	}
-	if !containsParam(got.query, "since=12w") {
-		t.Errorf("query %q missing since=12w", got.query)
+	want := url.Values{
+		"since": {since.In(time.Local).Format(time.RFC3339)},
+		"until": {until.In(time.Local).Format(time.RFC3339)},
+	}.Encode()
+	if got.query != want {
+		t.Errorf("query = %q, want %q", got.query, want)
 	}
 	if review.Since != "2026-05-01" {
 		t.Errorf("since = %q", review.Since)
@@ -34,17 +43,5 @@ func TestGetReview_QueryAndDecode(t *testing.T) {
 	}
 	if len(review.Sessions) != 1 || len(review.Measurements) != 1 || len(review.LogEntries) != 1 {
 		t.Errorf("history slices = %+v", review)
-	}
-}
-
-func TestGetReview_OmitsSinceWhenEmpty(t *testing.T) {
-	srv, got := recordingServer(t, http.StatusOK, `{"since":"2026-06-24","active_cycles":[],"sessions":[],"measurements":[],"log_entries":[]}`)
-	client := New(srv.URL, staticTokenClient("t"))
-
-	if _, err := client.GetReview(context.Background(), ""); err != nil {
-		t.Fatalf("GetReview: %v", err)
-	}
-	if got.query != "" {
-		t.Errorf("expected no query string, got %q", got.query)
 	}
 }

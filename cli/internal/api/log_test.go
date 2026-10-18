@@ -13,17 +13,15 @@ func TestListLog_QueryAndDecode(t *testing.T) {
 	]`)
 	client := New(srv.URL, staticTokenClient("t"))
 
-	entries, err := client.ListLog(context.Background(), LogFilter{From: "2026-07-01", Tag: "strength"})
+	entries, err := client.ListLog(context.Background(), LogFilter{Tag: "strength"})
 	if err != nil {
 		t.Fatalf("ListLog: %v", err)
 	}
 	if got.method != http.MethodGet || got.path != "/api/v1/log" {
 		t.Errorf("request = %s %s", got.method, got.path)
 	}
-	for _, want := range []string{"from=2026-07-01", "tag=strength"} {
-		if !containsParam(got.query, want) {
-			t.Errorf("query %q missing %q", got.query, want)
-		}
+	if !containsParam(got.query, "tag=strength") {
+		t.Errorf("query %q missing tag=strength", got.query)
 	}
 	if len(entries) != 2 || entries[1].Mood == nil || *entries[1].Mood != "focused" {
 		t.Fatalf("decoded = %+v", entries)

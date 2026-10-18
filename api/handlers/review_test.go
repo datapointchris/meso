@@ -3,7 +3,9 @@ package handlers_test
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,24 +51,25 @@ func TestReview_WindowsRecentHistoryAndActiveCycles(t *testing.T) {
 		"name": "Next block", "status": "planned",
 	}).Code)
 
-	// Default window (30d): recent slice only, active cycles only.
-	rr := getJSON(t, mux, "/api/v1/review")
+	// A since 30 days back: recent slice only, active cycles only.
+	q := url.Values{"since": {time.Now().Add(-30 * 24 * time.Hour).Format(time.RFC3339)}}
+	rr := getJSON(t, mux, "/api/v1/review?"+q.Encode())
 	require.Equal(t, http.StatusOK, rr.Code)
 	rev := decodeReview(t, rr.Body)
 	assert.NotEmpty(t, rev.Since)
+	assert.Empty(t, rev.Until)
 	require.Len(t, rev.ActiveCycles, 1)
 	assert.Equal(t, "Current block", rev.ActiveCycles[0].Name)
 	assert.Len(t, rev.Sessions, 1)
 	assert.Len(t, rev.Measurements, 1)
 	assert.Len(t, rev.LogEntries, 1)
 
-	// A wide window pulls in the old rows too.
-	rev = decodeReview(t, getJSON(t, mux, "/api/v1/review?since=520w").Body)
+	// No bound at all is every row.
+	rev = decodeReview(t, getJSON(t, mux, "/api/v1/review").Body)
 	assert.Len(t, rev.Sessions, 2)
 	assert.Len(t, rev.Measurements, 2)
 	assert.Len(t, rev.LogEntries, 2)
 
-	// A malformed window is a 400.
-	assert.Equal(t, http.StatusBadRequest, getJSON(t, mux, "/api/v1/review?since=soon").Code)
-	assert.Equal(t, http.StatusBadRequest, getJSON(t, mux, "/api/v1/review?since=30x").Code)
+	// A span never crosses the wire, so the API refuses one.
+	assert.Equal(t, http.StatusBadRequest, getJSON(t, mux, "/api/v1/review?since=30d").Code)
 }

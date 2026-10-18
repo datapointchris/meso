@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, watch, onMounted, computed } from 'vue'
 import { logApi, type LogEntry, type LogFilter } from '@/api/log'
+import { dayWindow } from '@/api/window'
 import { ApiError } from '@/api/client'
 import { renderMarkdown } from '@/composables/useMarkdown'
 import AddEditLogModal from '@/components/AddEditLogModal.vue'
@@ -17,6 +18,7 @@ const loading = ref(true)
 const error = ref('')
 
 // Server-side filtering (the API owns the params), one definition shared with the CLI.
+// The pickers hold days, and both days are inside the window.
 const filter = reactive<{ from: string; to: string; tag: string }>({ from: '', to: '', tag: '' })
 
 // null = closed; 'new' = creating; a LogEntry = editing that entry.
@@ -25,9 +27,7 @@ const editing = ref<LogEntry | 'new' | null>(null)
 async function load() {
   loading.value = true
   error.value = ''
-  const query: LogFilter = {}
-  if (filter.from) query.from = filter.from
-  if (filter.to) query.to = filter.to
+  const query: LogFilter = dayWindow(filter.from, filter.to)
   if (filter.tag) query.tag = filter.tag.trim()
   try {
     entries.value = await logApi.list(query)

@@ -10,6 +10,7 @@ import {
   type SessionSet,
 } from './sessions'
 import { ApiError } from './client'
+import { dayWindow } from './window'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return {
@@ -31,15 +32,16 @@ describe('sessionsApi', () => {
     fetchMock.mockReset()
   })
 
-  it('builds a date-filtered list query and hits /api/v1/sessions', async () => {
+  it('sends picked days as local instants holding both days whole', async () => {
     fetchMock.mockResolvedValue(jsonResponse([]))
-    await sessionsApi.list({ from: '2026-07-01', to: '2026-07-31', workout_id: 3 })
+    await sessionsApi.list({ ...dayWindow('2026-07-01', '2026-07-31'), workout_id: 3 })
 
     const url = fetchMock.mock.calls[0][0] as string
     expect(url).toContain('/api/v1/sessions?')
-    expect(url).toContain('from=2026-07-01')
-    expect(url).toContain('to=2026-07-31')
-    expect(url).toContain('workout_id=3')
+    const params = new URL(url, 'http://meso.test').searchParams
+    expect(params.get('since')).toMatch(/^2026-07-01T00:00:00[+-]\d{2}:\d{2}$/)
+    expect(params.get('until')).toMatch(/^2026-08-01T00:00:00[+-]\d{2}:\d{2}$/)
+    expect(params.get('workout_id')).toBe('3')
   })
 
   it('omits the query string entirely when no filter is set', async () => {

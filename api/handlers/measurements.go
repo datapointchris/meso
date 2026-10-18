@@ -101,11 +101,15 @@ func (h *MeasurementHandler) DeleteMetric(w http.ResponseWriter, r *http.Request
 }
 
 // Trend handles GET /api/v1/metrics/{name}/trend — one metric's series plus summary,
-// optionally windowed by ?from=&to=. A 404 when the metric is undefined.
+// optionally windowed by ?since=&until=. A 404 when the metric is undefined.
 func (h *MeasurementHandler) Trend(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
-	q := r.URL.Query()
-	trend, err := h.repo.Trend(r.Context(), name, models.MeasurementFilter{From: q.Get("from"), To: q.Get("to")})
+	first, last, err := readWindow(r.URL.Query())
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+	trend, err := h.repo.Trend(r.Context(), name, models.MeasurementFilter{From: first, To: last})
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			writeNotFound(w, fmt.Sprintf("metric %q not found", name))
@@ -121,13 +125,18 @@ func (h *MeasurementHandler) Trend(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, trend)
 }
 
-// List handles GET /api/v1/measurements with optional ?metric=&from=&to=.
+// List handles GET /api/v1/measurements with optional ?metric=&since=&until=.
 func (h *MeasurementHandler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	first, last, err := readWindow(q)
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
 	measurements, err := h.repo.ListMeasurements(r.Context(), models.MeasurementFilter{
 		Metric: q.Get("metric"),
-		From:   q.Get("from"),
-		To:     q.Get("to"),
+		From:   first,
+		To:     last,
 	})
 	if err != nil {
 		if errors.Is(err, repository.ErrInvalid) {

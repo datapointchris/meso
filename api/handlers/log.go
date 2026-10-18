@@ -19,12 +19,17 @@ func NewLogHandler(repo *repository.LogRepo) *LogHandler {
 	return &LogHandler{repo: repo}
 }
 
-// List handles GET /api/v1/log with optional ?from=&to=&tag=.
+// List handles GET /api/v1/log with optional ?since=&until=&tag=.
 func (h *LogHandler) List(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	first, last, err := readWindow(q)
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
 	entries, err := h.repo.List(r.Context(), models.FitnessLogEntryFilter{
-		From: q.Get("from"),
-		To:   q.Get("to"),
+		From: first,
+		To:   last,
 		Tag:  q.Get("tag"),
 	})
 	if err != nil {
