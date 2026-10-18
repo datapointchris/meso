@@ -49,12 +49,12 @@ type Verifier struct {
 	now            func() time.Time
 }
 
-// userAgent identifies this API to the issuer. Cloudflare fronts the issuer's public hostname and
-// answers 403 to an unidentified client — measured 2026-08-14, where Python's urllib default was
-// refused and a named agent served. Go's default is equally anonymous and equally at the mercy of
-// a bot rule. Reaching the provider by an internal address instead would tie token verification to
-// one network layout.
-const userAgent = "meso-api (+https://meso.ichrisbirch.com)"
+// userAgent identifies this API to the issuer. A bot rule at a CDN in front of an issuer can
+// answer 403 to an unidentified client while serving a named agent, and Go's default agent is
+// anonymous. Reaching the provider by an internal address instead would tie token verification
+// to one network layout. The URL names the project, so whoever runs the issuer can see what is
+// calling it.
+const userAgent = "meso-api (+https://github.com/datapointchris/meso)"
 
 // namedAgent sets the User-Agent on every request the OIDC client makes, including the JWKS
 // refreshes go-oidc performs long after startup.
@@ -77,7 +77,7 @@ type discoveryDocument struct {
 
 // NewVerifier resolves the issuer's JWKS endpoint from its discovery document.
 // clientIDPrefix is the per-app half of the CLI client naming
-// (`meso-cli-` matching `meso-cli-macmini`), and is what keeps a token minted
+// (`meso-cli-` matching `meso-cli-laptop`), and is what keeps a token minted
 // for another product from being accepted here: Authelia does not populate the
 // audience claim through the device authorization grant, so `aud` is empty and
 // cannot carry that isolation.

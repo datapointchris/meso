@@ -173,7 +173,7 @@ func TestRequireAuth_AcceptsAutheliaHeader(t *testing.T) {
 }
 
 func TestRequireAuth_AcceptsVerifiedBearerAndExposesIdentity(t *testing.T) {
-	want := auth.Identity{Subject: "user-uuid", ClientID: "meso-cli-macmini"}
+	want := auth.Identity{Subject: "user-uuid", ClientID: "meso-cli-laptop"}
 	var got auth.Identity
 	var ok bool
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -281,7 +281,7 @@ func TestRequireAuth_RejectsWrongServiceToken(t *testing.T) {
 // opaque bearer credential is simply rejected.
 func TestRequireAuth_RejectsOpaqueBearerWhenNoServiceTokenConfigured(t *testing.T) {
 	handler, called := next()
-	verifier := &fakeVerifier{identity: auth.Identity{Subject: "user-uuid", ClientID: "meso-cli-macmini"}}
+	verifier := &fakeVerifier{identity: auth.Identity{Subject: "user-uuid", ClientID: "meso-cli-laptop"}}
 	mw := middlewareWithServiceToken(verifier, "", handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/movements", nil)

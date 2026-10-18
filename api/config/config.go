@@ -8,7 +8,7 @@ type Config struct {
 	Env         string
 	// OIDCIssuer is the identity provider whose JWKS signs the CLI's access
 	// tokens. CLIClientIDPrefix is the per-product half of the client naming
-	// (`meso-cli-macmini`), and is what stops another product's token being
+	// (`meso-cli-laptop`), and is what stops another product's token being
 	// accepted here.
 	OIDCIssuer        string
 	CLIClientIDPrefix string

@@ -84,7 +84,7 @@ func (i *testIDP) validClaims() map[string]any {
 	return map[string]any{
 		"iss":       i.server.URL,
 		"sub":       "user-uuid",
-		"client_id": "meso-cli-macmini",
+		"client_id": "meso-cli-laptop",
 		"iat":       time.Now().Add(-time.Minute).Unix(),
 		"exp":       time.Now().Add(time.Hour).Unix(),
 	}
@@ -110,7 +110,7 @@ func TestVerify_AcceptsValidAccessToken(t *testing.T) {
 	if identity.Subject != "user-uuid" {
 		t.Fatalf("Subject = %q", identity.Subject)
 	}
-	if identity.ClientID != "meso-cli-macmini" {
+	if identity.ClientID != "meso-cli-laptop" {
 		t.Fatalf("ClientID = %q", identity.ClientID)
 	}
 }
@@ -138,7 +138,7 @@ func TestVerify_RejectsIDToken(t *testing.T) {
 	v := newTestVerifier(t, idp)
 
 	claims := idp.validClaims()
-	claims["aud"] = []string{"meso-cli-macmini"}
+	claims["aud"] = []string{"meso-cli-laptop"}
 
 	_, err := v.Verify(context.Background(), idp.sign(t, "JWT", claims, nil))
 	if !errors.Is(err, ErrUnauthorized) {
@@ -194,7 +194,7 @@ func TestVerify_RejectsAnotherProductsClient(t *testing.T) {
 	v := newTestVerifier(t, idp)
 
 	claims := idp.validClaims()
-	claims["client_id"] = "nomad-cli-macmini"
+	claims["client_id"] = "other-cli-laptop"
 
 	_, err := v.Verify(context.Background(), idp.sign(t, "at+jwt", claims, nil))
 	if !errors.Is(err, ErrUnauthorized) {
