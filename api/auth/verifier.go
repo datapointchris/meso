@@ -92,7 +92,9 @@ func (n namedAgent) RoundTrip(req *http.Request) (*http.Response, error) {
 	return n.base.RoundTrip(req)
 }
 
-func identifiedClient() *http.Client {
+// IdentifiedClient reaches the issuer under userAgent, with a deadline. Every
+// request this API makes to the issuer goes through one.
+func IdentifiedClient() *http.Client {
 	return &http.Client{Timeout: discoveryTimeout, Transport: namedAgent{base: http.DefaultTransport}}
 }
 
@@ -124,7 +126,7 @@ func NewVerifier(ctx context.Context, issuer, clientIDPrefix string) (*Verifier,
 	return &Verifier{
 		issuer:         issuer,
 		clientIDPrefix: clientIDPrefix,
-		keySet:         &expiringKeySet{ctx: oidc.ClientContext(ctx, identifiedClient()), uri: doc.JWKSURI},
+		keySet:         &expiringKeySet{ctx: oidc.ClientContext(ctx, IdentifiedClient()), uri: doc.JWKSURI},
 		now:            time.Now,
 	}, nil
 }
@@ -138,7 +140,7 @@ func fetchDiscovery(ctx context.Context, issuer string) (discoveryDocument, erro
 	if err != nil {
 		return discoveryDocument{}, err
 	}
-	resp, err := identifiedClient().Do(req)
+	resp, err := IdentifiedClient().Do(req)
 	if err != nil {
 		return discoveryDocument{}, fmt.Errorf("auth: reach %s: %w", url, err)
 	}

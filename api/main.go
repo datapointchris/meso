@@ -134,6 +134,7 @@ func browserSessions(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool
 		RedirectURL:  strings.TrimSuffix(cfg.PublicURL, "/") + middleware.CallbackPath,
 		Scopes:       []string{"openid", "profile", "groups"},
 		Store:        store,
+		HTTPClient:   auth.IdentifiedClient(),
 		Logger:       slog.Default(),
 	})
 }
