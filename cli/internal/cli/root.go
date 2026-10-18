@@ -41,8 +41,8 @@ func NewRootCommand() *cobra.Command {
 			"performed, and the measurements and journal alongside.\n" +
 			"\n" +
 			"The noun comes first and the verb last, so moving from reading to acting\n" +
-			"changes only the final word: `meso workouts list` becomes\n" +
-			"`meso workouts edit`. Every top-level noun is a training noun — anything\n" +
+			"changes only the verb: `meso workouts show 3` becomes\n" +
+			"`meso workouts update 3`. Every top-level noun is a training noun — anything\n" +
 			"about the app rather than the training lives under `meso admin`. Every\n" +
 			"list and show takes --json.\n" +
 			"\n" +
