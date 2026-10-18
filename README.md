@@ -444,8 +444,9 @@ real API write path. The rule: an entity with a CLI verb is imported, never seed
 
 This is an iOS-in-the-gym app, and mobile-first is the whole point rather than a later pass. The
 SPA is Vue 3 and TypeScript on Vite, with `<script setup>` components, Vue Router and SCSS. It has
-no login page. A 401 from the API sends the browser to the API's login route, which logs it in
-through the identity provider and brings it back to the page it was on.
+no login page. A read the API answers with 401 sends the browser to the API's login route, which
+logs it in through the identity provider and brings it back to the page it was on. A write it
+answers with 401 fails instead and says the change was not saved, so nothing is lost silently.
 
 - The minimum interactive target is 44px, the `--touch-target` design variable. The logging screen
   works one-handed without zoom.
