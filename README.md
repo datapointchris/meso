@@ -466,8 +466,8 @@ edge.
 - **The movement picker and the date field are in-app components.** A native `<select>` or
   `<input type="date">` hands off to an OS picker whose density is fixed and small. Either costs
   several interactions where one would do. The movement picker is a search box over tap targets,
-  used by the workout builder and the logging screen. The edit modals and the cycle screens still
-  use a native `<select>` for their shorter lists.
+  used by the workout builder and the logging screen. The edit modals, the cycle screens and the
+  movement page's relationship form still use a native `<select>`.
 - A feedback button sits on every screen. It records the route and the viewport it was raised at.
 - The theme is a CSS-variable switch on `data-theme`, dark or light.
 
