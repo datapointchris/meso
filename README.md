@@ -1,414 +1,658 @@
 # meso
 
-A standalone, personal, mobile-first training app: a library of movements that compile into workouts, workouts that sequence into goal-directed **cycles** (mesocycles), sessions logged against them, tracked stats, and a journal — all drivable by Claude through a first-class `meso` CLI (no MCP) so progress can be reviewed and the next cycle drafted collaboratively.
+meso is a self-hosted, single-user, mobile-first training app. A library of movements composes into
+workouts, and workouts sequence into goal-directed cycles. Sessions record each workout as it was
+actually performed. Measurements track the numbers that show progress. A journal holds the rest.
 
-Self-hosted, single-user, no external users. Defined as much by what it leaves out — no videos, gamification, social feed, or motivation bloat — as by what it does.
+The boundary is the reasoning. meso stores the training record and serves it. Drafting the next
+cycle happens outside it, in a conversation with Claude. Claude reads `meso review --json` and
+writes the cycle back with ordinary CLI commands. There is no server-side AI and no MCP server. The
+`meso` CLI is the agent's surface.
 
-**Status:** live in production at `https://meso.ichrisbirch.com`, complete across every entity below. This file is the spec — read it before adding an entity or endpoint. Architecture and conventions are in [`CLAUDE.md`](CLAUDE.md).
+The name is the thesis. A *mesocycle* is the unit of training planning: a multi-week block aimed at
+a target. The value is that planning, unified across strength, running, mobility and dance. The
+block entity is named `Cycle`.
 
-The name is the thesis. A _mesocycle_ is the unit of training planning — a multi-week block aimed at a target. The app's value is that planning intelligence, unified across strength, running, mobility, and dance, not tracking-for-tracking's-sake. The block entity is named **Cycle** in the model.
+meso depends on no other product. It has its own database, its own web app and its own CLI. Three
+subsystems share the repo: the Go API in `api/`, the Go CLI in `cli/`, and the Vue SPA in `web/`.
+Their layering and contributor conventions are in [CLAUDE.md](CLAUDE.md).
 
-> **Why standalone, and modeled on nomad.** meso is a **product front door**: its own data store, its own web surface, and its own `meso` CLI — a clean-break app that does not depend on ichrisbirch. It follows the **nomad** product model wholesale (Go API + Go CLI + Vue, Authelia auth at the edge, registry-pull deploy), because nomad is the reference build for exactly this shape and copying its proven stack — including the fiddly CLI auth flow — beats reinventing it.
+## Install
 
-<!-- -->
-
-> **No MCP — ever.** The entire ecosystem is retiring MCP in favor of CLI front doors. meso is built CLI-first from day one and never ships an MCP server. The `meso` CLI is the agent surface: Claude drives it via Bash.
-
-<!-- -->
-
-> **Name note (settled 2026-07-22).** "meso" is the right _internal/personal_ name — accurate and spare. It is a poor _commercial_ brand: "mesocycle" is an industry term so the mark is descriptive/weak, and the fitness space already has several active "Meso"-named apps built on the same periodization thesis (meso.fitness, joinmeso.com, MesoBuilder, MesoTrack, Mesostrength) plus registered marks (MESO FIT / MESO METHOD, Class 41). None of that reaches a private, self-hosted, single-user tool. If commercial optionality is ever wanted, a distinct product/brand name would be chosen then while `meso` stays the codebase identity.
-
-## Motivation
-
-meso replaces the loose markdown collection in `~/shart/fitness/` (transcribed workouts + three research-backed plans). That directory works as storage but not as a system. It can't answer "what do I do today," can't track that I did it, can't show a lift going up over three months, and can't be swapped/rotated without hand-editing files. The three Claude-authored plans (`shoulder-plan.md`, `lower-body-plan.md`, `dance-conditioning.md`) are genuinely researched and targeted, but they each define their own conflicting week and there's no way to reconcile them into one rotation without a real model underneath.
-
-Two things make this worth building as an app rather than better markdown:
-
-1. **Template vs. instance.** A workout is a plan; doing it on a Tuesday is an event with actual weights, checkboxes, and how it felt. Markdown collapses those. The whole point of tracking is the instance data.
-2. **AI-assisted cycle drafting.** The differentiator. Because sessions, stats, and the journal are all reachable through the `meso` CLI, Claude can read the actual history — what got done, what stalled, how I felt — and help write the _next_ cycle instead of me guessing. The capstone is a `meso review` read plus ordinary writes (below), not a server-side AI feature.
-
-## Design philosophy — defined by what it leaves out
-
-This app is defined by its exclusions. The value isn't more features; it's the absence of the bloat every commercial fitness app accretes. Stated up front so every future feature gets measured against it.
-
-**What it is**: a digital tool for writing down exercises and making planned, informed training plans — the programming intelligence a bodybuilder applies to a mesocycle, or (especially) a 5k coach applies to a periodized race build, but unified across strength, running, yoga, stretching, and dance, with **multiple concurrent goals** running at once. The intelligence is in the _planning_ — structured cycles toward real targets — not in tracking-for-tracking's-sake.
-
-**What it is NOT** (hard exclusions — the anti-features list, reinforced by the competitive research below):
-
-- No instructional videos, GIFs, or animations. Text how-to and form cues only (see Movement).
-- No motivational content, quotes, coaching voice, or "you got this" copy.
-- No gamification: no streaks, badges, points, levels, confetti, or achievement popups.
-- No social feed, sharing, followers, or leaderboards.
-- No calorie/macro/nutrition tracking creep.
-- No ads, no upsell, no paywalled basics, no "AI coach" gimmickry (the AI here is a real reasoning surface over real data via the CLI, not a mascot).
-- No forced onboarding, no notifications-by-default, no engagement mechanics.
-- No rest timer and no plate calculator, despite the market rewarding both — see WorkoutSession.
-
-The single-user, self-hosted, no-external-users nature is what makes this discipline free: there's no growth metric pushing bloat in. When in doubt about a feature, the default is **leave it out**.
-
-**Multiple concurrent goals** is a first-class concept, not an afterthought: strength, a slow 5k build, mobility/flexibility, and dance conditioning progress in parallel, each with its own cycle and target metric, sharing one movement library and one weekly reality. The app's job is to hold several goals at once without making me pick one.
-
-## Competitive landscape — where the wedge is
-
-Research across strength loggers (Strong, Hevy, FitNotes, Jefit, Boostcamp), running planners (Couch-to-5k, Runna, TrainingPeaks, Garmin Coach, Nike Run Club), yoga/mobility (Down Dog, Yoga Studio, Alo Moves), and hybrids (Fitbod, Strava, Centr) surfaced one consistent gap that this build aims straight at. The mesocycle-programming niche specifically is now crowded (meso.fitness, MesoBuilder, MesoTrack, Mesostrength) — but every one of those is single-modality strength and closed/commercial; the unification + self-hosted + text-first + CLI-review combination remains the wedge.
-
-**No incumbent unifies strength + endurance + mobility, and every one assumes a single active plan.** Serious hybrid athletes stitch two specialist apps together (Strava + Hevy, Runna + Strong) and become "the integration layer" themselves — "running apps don't know you lifted heavy yesterday." Modeling **multiple concurrent goals on one recovery-aware calendar** is the differentiator no one fills, which confirms the thesis above rather than contradicting it.
-
-**Text-first movement libraries are underserved.** The best reference content (ExRx, Muscle & Strength, StrengthLog) is text — numbered steps, a discrete fault→fix mistakes list, honest primary/secondary muscle tagging — but most apps bury it in video. The stated need here (reconstruct a movement from writing, no video) is exactly the underserved slot.
-
-**What users consistently reward** (folded into the entities below): fastest-possible set logging with the previous session's numbers shown inline; a plate calculator; a rest timer that actually notifies and survives app-switching; PR/estimated-1RM and volume trends never paywalled; race-anchored periodization with a taper; **effort/HR-based intensity targets, not pace-only** (the universal "easy runs aren't easy" complaint); **adaptive rescheduling that slides the calendar** on a missed day instead of marking it failed; a "repeat this week until ready" safety valve; **legible cycles that explain why next week is what it is**; exercise substitution that **carries the weight/rep target to the swap**; and CSV export / offline operation (repeatedly named dealbreakers when absent).
-
-**What users uninstall for** — this validates and extends the exclusions list above: social feeds, gamified streaks/badges, video dependency, chatty motivational voiceovers ("nails on a chalkboard"), opaque "AI coach" black boxes, paywalled basics, forced onboarding, calorie/macro creep, and choice-overload class libraries that answer "watch what?" instead of "do what today?" The through-line: the market's failure and user resentment live almost entirely in the excluded list, which is why "defined by what it leaves out" is the right organizing principle.
-
-## Stack — the nomad product model
-
-meso copies nomad's stack top to bottom. See `~/webapps/nomad/CLAUDE.md` for the reference build; this section states meso's version of it.
-
-- **Frontend**: Vue 3 + TypeScript (Vite), Composition API (`<script setup>`), Vue Router SPA. Reuses the ichrisbirch **frontend** patterns that are language-agnostic to the backend — the SCSS/CSS-variable design system (so the design-style switcher stays feasible), theme composable, and the stats-kit components — since those are Vue, not Python. **Mobile-first is a hard requirement here** (see below). Web login is Authelia cookie SSO — no bespoke login page.
-- **Backend API**: **Go** — single binary, multi-stage Alpine image. `pgx/v5` for Postgres; **goose** SQL migrations (DDL-only, run at startup); `net/http` ServeMux with method routing (`GET /api/v1/movements`); `slog` JSON logs to stdout. Handlers self-provision Postgres via **testcontainers** for integration tests. Internal service token for any service→service call; Authelia gates external traffic at the Traefik edge (no Authelia headers reach the API for `client_credentials` flows).
-- **CLI**: **Go / cobra**, copied from nomad's `cli/` (`main.go` → `cli.Execute()`, `internal/cli` command tree, `internal/config`; login and the keychain token store are the shared [goclilogin](https://github.com/datapointchris/goclilogin) module). A **thin REST client** over the meso API, noun-first grammar (`meso movements list`), `--json` / exit-codes (0 ok, 1 runtime, 2 usage) / TTY-detection per the CLI ergonomics reference. **This is the agent + power-user surface — there is no MCP.**
-- **Database**: PostgreSQL. `Text` columns only (never `varchar(n)`). Categorical fields use lookup tables with `Text PRIMARY KEY` + FK, never enums. UUID7 (`google/uuid` NewV7) for user-generated rows, Postgres `GENERATED` identity for catalog rows.
-- **Deployment**: registry-pull, two images (web + api, **no mcp**) to `ghcr.io`, `workflow_run` webhook → its own homelab host. Details under **Deployment**.
-
-Frontend container follows nomad: a Caddy image serving the built SPA with fallback and reverse-proxying `/api/*` → the Go API.
-
-### Auth — Authelia cookie at the edge, Authelia JWT verified in the API
-
-Identical model to nomad, whose `CLAUDE.md` describes it.
-
-- **Web**: Authelia **cookie SSO** at the Traefik edge. The browser redirects to `auth.ichrisbirch.com`, logs in once, and gets a session cookie. The Vue SPA stays on cookie auth; there is no app-issued JWT and no login page in meso itself.
-- **CLI**: `meso auth login` runs the OAuth 2.0 **device authorization grant** (RFC 8628) against Authelia as a **public client**, scopes `openid` + `profile` + `offline_access`. The CLI prints a code and a URL; approval happens in any browser on any device, which is what makes login work over SSH — a loopback redirect needs a browser that can reach a listener on the machine being logged into. The resulting access token is an **RFC 9068 JWT** (`typ=at+jwt`, RS256) that the API **verifies itself** against Authelia's JWKS. The token is kept in the **OS keychain**, or in a file only this user can read on a host with no keychain. `meso auth status` says which. Clients are registered **per (machine × app)** — `meso-cli-<host>` by default — so revocation is two-axis (machine, app). `meso auth` provides `login / logout / status --json / token` (the last for `curl -H "Authorization: Bearer $(meso auth token)"`).
-
-  **Where the CLI is pointed is one file**, `~/.config/meso/config.toml`, holding `api`, `issuer` and `client_id`. Every command reads it, `--api` is the only thing that outranks it, and there is no environment variable and no compiled-in address. `meso auth login <url>` fills in only what the file lacks: `api` from the URL, `issuer` from the API's RFC 9728 metadata at `<url>/.well-known/oauth-protected-resource`, and `client_id` from `--client-id` or `meso-cli-<short hostname>`. It prints each value and where it came from before the login starts, and writes the file once the login succeeds. `meso auth status` prints all three and the file's path. The file and its rules are [goclilogin's](https://github.com/datapointchris/goclilogin).
-- **API**: `api/auth` checks, in order, that the header is `typ=at+jwt`, that the signature verifies against the issuer's JWKS, that `iss` matches, that `sub` is non-empty, that `client_id` starts with `meso-cli-`, and that `exp` is in the future. Every failure returns one opaque error, so a probe cannot learn which check it failed. `client_id` — not `aud` — is what isolates meso from its sibling products: Authelia does not carry the audience through the device grant, so the `aud` claim comes back empty and cannot be relied on. `authelia.bearer.authz` is absent from the scopes for the same reason the grant changed — Authelia forbids the device grant alongside it.
-
-The `authelia.bearer.authz` + PAR + loopback + `form_post` flow this replaced is gone, along with the edge-by-audience authorization it depended on.
-
-## Domain Model
-
-Eight entities. The first three are the library and its compositions; the rest are the tracked reality.
+The CLI ships as a release archive for linux and darwin, on amd64 and arm64.
 
 ```bash
-Movement ──< WorkoutMovement >── Workout ──< CycleWorkout >── Cycle
-   │                                 │                          │
-   │ (self-ref: alternate/           │                          │ targets
-   │  antagonist/progression)        ▼                          ▼
-   │                            WorkoutSession ──< SessionMovement >── SessionSet
-   │                            (a workout done on a date)      (what was performed)
-   │
-Measurement (time series: lift numbers, 5k time, toe reach, weight, ROM, ...)
-FitnessLogEntry (dated journal, reviewed with Claude)
+gh release download --repo datapointchris/meso --pattern 'meso_*_linux_amd64.tar.gz'
+tar -xzf meso_*_linux_amd64.tar.gz meso   # the archive holds the one binary
+install -m 755 meso ~/.local/bin/meso
+meso update                               # every later release, verified against its checksums
+
+task cli:install                          # or a dev build from a checkout, into ~/.local/bin
 ```
 
-### 1. Movement — exercises, stretches, and yoga poses, unified
+A dev build reports its `git describe` version and refuses `meso update`. Only a release replaces
+itself. `go install github.com/datapointchris/meso/cli@latest` builds a binary named `cli` with
+the same refusal, so install from a release.
 
-Exercises, stretches, and yoga poses are "the same concept." That's the design: **one `Movement` entity with a `movement_kind` lookup** (`exercise` | `stretch` | `yoga_pose`), not three near-identical tables. Kind-specific fields are nullable and used as appropriate (a pose has a Sanskrit name and a hold; a lift has a default rep scheme). This keeps favorites, tags, search, and relationships uniform across all three — you can build a workout mixing a squat, a couch stretch, and pigeon pose without crossing entity boundaries.
+The server is an API image and a web image, `ghcr.io/datapointchris/meso-api` and
+`ghcr.io/datapointchris/meso-web`. `docker-compose.yml` runs them beside Postgres. Running it for
+real is under Deployment, below.
 
-- `name`, `movement_kind` (FK lookup), `favorite` (bool), `rating` (1–5, nullable)
-- `tags: Text[]` — the "good for" dimension (mobility, posterior-chain, desk-counter, anti-rotation, ...)
-- muscles are **lookup-backed** (not free tags): a `muscles(name PK, region)` lookup + a `movement_muscles(movement_id, muscle, role)` join where role ∈ `primary` | `secondary` — honest primary/secondary tagging (the ExRx distinction). This drives substitution (an alternate must share a primary muscle) and region filtering ("show me posterior-chain movements", via `muscle.region`) and leaves the door open to a body-map UI. Per the project-wide lookup-tables-for-categoricals rule.
-- `equipment: Text[]` — barbell, dumbbell, mat, none
-- `how_to: Text` (markdown) — how to perform it, step by step; for a sequence I like, the sequence written out
-- `form_cues: Text` (markdown) — what to watch for to maintain good form
-- `common_faults: Text` (markdown) — common failures / mistakes with this movement
-- kind-specific nullable fields: `default_sets`, `default_reps`, `default_hold_seconds`, `sanskrit_name`
-- `measurable_rom` (bool) — flags movements whose ROM is worth logging as a Measurement (e.g. knee-to-wall)
-- `source_url`, `source_name` — where it came from (a plan, a video)
-- `created_at`, `updated_at`
+## Starting from scratch
 
-**The how-to fields are text, deliberately — no videos.** The need is "I forget exactly what a prisoner squat is, how to do it, what to watch for, and what commonly goes wrong." So a movement carries a written how-to, form cues, and common faults — enough to reconstruct the movement or explain a sequence I've built, nothing more. No instructional video, no GIF, no motivational framing (per the design philosophy). A prisoner-squat entry reads: _how-to_ — hands laced behind the head, elbows wide, squat to depth keeping the chest up; _form cues_ — elbows stay back, knees track over toes, weight mid-foot; _common faults_ — elbows collapse forward, chest drops, heels lift. That's the whole ambition of the field.
-
-**Author them as markdown, not as one run-on paragraph.** These are read on a phone, mid-set, and a how-to that packs execution, tempo, and progression into a single block reads as a wall no amount of typography can rescue. The seam is almost always the same: what to do, then why it works or how it differs from the movement next to it — two paragraphs. Where the prose enumerates a protocol (contract / relax / take up slack; a balance progression), make it a list.
-
-### 2. Movement relationships — alternates, antagonists (self-ref)
-
-Alternates and antagonist exercises are wanted. Modeled as a directional self-referential join, `movement_relationships(movement_id, related_movement_id, relationship_kind)` where kind ∈ `alternate` | `antagonist` | `progression` | `regression` | `see_also`. (Here `progression`/`regression` are the standard strength terms for a harder/easier _variant_ of a movement — unrelated to the `Cycle` entity.)
-
-The test for whether a relationship deserves a table (vs. being prose) is whether there's a genuine query behind it. Here there is: **swapping a movement for an alternate while building or rotating a workout is a concrete UI action** ("give me an alternate for barbell row that I have equipment for"). That query justifies the structure. Antagonist/progression/regression ride the same table for free.
-
-### 3. Workout — an ordered, themed composition of movements
-
-A workout IS its ordered list of prescribed movements. This join is **payload-bearing and query-driven** (you render the workout from it), so the M2M-with-payload is correct here, not over-engineering.
-
-- `Workout`: `name`, `theme: Text` (nullable — "push", "lower + shoulder rehab"), `tags: Text[]`, `notes: Text` (markdown), `favorite`, `estimated_minutes`, `created_at`, `updated_at`
-- `WorkoutMovement` (ordered join): `workout_id`, `movement_id`, `position: Integer`, `sets`, `reps: Text` ("4–6", "AMRAP", "30s"), `load: Text` ("80% 1RM", "2 plates", "bodyweight"), `rest_seconds`, `superset_group: Text` (nullable), `notes: Text`
-  - Surrogate id plus a `DEFERRABLE UNIQUE(workout_id, position)`, so a reorder can swap positions inside one transaction without tripping the constraint.
-
-### 4. WorkoutSession — a workout performed on a date (the instance)
-
-The record of what was actually done, kept distinct from the template so history is real data.
-
-- `WorkoutSession`: `id` (UUID7 for user-created rows), `workout_id: FK` (nullable — allows a free-form session), `performed_on: Date`, `duration_minutes`, `overall_notes: Text` (markdown), `felt: Text` (nullable energy/mood tag), `created_at`, `finished_at` (nullable)
-- `SessionMovement` (the plan, for this session): `session_id`, `movement_id`, `position`, `done: bool`, `target_sets`, `target_reps: Text`, `target_load: Text`, `notes: Text`
-- `SessionSet` (what was performed, one row per set): `session_movement_id`, `position`, `reps: Integer`, `load: Text`, `hold_seconds`, `set_kind` (lookup: `working` | `warmup` | `amrap` | `drop` | `failure`), `notes`, `logged_at`
-
-**The plan and the performance are different columns, and that is the point.** They used to be the same ones: `actual_*` was seeded from the prescription when a session started, then overwritten as it was performed, so the plan was unrecoverable the moment anything diverged — and divergence itself could only be expressed as an unchecked box. Training that went differently than programmed read as training that failed. Now `target_*` is copied from the workout and left alone, and the sets are the record. Doing four sets of a programmed three is a fact rather than an overwrite.
-
-Because a set carries its own `set_kind` and `hold_seconds`, its `reps` can be a plain `Integer`: "AMRAP" is a kind and a 30-second hold is a hold. `load` stays free `Text`, matching the prescription it is measured against.
-
-**Logging a set costs one tap.** `POST .../sets` with an empty body repeats the previous set — same reps, same load — falling back to the target for the first one, so only a set that differs needs describing. `done` ticks itself at the moment the logged sets reach the target; it stays writable, so stopping short on purpose survives the sets that follow.
-
-**A session with no template is the unplanned-training path, and it is where new workouts come from.** Not everything is programmed in advance; requiring a workout to exist before anything can be recorded means either authoring a template mid-gym or not logging at all. So a session can start empty, gain movements as they happen, and then be **promoted** into a `Workout` — as many sets as were performed, the reps most of them shared, and the load finished on become the prescription, and the session is back-linked to the workout it produced so it reads as that template's first instance. Only a free-form session can be promoted; one already backed by a template would silently fork it, which is an edit of that workout rather than a new one.
-
-**Movements can be added to and removed from any session, template-backed or not.** Doing something the plan did not call for, or skipping something it did, is part of what happened; the record has to be able to say so. Editing the workout instead would rewrite the plan of every session ever run from it.
-
-**`finished_at` is what separates training happening now from history.** It fills in `duration_minutes` from when the session started, so the duration is never typed, and it is what lets the app offer to resume. Finishing means "I am done training", not "I completed the plan" — nothing compares it to the targets, and a session finished two movements in is a finished session.
-
-Session detail embeds each entry's `previous` — the last set of the most recent performed entry for that movement, strictly before this session. It qualifies only if that entry is done **and** has sets under it: ticked with nothing logged is not a number to beat. Detail-only (the list endpoint leaves it null), resolved in one `DISTINCT ON` query for the whole session.
-
-When a movement is swapped for an alternate mid-session, its target and its already-logged sets **carry over** to the substitute. This is the `ActiveSessionView` — the single most-used, most mobile-critical screen.
-
-Two features the landscape rewards are **deliberately excluded**: the rest timer (not wanted) and the plate calculator. The plate calculator is also structurally wrong for this library — barbell lifts are a small minority of the movements, and `load` is free `Text` by design (`"80% 1RM"`, `"2 plates"`, `"bodyweight"`), so there is no number to calculate from without parsing prose.
-
-### 5. Cycle (mesocycle) — an ordered sequence of workouts toward a goal
-
-The research-backed plans (12-week run return, the shoulder rehab arc) ARE cycles: workouts that flow over weeks toward a target. Named `Cycle` — echoing the app name and lifting vernacular; it names the table, routes, and CLI commands.
-
-- `Cycle`: `name`, `goal_summary: Text`, `target_metric: Text` (nullable FK → a Measurement metric, e.g. "deadlift working weight"), `target_value`, `target_date: Date` (nullable — for race-anchored builds), `start_date`, `status: Text` (lookup: `planned` | `active` | `paused` | `completed`), `notes: Text`
-- `CycleWorkout` (ordered join): `cycle_id`, `workout_id`, `position`, `week: Integer` (nullable), `phase: Text` (nullable — "base", "build", "taper"), `frequency: Text` ("2×/week"), `intensity: Text` (nullable — effort/HR target, not pace-only: "easy / Zone 2", per the "easy runs aren't easy" finding), `conditions: Text` (nullable — "when knee-to-wall symmetric, advance")
-
-On read, each `CycleWorkout` also carries `last_performed_on`: the newest day a session of that workout had a movement done, or null. It is derived from sessions and never stored. A session started from the workout and abandoned with nothing done does not count.
-
-Changing a cycle's `target_metric` clears any stale `target_value`, so a target never outlives the metric it was measured against.
-
-Three behaviors from the research make a cycle humane rather than a straightjacket — the top structural complaint about running apps:
-
-- **Sliding reschedule, never "failed."** A missed session slides the calendar forward; it is never marked as a red failure. Cycles advance by readiness, not by wall-clock weekday.
-- **"Repeat this week until ready"** — Couch-to-5k's most-loved safety valve. A week can be held/repeated (gated by its `conditions`) before advancing.
-- **Legible, not opaque.** The cycle explains _why_ the next block is what it is (from `phase` + `conditions` + the target), the opposite of the black-box adaptive plans people distrust. This is also what makes the AI-drafting capstone reviewable rather than magic.
-
-### 6. Measurement — the tracked stats time series
-
-Lift numbers, 5k time, toe reach, bodyweight, BMI, ROM — "all of those I can track ... that show progress." A metric definition + a value time series.
-
-- `metric_definitions` (lookup + metadata): `name: Text PK` ("deadlift-working-weight", "5k-time", "knee-to-wall-left"), `label: Text` (the display string — "Deadlift Working Weight"; defaults to the name title-cased), `unit: Text` ("lb", "seconds", "cm"), `direction: Text` (`higher_better` | `lower_better`), `category: Text` (strength | cardio | mobility | body), `how_to_measure: Text` (markdown — the protocol that produces the number)
-
-  **A metric carries its own protocol.** The unit/direction/category are what a chart needs; none of them says what the thing _is_. "Heel Raise Capacity Right" names a number without naming how to get one, and it deliberately does not match any movement in the library, so there is nowhere else to look it up. A series is only a series if every reading was taken the same way — an undocumented metric silently degrades into readings that aren't comparable. One field, not a description plus a how-to: for every metric in the vocabulary those are the same sentence.
-
-- `measurements` (time series): `id`, `metric: FK → metric_definitions.name`, `value: Numeric`, `measured_on: Date`, `source: Text` (`manual` | `session` — some derive from logged sessions later), `notes: Text`
-
-The `name` is the slug-shaped natural key the API, CLI, and cycle targets all address a metric by, which makes it permanent and a poor thing to show a human. `label` is edited independently so the app never displays a raw key; renaming a metric is delete + redefine.
-
-Feeds a stats page via the ported stats kit. The stats payload carries **every defined metric**, measured or not — an unmeasured one comes back with no points and renders as an empty card, so the page shows what can be tracked rather than only what already has history.
-
-### 7. FitnessLogEntry — the journal
-
-"A fitness log ... in addition to the comments on a particular workout ... write into the log and keep it for my journey" — the substrate Claude reviews.
-
-- `FitnessLogEntry`: `id` (UUID7), `entry_date: Date`, `body: Text` (markdown), `tags: Text[]`, `mood: Text` (nullable), `created_at`, `updated_at`
-
-### 8. Feedback — captured papercuts and ideas about the app itself
-
-The one entity here that is not training data. A button on every screen captures a thought mid-session — at the gym, one-handed — so it survives the moment it was had. Triage happens in the CLI, under the `admin` namespace.
-
-- `Feedback`: `id` (UUID7), `status: Text` (`open` | `done`), `body: Text`, `context_path: Text` (the in-app route it was raised from), `viewport_width`/`viewport_height: Int?` (the window it was seen at, null for a CLI capture), `created_at`, `updated_at`
-
-**meso owns this outright and forwards it nowhere.** No row here refers to another system, and no other system needs to be reachable for a capture to succeed. Whoever wants this data comes and reads it (`meso admin feedback list --json`) — the dependency points inward, at meso, never sideways from meso at something else. That is what keeps the app standalone: it can be copied into another product, or run by someone with no ichrisbirch at all, unchanged.
-
-There is deliberately **no kind/category** (bug vs. idea vs. improvement). It costs a tap at capture time and changes nothing at read time — the body says what it is, and the response is the same either way. The app's exclusion list applies to its own internals.
-
-## Settled decisions
-
-- **Full nomad product model** — Go API + Go CLI + Vue, Authelia auth (web cookie at the edge / CLI device grant verified in the API), registry-pull deploy. Copy the reference build rather than reinvent; consolidates the product tier (learning, nomad, meso) on Go.
-- **No MCP** — the `meso` CLI is the sole programmatic/agent surface, in line with the ecosystem-wide MCP retirement.
-- **Block entity named `Cycle`** (not Progression / Mesocycle).
-- **One `Movement` entity, not three** — exercises/stretches/poses share every operation (favorite, tag, search, compose, relate). A `movement_kind` lookup + nullable kind-specific fields beats three parallel tables.
-- **Template vs. instance is the spine** — `Workout` (plan) and `WorkoutSession` (a dated performance) are separate entities. This is the single most important modeling call; it's what makes progress trackable instead of a pile of edited plans.
-- **Workout composition is a real payload-bearing M2M** — `WorkoutMovement` carries order + prescription and is read on every render. The relationship _is_ the query, so the M2M-with-payload is correct (as distinct from a prose relationship, which would not earn a table).
-- **Movement relationships get a self-ref join**, justified by the swap-alternate UI — the concrete usage pattern behind the table.
-- **Muscles are lookup-backed** — `muscles(name PK, region)` + `movement_muscles` join with a role, not free tags. Enables region filtering and a future body-map, per the project-wide lookup-tables rule.
-- **Lookup tables, never enums** — `movement_kinds`, `metric_definitions`, `cycle_statuses`, `relationship_kinds`, `set_kinds`, `load_modes` all `Text PRIMARY KEY` + FK. All text columns `Text`.
-- **UUID7 PKs for user-generated rows** (`WorkoutSession`, `FitnessLogEntry`), identity for catalog rows (`Movement`, `Workout`) — keeps future client-side/offline creation feasible.
-- **Go layering** — one file per resource across `handlers/` (HTTP), `repository/` (pgx queries), `models/` (domain structs), plus `middleware/` and `migrations/` (goose DDL), mirroring nomad's `api/` layout.
-- **Filtering is server-side** — list endpoints own their query params and build the `WHERE` in SQL, so the CLI and web share one filter definition instead of each re-implementing it.
-- **Data ownership: CSV export from day one** — repeatedly named a dealbreaker when absent. `meso <resource> export --format csv` is trivial for a single user and keeps the data portable.
-- **Ships as an installable PWA**; full offline logging + sync is deferred past v1 (UUID7 keeps it possible).
-- **Own `meso-lxc`** — every app gets its own LXC; meso follows the pattern.
-- **Private-only** — single user, no multi-tenant scope.
-
-### Mobile-first (a first-class constraint)
-
-This is an iOS-in-the-gym app; mobile-first is the whole point, not a later pass. It's the app opened one-handed between sets. Requirements:
-
-- Touch targets ≥ 44px; the session-logging screen (check off a set, bump a weight) must be usable one-handed without zoom.
-- Responsive layouts from a phone viewport up — no horizontal scroll, no desktop-table-crammed-onto-phone.
-- **Sessions is the first tab and the landing route.** The reason to open the app is to train, so the first thing on screen is a way in: resume the one already underway, or start a new one. Cycles gave up its tab slot for it — planning a block is a rare, considered act that can live a tap deeper, inside Workouts.
-- The "active session" view is the highest-traffic screen. One big **Log set** per movement, which sends nothing and lets the server repeat the last set; the plan sits above it as a line of text rather than a row of inputs. Nothing on it scores you — "3 movements · 20 sets", not "2/5 done".
-- **Nothing irreversible without a dialog, and never `window.confirm`** — a system alert lands its buttons wherever iOS decides and its "OK" says nothing about what is being agreed to, which is the wrong shape for a destructive action taken one-handed mid-workout.
-- **Choosing anything is a search box over tap targets, never a native `<select>` or `<input type="date">`.** Both hand off to an OS picker whose density is fixed and small, and both cost several interactions where one would do. The library picker and the date field are in-app components for that reason.
-- Ships as an **installable PWA** so it opens like an app from the home screen, because logging happens on a phone at the gym. Full **offline session logging + sync is deferred past v1** (a large add); v1 is a responsive PWA that needs connectivity. UUID7 PKs keep offline-create possible when it's built.
-- The mobile patterns established here (breakpoints, touch components) should stay design-variable-driven so they compose with the design-style-switcher idea.
-
-### Seed vs. import
-
-`cmd/seed` carries **only the FK-backbone lookups** — the enum lookups (`movement_kinds`, `relationship_kinds`, `cycle_statuses`, `set_kinds`, `load_modes`) plus `muscles`, the categoricals with no CLI verb — and runs on **every deploy**, idempotently, so no fresh environment ever comes up write-dead. **Everything else is content loaded through the CLI** (`meso metrics define`, `meso movements create`, `meso workouts create`, `meso cycles create`), which exercises the real API write path. The rule: **if an entity has a CLI verb, it is imported, never seeded** — migrations and seed carry no actual content.
-
-The initial catalog came from `~/shart/fitness/` that way: the `ppl/*.md` and apartment sheets plus the three research plans became movements, workouts, and cycles; `goals.md` became the metric definitions.
-
-## Data-model sketch
-
-snake_case tables, `Text` columns, lookup tables for all categoricals, goose migrations (DDL-only). Abbreviated:
+A local stack needs Docker and nothing else.
 
 ```bash
-movement_kinds(name PK)                                   -- exercise|stretch|yoga_pose
-relationship_kinds(name PK)                               -- alternate|antagonist|progression|regression|see_also
-cycle_statuses(name PK)                                   -- planned|active|paused|completed
-metric_definitions(name PK, label, unit, direction, category, how_to_measure)
-muscles(name PK, region)                                  -- hamstrings→posterior, ... (region drives filtering)
-
-movements(id PK identity, name, movement_kind FK, load_mode FK, favorite,
-          rating, tags Text[], equipment Text[], how_to, form_cues, common_faults,
-          default_sets, default_reps, default_hold_seconds, sanskrit_name,
-          measurable_rom, source_url, source_name, created_at, updated_at)
-
-movement_muscles(movement_id FK, muscle FK, role,         -- role: primary|secondary
-          PK(movement_id, muscle, role))
-
-movement_relationships(movement_id FK, related_movement_id FK,
-          relationship_kind FK, PK(movement_id, related_movement_id, relationship_kind),
-          CHECK movement_id != related_movement_id)
-
-workouts(id PK identity, name, theme, tags Text[], notes,
-          favorite, estimated_minutes, created_at, updated_at)
-workout_movements(id PK, workout_id FK, movement_id FK, position,
-          sets, reps, load, rest_seconds, superset_group, notes)
-
-workout_sessions(id PK uuid7, workout_id FK NULL, performed_on,
-          duration_minutes, overall_notes, felt, created_at, finished_at NULL)
-session_movements(id PK, session_id FK, movement_id FK, position,
-          done bool, target_sets, target_reps, target_load, notes)
-session_sets(id PK, session_movement_id FK, position, reps Int,
-          load Text, hold_seconds, set_kind FK, notes, logged_at)
-
-cycles(id PK identity, name, goal_summary, target_metric FK NULL,
-          target_value, target_date NULL, start_date, status FK, notes)
-cycle_workouts(id PK, cycle_id FK, workout_id FK, position,
-          week, phase, frequency, intensity, conditions)
-
-measurements(id PK, metric FK, value Numeric, measured_on, source, notes)
-
-fitness_log_entries(id PK uuid7, entry_date, body, tags Text[],
-          mood, created_at, updated_at)
-
-feedback(id PK uuid7, status, body, context_path, viewport_width, viewport_height, created_at, updated_at)
+git clone https://github.com/datapointchris/meso && cd meso
+docker compose -f docker-compose.dev.yml up --build -d                          # Postgres, the API and the SPA, built from source
+docker compose -f docker-compose.dev.yml run --rm --entrypoint ./meso-seed api  # the lookup rows every write needs; safe to re-run
+curl localhost:8088/health                                                      # {"status":"ok"}: migrated, and Postgres answered
 ```
 
-## API request/response types
+Then browse to `http://localhost:8080`. Caddy serves the SPA there and proxies `/api/*` to the API
+on 8088. Postgres listens on 5459. The API runs with `ENV=development`, which checks no credential
+and treats every request as the admin.
 
-Go request/response structs per entity (Create / response / Update shapes) with JSON tags; the DB owns computed/derived values (e.g. `created_at`, server-stamped timestamps), never the client. Detail responses embed relations:
+The seed is its own step because migrations carry no content. It inserts the lookup vocabularies
+and the muscle catalog, upserting each row, so a second run changes nothing. Everything else
+arrives through the CLI or the app.
 
-- `WorkoutWithMovements` — `GET /api/v1/workouts/{id}`, embeds ordered `WorkoutMovement` + each `Movement` summary.
-- `WorkoutSessionWithMovements` — embeds `SessionMovement` rows.
-- `CycleWithWorkouts` — embeds the ordered workout sequence.
-- `MovementWithRelations` — embeds alternates/antagonists as `Movement` summaries.
+To work on one piece from source, stop its container and run it with `task`. `task api:dev` runs
+the API against the compose Postgres and migrates on start. `task web:dev` runs Vite on 3001 and
+proxies `/api` to 8088. `task setup` installs web's npm dependencies first, which a fresh checkout
+lacks. `task test` runs every suite. The API's handler tests start a throwaway Postgres through
+testcontainers, so they need Docker, or `TEST_DATABASE_URL` naming a database to reuse.
 
-## API endpoint shape (RESTful, `net/http` ServeMux)
-
-```sql
-/api/v1/movements                 CRUD + ?kind=&load_mode=&favorite=&tag=&equipment=&muscle=&region=&search=
-/api/v1/muscles                   list the muscle lookup (tagging vocabulary; region drives filtering)
-/api/v1/movements/{id}/related    POST {related_movement_id, relationship_kind}; DELETE .../{rid}
-/api/v1/workouts                  CRUD + ?theme=&tag=&favorite=
-/api/v1/workouts/{id}/movements   POST add movement; PATCH reorder/prescription; DELETE remove
-/api/v1/sessions                  CRUD + ?workout_id=&from=&to=&unfinished=; POST with workout_id copies the template in as the target
-/api/v1/sessions/{id}/finish      POST end the session, filling in the duration (idempotent)
-/api/v1/sessions/{id}/movements   POST append a movement mid-session (works template-backed or not)
-/api/v1/sessions/{id}/movements/{mid}         PATCH done/target/swap; DELETE remove the entry and its sets
-/api/v1/sessions/{id}/movements/{mid}/sets    POST log a set — an empty body repeats the last one
-/api/v1/sessions/{id}/movements/{mid}/sets/{sid}  PATCH fix a set; DELETE drop it
-/api/v1/sessions/{id}/workout     POST promote a free-form session into a workout template
-/api/v1/cycles                    CRUD
-/api/v1/cycles/{id}/workouts      POST/PATCH/DELETE ordered workouts
-/api/v1/metrics                   list metric_definitions; POST define; GET/PUT/DELETE {name}
-/api/v1/measurements              CRUD + ?metric=&from=&to=
-/api/v1/log                       CRUD dated entries
-/api/v1/stats                     aggregations for the stats page
-/api/v1/review                    GET structured recent history (sessions+measurements+log) for `meso review`
-/api/v1/feedback                  CRUD + ?status=&search= — any user POSTs, only the admin group reads, edits or deletes
-/health                           unauthenticated liveness (exempt from edge auth)
-```
-
-Every endpoint group ships with its goose migration and a testcontainers-backed handler test.
-
-## CLI — the tool surface (replaces MCP)
-
-`meso` is a Go/cobra thin REST client over the API, the agent + power-user surface. Every read supports `--json` (stable schema, for scripting and for Claude to parse); writes echo the created/updated row. Noun-first grammar, one command group per resource:
+The CLI needs a login before any command that reaches the API. That holds against every API,
+including the development one, which ignores the token.
 
 ```bash
-meso auth        login | logout | status [--json] | token          # nomad's flow, verbatim
-meso movements   list [--kind --load-mode --favorite --tag --equipment --muscle --region --search] | show <id-or-name> | create | update | delete | muscles | related add/rm | export [--format csv]
-meso workouts    list | show <id-or-name> [--detailed] | create | update | delete | movements add/reorder/rm
-meso sessions    log [--from-workout <id>] | list [--from --to --unfinished] | show <id> | update <id> | finish <id> | delete <id>
-                 | movement add/rm/done/update | set add/update/rm | promote <id> --name
-meso cycles      list | show <id-or-name> | create | update | delete | workouts add/reorder/rm
-meso metrics     list | show <name> | define | edit | delete
-meso measurements record | list [--metric --from --to] | trend <metric>
-meso log         add | list [--from --to --tag] | show <id>
-meso stats       [--json]
-meso review      [--since 30d] [--json]      # the capstone read
-
-meso update [--check]            replace this binary with the newest cli/v* release
-
-meso admin feedback list [--open --done --search] | show <id> | add | edit | done <id> | delete
+meso auth login https://meso.example.com  # fills in the config file, then prints a code to approve in any browser
+meso auth status                          # api, issuer and client_id, and where each came from; exit 1 if any is missing
+meso movements list                       # proves the token reaches the API
 ```
 
-**`admin` is the namespace for operating the app, as distinct from using it.** Every other top-level command is a training noun, which is what lets `meso --help` read as a description of the domain; commands about the software itself go under `admin` instead of diluting that. The convention is HashiCorp's (`vault operator`, `consul operator`, `nomad operator`), named `admin` because "operator" there means cluster and consensus lifecycle and meso has no cluster.
+`auth login` fills in only what the config file lacks. It prints each value with its source before
+anything is sent. It never rewrites a value the file already holds. A URL naming a different API
+from the file's is refused, naming the file to edit. The file is written only once the login
+succeeds.
 
-**meso has one user, and the identity provider it signs in through can hold more.** A login admits a caller to every training route. Administration also needs the identity provider's `admin` group, and `meso admin` stays in the CLI's help for anyone who holds the binary. Reading, editing and deleting feedback answer 403 to a non-member, and capturing it needs only a login. A browser request carries the group in `Remote-Groups`. The edge proxy must remove any client-supplied `Remote-Groups` before ForwardAuth sets it. Otherwise any signed-in browser user can name their own groups. A CLI request carries it in the access token's `groups` claim, which `meso auth login` requests.
+## The grammar
 
-`update` is the one exception, and it sits at the root rather than under `admin`. meso checks once a day for a newer release and prints a single line — `meso v0.4.0 available (running v0.3.3) — run \`meso update\`` — and that sentence is built from the binary name by the shared library, with no way to name a nested command. Under `admin` the notice would point at a command that does not exist. `meso admin update` still works for one release, hidden from help. The check never installs anything and never prints an error; set `NO_AUTO_UPDATE` or `MESO_NO_AUTO_UPDATE` to turn it off.
+The noun comes first and the verb last: `meso workouts list`, then `meso workouts show 3`. Every
+top-level noun is a training noun. Commands about the software rather than the training live under
+`meso admin`. Every list and show takes `--json`. Any partial command run with no arguments prints
+what comes next, so the tree is walkable without this file.
 
-**The AI capstone is a read plus ordinary writes — no server-side LLM.** `meso review --json` pulls recent sessions + measurements + log into one structured payload. Claude reads it via Bash, reasons about the next block _in the conversation_, and persists the drafted cycle with ordinary writes (`meso cycles create`, `meso cycles workouts add …`). This is strictly simpler than an MCP `draft_cycle` tool: the CLI only needs solid read + write primitives; Claude is the reasoning.
+The root help groups the nouns by what they hold:
 
-## Frontend (Vue) — top nav
+- **Planning** — `movements`, `workouts`, `cycles`. The library and what is composed from it.
+- **Training record** — `sessions`, `log`, `measurements`, `metrics`. What happened, and the
+  vocabulary it is measured in.
+- **Review** — `stats`, `review`. Reads across everything above.
+- **App** — `admin`, `auth`, `config`, `update`, `completion`. The software, not the training.
+
+A name is accepted where a command reads and never where it writes. `show` on movements, workouts
+and cycles takes an id or a name. `update`, `delete` and the composition verbs take ids. A name
+that narrows to the wrong record costs a wrong screen on a read and a wrong row on a write. A name
+matching several records prints one ready-to-run command per match, and `--json` returns the same
+candidates as data.
+
+Exit status is 0 on success, 1 on a runtime failure and 2 on a usage mistake. `--no-input` never
+prompts. It fails instead, naming the flag that would have answered.
+
+## Which surface answers which question
+
+| Ask | Surface | Reads |
+| --- | --- | --- |
+| What do I train today | the web app's Sessions tab | the unfinished session, then the workouts to start one from |
+| Log a set mid-workout | the web logging screen, `meso sessions set add` | the entry's last set, or its target |
+| How is this movement done | the Movements tab, `meso movements show` | the movement's how-to, form cues and common faults |
+| Build or change a workout or cycle | the Workouts tab, `meso workouts`, `meso cycles` | the library and its compositions |
+| Is a number going up | the Stats tab, `meso measurements trend`, `meso stats` | measurements against their metric definitions |
+| What should the next block be | `meso review --json`, read in a conversation | active cycles, recent sessions, measurements and journal entries |
+| What papercuts were captured | `meso admin feedback list` | feedback rows, for the admin group only |
+| Where is the CLI pointed | `meso auth status`, `meso config show` | the config file and the token store |
+| Script against the data | the REST API under `/api/v1/` | every resource |
+
+## Defined by what it leaves out — every feature is measured against the exclusions
+
+meso is a tool for writing down movements and making planned, informed training blocks. It applies
+the programming a bodybuilder brings to a mesocycle, or a 5k coach to a periodized race build. It
+unifies strength, running, yoga, stretching and dance. It holds several concurrent goals at once.
+The intelligence is in the planning, not in tracking for its own sake.
+
+These are hard exclusions:
+
+- No instructional videos, GIFs or animations. A movement carries a text how-to and form cues.
+- No motivational content, quotes, coaching voice or "you got this" copy.
+- No gamification: no streaks, badges, points, levels, confetti or achievement popups.
+- No social feed, sharing, followers or leaderboards.
+- No calorie, macro or nutrition tracking.
+- No ads, upsell, paywalled basics or "AI coach" mascot. The AI here is a reasoning surface over
+  real data, reached through the CLI.
+- No forced onboarding, notifications by default or engagement mechanics.
+- No rest timer and no plate calculator, though the market rewards both. The session model below
+  says why.
+
+Being single-user and self-hosted is what makes this discipline free. No growth metric pushes bloat
+in. When a feature is in doubt, the default is to leave it out.
+
+**Multiple concurrent goals are first-class.** Strength, a slow 5k build, mobility and dance
+conditioning progress in parallel. Each has its own cycle and target metric. They share one
+movement library and one weekly reality. The app holds several goals at once without making
+anyone pick one.
+
+**The wedge is the gap every incumbent shares.** The survey covered strength loggers (Strong, Hevy,
+FitNotes, Jefit, Boostcamp), running planners (Couch-to-5k, Runna, TrainingPeaks, Garmin Coach, Nike
+Run Club), yoga and mobility apps (Down Dog, Yoga Studio, Alo Moves) and hybrids (Fitbod, Strava,
+Centr). None unifies strength, endurance and mobility. Every one assumes a single active plan.
+Hybrid athletes stitch two specialist apps together and become the integration layer themselves:
+"running apps don't know you lifted heavy yesterday." The mesocycle-programming niche is crowded
+(meso.fitness, MesoBuilder, MesoTrack, Mesostrength). Every one of those is single-modality
+strength, and closed.
+
+**Text-first movement libraries are underserved.** The best reference content is text, from ExRx,
+Muscle & Strength and StrengthLog. It gives numbered steps, a fault-to-fix list of mistakes and
+honest primary and secondary muscle tagging. Most apps bury it in video.
+
+**What users reward shaped the model.** The previous session's numbers sit inline on the logging
+screen. A cycle's intensity is an effort target ("easy / Zone 2"), not pace alone, which answers
+the universal "easy runs aren't easy" complaint. A cycle is legible: its phases and conditions say
+why the next block is what it is. Swapping a movement carries its target to the substitute. The
+movement library exports as CSV, through `meso movements export`.
+
+**What users uninstall for confirms the exclusions.** The list is social feeds, gamified streaks,
+video dependency, chatty motivational voiceovers, opaque "AI coach" black boxes, paywalled basics,
+forced onboarding, calorie creep, and class libraries that answer "watch what?" instead of "do what
+today?"
+
+## The model — a plan and its performance are different rows
+
+A folder of markdown plans works as storage but not as a system. It cannot answer what to do today.
+It cannot record that it was done, or show a lift rising over three months. Several plans each
+define their own week, and nothing reconciles them into one rotation. Two things make meso worth
+building as an app:
+
+1. **Template versus instance.** A workout is a plan. Doing it on a Tuesday is an event, with
+   actual weights, checkboxes and how it felt. The instance data is the point of tracking.
+2. **Drafting the next cycle from history.** Sessions, measurements and the journal are all
+   reachable through the CLI. Claude reads what got done, what stalled and how it felt, and helps
+   write the next cycle.
 
 ```text
-Workouts  |  Movements  |  Cycles  |  Log  |  Stats
+Movement ──< WorkoutMovement >── Workout ──< CycleWorkout >── Cycle
+   ↺                                │                           │
+self-join: alternate,               │ a session may             │ target_metric
+antagonist, progression,            │ start from one            ▼
+regression, see_also                ▼                    MetricDefinition ──< Measurement
+                             WorkoutSession ──< SessionMovement ──< SessionSet
+                             (on a date)        (the plan)          (what was performed)
+
+FitnessLogEntry   the dated journal a review reads
+Feedback          papercuts about the app itself
 ```
 
-Views: `MovementsView` (filterable library, favorites), `MovementDetailView` (how-to markdown, alternates/antagonists, "in these workouts"), `WorkoutsView`, `WorkoutDetailView` (ordered movements, "start session" button), `ActiveSessionView` (the mobile-critical logging screen), `CyclesView` + detail (week/phase timeline), `LogView` (dated markdown entries), `StatsView` (ported stats kit). Each `AddEdit*Modal` wrapper per the per-entity convention. Web auth is Authelia cookie SSO at the edge — no login view in the app.
+The schema itself is `api/migrations/`.
 
-### Stats page
+### Movement — exercises, stretches and poses are one entity
 
-Ported stats kit (`StatsSummaryCards`, `StatsTable`, `useStatsCharts`, theme-driven colors). Charts: strength metrics over time (line, per lift), 5k time trend, mobility ROM trend (knee-to-wall, toe reach), session frequency by week, movements-by-kind mix, favorites coverage. All colors via theme CSS custom properties — no hardcoding.
+Exercises, stretches and yoga poses are the same concept. So there is one `Movement` entity with a
+`movement_kind` lookup (`exercise`, `stretch`, `yoga_pose`), not three near-identical tables.
+Kind-specific fields are nullable and used where they apply. A pose has a Sanskrit name and a hold.
+A lift has a default rep scheme. Favorites, tags, search and relationships stay uniform across all
+three. A workout can mix a squat, a couch stretch and pigeon pose without crossing an entity
+boundary.
 
-## Deployment — nomad's registry-pull pattern
+- `name` (unique, the natural key), `movement_kind`, `load_mode`, `favorite`, `rating` (1–5,
+  nullable)
+- `load_mode` — `weighted`, `bodyweight`, `timed` or `assisted`. It decides what the logging screen
+  asks for. A weight box on an ab exercise is a question with no answer. `movement_kind` cannot
+  stand in, since a back squat and a nordic curl are both exercises.
+- `tags: TEXT[]` — the "good for" dimension (mobility, posterior-chain, desk-counter,
+  anti-rotation)
+- muscles are lookup-backed, not free tags. A `muscles(name PK, region)` lookup feeds a
+  `movement_muscles(movement_id, muscle, role)` join, where role is `primary` or `secondary`. That
+  is the honest primary/secondary tagging ExRx uses. `region` drives filtering ("show me
+  posterior-chain movements") and leaves room for a body-map UI.
+- `equipment: TEXT[]` — barbell, dumbbell, mat, none
+- `how_to` (markdown) — how to perform it, step by step, or a liked sequence written out
+- `form_cues` (markdown) — what to watch for to keep good form
+- `common_faults` (markdown) — the usual failures and mistakes
+- kind-specific nullable fields: `default_sets`, `default_reps`, `default_hold_seconds`,
+  `sanskrit_name`
+- `measurable_rom` — flags a movement whose range of motion is worth logging as a measurement
+  (knee-to-wall)
+- `source_url`, `source_name` — where it came from, a plan or a video
+- `created_at`, `updated_at`
 
-Push to `main` → GitHub Actions runs lint + Go tests + Vue tests → builds **two** Docker images (`meso-web`, `meso-api`; **no mcp**) and pushes to `ghcr.io/datapointchris/meso-{web,api}` with `:latest` and `:sha-<commit>` → `workflow_run.completed` webhook fires a `deploy-meso.sh` on app-ops-lxc → SSH to the meso host → `git pull && docker compose pull && docker compose up -d --no-build`. No on-host compilation. The deploy also runs the idempotent seed.
+**The how-to fields are text, deliberately.** The need is "I forget exactly what a prisoner squat
+is, how to do it, what to watch for, and what commonly goes wrong." A movement carries enough
+writing to reconstruct it, or to explain a sequence built from it, and nothing more. A
+prisoner-squat entry reads: *how-to* — hands laced behind the head, elbows wide, squat to depth
+keeping the chest up; *form cues* — elbows stay back, knees track over toes, weight mid-foot;
+*common faults* — elbows collapse forward, chest drops, heels lift. That is the whole ambition of
+the field.
 
-A webhook 200 means the script _started_, not that the deploy succeeded — "did it deploy?" is answered by `/opt/webhooks/logs/meso-*.log` on app-ops-lxc, not by `gh run list`.
+**Author them as markdown, not as one run-on paragraph.** They are read on a phone, mid-set. A
+how-to that packs execution, tempo and progression into one block reads as a wall no typography can
+rescue. The seam is almost always the same: what to do, then why it works or how it differs from
+the movement next to it. That is two paragraphs. Where the prose enumerates a protocol (contract,
+relax, take up slack; a balance progression), make it a list.
 
-Traefik on app-ops routes `meso.ichrisbirch.com` to the meso host's `web` container with the Authelia middleware. The web container (Caddy) serves the SPA and proxies `/api/*` → the Go API. It also proxies `/.well-known/oauth-protected-resource`, the API's RFC 9728 metadata, which the edge must serve without the Authelia middleware: a CLI reads it before it holds a token. The document names `PUBLIC_URL`, which `docker-compose.yml` sets, and the API serves none while that is unset. Production-quality baked in from the start, per nomad: `/health` on web + api (unauthenticated), SIGTERM-graceful shutdown, structured JSON logs to stdout scraped by Promtail into Loki, SHA-pinned image tags.
+### Relationships — a self-join earns its table from the swap
 
-## Development
+`movement_relationships(movement_id, related_movement_id, relationship_kind)` is a directional
+self-join. Its kind is `alternate`, `antagonist`, `progression`, `regression` or `see_also`. A
+movement cannot relate to itself. `progression` and `regression` are the strength terms for a
+harder or easier variant of a movement, unrelated to `Cycle`.
 
-Bring up the full stack (Postgres + Go API + Caddy-served SPA) locally:
+A relationship deserves a table only when a genuine query sits behind it. Here one does. Swapping a
+movement for a related one while building a workout is a concrete UI action, and the workout
+builder offers the movement's relationships as its substitutes. Antagonist, progression and
+regression ride the same table for free.
+
+### Workout — an ordered composition, read on every render
+
+A workout is its ordered list of prescribed movements. The join carries a payload and drives the
+render, so a many-to-many with a payload is correct here rather than over-engineering.
+
+- `Workout`: `name` (unique), `theme` (nullable — "push", "lower + shoulder rehab"),
+  `tags: TEXT[]`, `notes` (markdown), `favorite`, `estimated_minutes`, `created_at`, `updated_at`
+- `WorkoutMovement`, the ordered join: `workout_id`, `movement_id`, `position`, `sets`,
+  `reps: TEXT` ("4–6", "AMRAP", "30s"), `load: TEXT` ("80% 1RM", "2 plates", "bodyweight"),
+  `rest_seconds`, `superset_group` (nullable), `notes`
+
+Each entry has a surrogate id and a deferrable `UNIQUE(workout_id, position)`. A reorder swaps
+positions inside one transaction without tripping the constraint. A movement a workout uses cannot
+be deleted from under it, and the API answers 409.
+
+### Session — a workout performed on a date, kept apart from its template
+
+A session is the record of what was actually done. Keeping it distinct from the template is what
+makes history real data.
+
+- `WorkoutSession`: `id` (UUID7), `workout_id` (nullable — a free-form session has none),
+  `performed_on`, `duration_minutes`, `overall_notes` (markdown), `felt` (nullable energy or mood
+  tag), `created_at`, `finished_at` (nullable)
+- `SessionMovement`, the plan for this session: `session_id`, `movement_id`, `position`, `done`,
+  `target_sets`, `target_reps`, `target_load`, `notes`
+- `SessionSet`, what was performed, one row per set: `session_movement_id`, `position`,
+  `reps: INT`, `load: TEXT`, `hold_seconds`, `set_kind` (`working`, `warmup`, `amrap`, `drop`,
+  `failure`), `notes`, `logged_at`
+
+Deleting a workout keeps its sessions and sets their `workout_id` to null. The logged history of
+having done it survives as a free-form record.
+
+**The plan and the performance are different columns, and that is the point.** `target_*` is
+copied from the workout when the session starts and then left alone. The sets are the record.
+Training that went differently from the program stays a fact rather than reading as a failure.
+Doing four sets of a programmed three is four rows, not an overwrite.
+
+A set carries its own `set_kind` and `hold_seconds`, so its `reps` can be a plain integer. "AMRAP"
+is a kind, and a 30-second hold is a hold. `load` stays free text, matching the prescription it is
+measured against.
+
+**Logging a set costs one tap.** `POST .../sets` with an empty body repeats the previous set, with
+the same reps and load. The first set falls back to the target. Only a set that differs needs
+describing. `done` ticks itself the moment the logged sets reach the target, and an entry with no
+target is done on its first set. `done` stays writable, so stopping short on purpose survives the
+sets that follow.
+
+**A session with no template is the unplanned path, and it is where workouts come from.** Not
+everything is programmed in advance. Requiring a workout before anything is recorded means
+authoring a template mid-gym or not logging at all. So a session can start empty and gain movements
+as they happen. It can then be promoted into a `Workout`. The prescription becomes as many sets as
+were logged, the reps most of them shared, and the load of the last set. The session is
+back-linked to the workout it produced, so it reads as that template's first instance. Only a
+free-form session can be promoted. Promoting one already backed by a template would silently fork
+it, which is an edit of that workout rather than a second one.
+
+**Any session can gain or lose movements, template-backed or not.** Doing something the plan did
+not call for, or skipping something it did, is part of what happened. Editing the workout instead
+would rewrite the plan of every session ever run from it.
+
+**`finished_at` separates training happening now from history.** Finishing fills in
+`duration_minutes` from when the session started, so the duration is never typed. It is also what
+lets the app offer to resume. Finishing twice keeps the first timestamp. Finishing means "I am done
+training", not "I completed the plan". Nothing compares it to the targets. A session finished two
+movements in is a finished session.
+
+Session detail embeds each entry's `previous`: the last set of the most recent performed entry for
+that movement, strictly before this session. An entry qualifies only if it is done and has sets
+under it. Ticked with nothing logged is not a number to beat. The list endpoint leaves `previous`
+null. One `DISTINCT ON` query resolves it for the whole session.
+
+A swap re-points a session's entry to another movement, and its target and logged sets carry over
+to the substitute. The API and `meso sessions movement update --movement` offer it. The web
+logging screen does not.
+
+**The rest timer and the plate calculator are deliberately excluded.** The rest timer is not wanted.
+The plate calculator is structurally wrong for this library. `load` is free text by design
+("80% 1RM", "2 plates", "bodyweight"), so there is no number to calculate from without parsing
+prose.
+
+### Cycle — workouts sequenced toward a target, advanced by readiness
+
+A research-backed plan, such as a 12-week run return or a shoulder-rehab arc, is a cycle. Its
+workouts flow over weeks toward a target. `Cycle` names the table, the routes and the CLI commands.
+
+- `Cycle`: `name` (unique), `goal_summary`, `target_metric` (nullable, a metric definition such as
+  "deadlift-working-weight"), `target_value`, `target_date` (nullable — for a race-anchored build),
+  `start_date` (nullable), `status` (`planned`, `active`, `paused`, `completed`), `notes`
+- `CycleWorkout`, the ordered join: `cycle_id`, `workout_id`, `position`, `week` (nullable),
+  `phase` (nullable — "base", "build", "taper"), `frequency` ("2×/week"), `intensity` (nullable —
+  an effort or heart-rate target, "easy / Zone 2"), `conditions` (nullable — "when knee-to-wall
+  symmetric, advance")
+
+On read, each `CycleWorkout` also carries `last_performed_on`. It is the newest day a session of
+that workout had a movement done, or null. It is derived from sessions and never stored. A session
+started from the workout and abandoned with nothing done does not count.
+
+Changing or clearing a cycle's `target_metric` without supplying a value clears the old
+`target_value`. A target never outlives the metric it was measured against.
+
+A cycle is humane rather than a straitjacket, which answers the top structural complaint about
+running apps:
+
+- **Nothing is ever marked failed.** A cycle holds no calendar of due dates, so a missed day is not
+  recorded as anything. It advances by readiness, not by weekday.
+- **A week repeats until ready.** This is Couch-to-5k's most-loved safety valve. Each entry's
+  `conditions` says what earns the next block, and nothing advances a cycle on its own.
+- **Legible, not opaque.** `phase`, `conditions` and the target explain why the next block is what
+  it is. People distrust black-box adaptive plans. Legibility is also what makes a drafted cycle
+  reviewable rather than magic.
+
+### Measurement — a metric carries its own protocol
+
+Lift numbers, 5k time, toe reach, bodyweight, range of motion: a metric definition, and a time
+series of values against it.
+
+- `metric_definitions`: `name` (the key — "deadlift-working-weight", "5k-time",
+  "knee-to-wall-left"), `label` (the display string, defaulting to the name title-cased), `unit`
+  ("lb", "seconds", "cm"), `direction` (`higher_better` or `lower_better`), `category`
+  (`strength`, `cardio`, `mobility`, `body`), `how_to_measure` (markdown — the protocol that
+  produces the number)
+- `measurements`: `metric`, `value: NUMERIC`, `measured_on`, `source` (`manual` or `session`),
+  `notes`
+
+**A metric carries its own protocol.** Unit, direction and category are what a chart needs. None of
+them says what the thing is. "Heel Raise Capacity Right" names a number without naming how to get
+one. It matches no movement in the library, so there is nowhere else to look it up. A series is
+only a series if every reading was taken the same way. An undocumented metric silently degrades
+into readings that are not comparable. One field covers it, not a description plus a how-to,
+because for every metric those are the same sentence.
+
+The name is the slug the API, the CLI and cycle targets all address a metric by. That makes it
+permanent, and a poor thing to show a human. `label` is edited independently, so the app never
+displays a raw key. Renaming a metric is a delete and a redefine. A metric with recorded readings
+cannot be deleted.
+
+The stats payload carries every defined metric, measured or not. An unmeasured one comes back with
+no points and renders as an empty card. The page shows what can be tracked, not only what already
+has history.
+
+### Journal — the entries a review reads
+
+- `FitnessLogEntry`: `id` (UUID7), `entry_date`, `body` (markdown), `tags: TEXT[]`, `mood`
+  (nullable), `created_at`, `updated_at`
+
+The journal sits beside the notes on any one workout. It is the record of the whole journey, and
+the substrate `meso review` hands to Claude.
+
+### Feedback — owned outright and forwarded nowhere
+
+The one entity here that is not training data. A button on every screen captures a thought
+mid-session, at the gym, one-handed, so it survives the moment it was had. Triage happens in the
+CLI, under `meso admin feedback`.
+
+- `Feedback`: `id` (UUID7), `status` (`open` or `done`), `body`, `context_path` (the in-app route
+  it was raised from), `viewport_width` and `viewport_height` (the window it was seen at, null for
+  a CLI capture), `created_at`, `updated_at`
+
+**meso owns this outright and forwards it nowhere.** No row refers to another system. No other
+system needs to be reachable for a capture to succeed. Whoever wants the data comes and reads it,
+with `meso admin feedback list --json`. The dependency points inward, at meso, never sideways from
+meso at something else. That is what keeps the app standalone: it runs unchanged wherever it is
+copied.
+
+There is deliberately no kind or category, such as bug, idea or improvement. It costs a tap at
+capture time and changes nothing at read time. The body says what it is, and the response is the
+same either way. The app's exclusion list applies to its own internals.
+
+### Storage — lookup tables, TEXT columns, and two kinds of key
+
+- Every text column is `TEXT`, never `varchar(n)`.
+- A categorical is a lookup table with a `TEXT PRIMARY KEY` and a foreign key, never an enum. The
+  lookups are `movement_kinds`, `relationship_kinds`, `cycle_statuses`, `set_kinds`, `load_modes`
+  and `muscles`. A small bounded attribute of one table uses a `CHECK` instead: a muscle's role, a
+  metric's direction and category, a measurement's source, a feedback status.
+- A user-generated row keys on a UUID7 minted in Go: sessions, journal entries and feedback. A
+  catalog row keys on a Postgres identity and keeps its `name` unique: movements, workouts and
+  cycles. UUID7 keeps offline creation possible.
+- Filtering is server-side. A list endpoint owns its query parameters and builds the `WHERE` in
+  SQL, so the CLI and the web share one filter definition.
+- Migrations are goose DDL, applied when the API starts. No content rides them.
+
+**The seed carries only the foreign-key backbone.** `cmd/seed` writes the lookups no CLI verb
+writes, and the muscle catalog. It runs after every deploy, idempotently, so no fresh environment
+comes up unable to write. Everything else is content loaded through the CLI (`meso metrics
+define`, `meso movements create`, `meso workouts create`, `meso cycles create`). That exercises the
+real API write path. The rule: an entity with a CLI verb is imported, never seeded.
+
+## The web app — the screen opened one-handed between sets
+
+This is an iOS-in-the-gym app, and mobile-first is the whole point rather than a later pass. The
+SPA is Vue 3 and TypeScript on Vite, with `<script setup>` components, Vue Router and SCSS. It has
+no login page. In production the identity provider's session cookie signs the browser in at the
+edge.
+
+- The minimum interactive target is 44px, the `--touch-target` design variable. The logging screen
+  works one-handed without zoom.
+- Layouts are responsive from a phone viewport up, with no horizontal scroll.
+- **Sessions is the first tab and the landing route.** The tabs are Sessions, Workouts, Movements,
+  Log and Stats. They render as a top bar on a desktop and a bottom tab bar on a phone. The reason
+  to open the app is to train, so the first screen offers to resume the unfinished session or start
+  one. Cycles gave up its tab. Planning a block is a rare, considered act, reached from the Workouts
+  header.
+- **The logging screen is the highest-traffic screen.** Each movement has one large "Log set"
+  button. It sends an empty body, and the server repeats the last set. The plan sits above it as a
+  line of text, not a row of inputs. The last performance shows beside it as "Last: …". Nothing on
+  the screen scores you: "3 movements · 20 sets", not "2/5 done".
+- **Nothing irreversible happens without a dialog, and never through `window.confirm`.** A system
+  alert lands its buttons wherever iOS decides. Its "OK" says nothing about what is being agreed
+  to. That is the wrong shape for a destructive action taken one-handed mid-workout. Every
+  confirmation goes through `useConfirm`, which renders one in-app dialog.
+- **The movement picker and the date field are in-app components.** A native `<select>` or
+  `<input type="date">` hands off to an OS picker whose density is fixed and small. Either costs
+  several interactions where one would do. The movement picker is a search box over tap targets,
+  used by the workout builder and the logging screen. The edit modals and the cycle screens still
+  use a native `<select>` for their shorter lists.
+- A feedback button sits on every screen. It records the route and the viewport it was raised at.
+- The theme is a CSS-variable switch on `data-theme`, dark or light.
+
+The stats page charts each defined metric's trend, grouped by category. Beside them sit session
+frequency by week, the library's mix by kind, and counts of movements, favorites and sessions. Every
+color comes from a theme custom property.
+
+## The CLI — the agent's surface, and the power user's
+
+`meso` is a thin REST client over the API, written in Go with cobra. It shares the API's REST
+contract rather than anything with the frontend, which is why it is Go and not TypeScript. Claude
+drives it through a shell and reads its `--json`.
 
 ```bash
-docker compose -f docker-compose.dev.yml up --build
-# API  → http://localhost:8088/health
-# web  → http://localhost:8080  (Caddy serves the SPA, proxies /api/* → API)
-# seed the lookup tables once:
-docker compose -f docker-compose.dev.yml run --rm --entrypoint ./meso-seed api
+meso workouts show "push day"                  # by name on a read; writes take the id it prints
+meso sessions log --from-workout 1             # start a session with the workout's plan as its target
+meso sessions set add <session-id> <entry-id>  # one more set like the last
+meso sessions finish <session-id>              # end it; the duration fills itself in
+meso review --since 12w --json                 # active cycles and recent history, in one payload
 ```
 
-Or run pieces directly: the API with `cd api && go run .` (needs Postgres on `5459`), the SPA with `cd web && npm run dev` (Vite on `3001`, proxies `/api` → `8088`), and the CLI with `cd cli && go run . auth status`. A CLI pointed at the local API with `--api http://localhost:8088` checks that its metadata trusts the config file's issuer, so run the API with `PUBLIC_URL=http://localhost:8088`, as `docker-compose.dev.yml` does.
+**The AI capstone is a read plus ordinary writes, with no server-side model.** `meso review --json`
+pulls the active cycles and the recent sessions, measurements and journal entries into one
+structured payload. Claude reads it and reasons about the next block in the conversation. It
+persists the draft with ordinary writes, `meso cycles create` and `meso cycles workouts add`. The
+CLI needs only solid read and write primitives. Claude is the reasoning.
 
-## Out of scope (v1)
+**Login is the OAuth 2.0 device authorization grant (RFC 8628).** `meso auth login` authenticates
+as a public client with the scopes `openid`, `profile`, `offline_access` and `groups`. The CLI
+prints a code and a URL, and approval happens in any browser on any device. That is what makes
+login work over SSH, where a loopback redirect would need a browser able to reach a listener on
+the machine being logged into. The access token is an RFC 9068 JWT (`typ=at+jwt`), which the API
+verifies itself. The token is kept in the OS keychain, or in a file only this user can read on
+a host with no keychain. `meso auth status` says which. Clients are registered per machine and app,
+`meso-cli-<short hostname>` by default, so revocation has both axes. `meso auth token` prints the
+token for a `curl -H "Authorization: Bearer $(meso auth token)"`.
 
-- Offline session logging + sync — v1 is an installable-but-online PWA; offline-create-and-sync is a later add (UUID7 keeps the door open).
-- Wearable/health-app import (Apple Health, Strava) — later.
-- Auto-deriving lift stats from session data — measurements are manual in v1; the `source` field leaves the door open.
-- Video attachments for movements — `source_url` link only.
-- Social/sharing — private, like the rest of the ecosystem.
+**Where the CLI is pointed is one file**, `$XDG_CONFIG_HOME/meso/config.toml`, which defaults to
+`~/.config/meso/config.toml`. It holds `api`, `issuer` and `client_id`. Every command reads it.
+`--api` is the only thing that outranks it. There is no environment variable and no compiled-in
+address. `meso auth login <url>` fills in only what the file lacks: `api` from the URL, `issuer`
+from the API's RFC 9728 metadata at `<url>/.well-known/oauth-protected-resource`, and `client_id`
+from `--client-id` or the hostname default. `meso config show` prints each setting and where it
+came from. The file and its rules are [goclilogin's](https://github.com/datapointchris/goclilogin).
 
-## Origin
+An `--api` that differs from the file's is checked before any token is sent. Its RFC 9728 metadata
+must name the file's issuer. So a CLI pointed at a local API with `--api http://localhost:8088`
+needs the API run with `PUBLIC_URL=http://localhost:8088`, as `docker-compose.dev.yml` does, and
+with an `OIDC_ISSUER` matching the file's issuer.
 
-Spun out of the ichrisbirch "Fitness Tracker" plan (2026-07-22). A different purpose and a hard mobile-first constraint warranted its own repo, and a clean break from ichrisbirch: meso is its own Go product modeled on nomad, not an ichrisbirch domain. It is the fourth product app, after `icb`, `learning`, and `nomad`.
+**`admin` is the namespace for operating the app, as distinct from using it.** Every other
+top-level command is a training noun, which is what lets `meso --help` read as a description of
+the domain. Commands about the software itself go under `admin` instead of diluting that. The
+convention is HashiCorp's (`vault operator`, `consul operator`). It is named
+`admin` because "operator" there means cluster and consensus lifecycle, and meso has no cluster.
 
-## References
+**meso has one user, and the identity provider it signs in through can hold more.** A login admits
+a caller to every training route. Administration also needs the identity provider's `admin` group.
+`meso admin` stays in the CLI's help for anyone who holds the binary. Reading, editing and deleting
+feedback answer 403 to a non-member. Capturing it needs only a login. A browser request carries
+the group in `Remote-Groups`. A CLI request carries it in the access token's `groups` claim, which
+`meso auth login` requests.
 
-- Reference build (stack + CLI + deploy to copy): the nomad repo, especially its `CLAUDE.md` and `cli/`.
-- Authelia / homelab auth: `~/homelab/containers/auth-lxc/README.md`.
-- Source content migrated in: `~/shart/fitness/` — `ppl/*.md`, `general-workouts/apartment-*.md`, `flexibility-moves.md`, and the three research plans `shoulder-plan.md`, `lower-body-plan.md`, `dance-conditioning.md`.
-- Goals & rotation the app formalizes: `~/shart/fitness/goals.md`, `~/shart/fitness/program.md`.
+**`update` sits at the root rather than under `admin`.** meso checks once a day for a newer release
+and prints a single line: "meso vX available (running vY) — run `meso update`". The shared library
+builds that sentence from the binary name, with no way to name a nested command. Under `admin` the
+notice would point at a command that does not exist. The check never installs anything and never
+prints an error. It skips a dev build, a non-terminal and CI. Set `NO_AUTO_UPDATE` or
+`MESO_NO_AUTO_UPDATE` to turn it off.
+
+## The API — one route table, filtered in SQL, behind three kinds of credential
+
+The API is one Go binary on `net/http`'s ServeMux with method routing. It reaches Postgres through
+pgx and applies goose migrations at startup.
+
+```bash
+curl localhost:8088/health                                    # unauthenticated; 503 when Postgres does not answer
+curl -H "Authorization: Bearer $(meso auth token)" \
+  "https://meso.example.com/api/v1/sessions?unfinished=true"  # the session underway, as the CLI sees it
+```
+
+`api/handlers/router.go` is the route table, and the only one. Production serves it, and the
+handler tests build it against a throwaway Postgres, so the two cannot drift. A path under
+`/api/v1/` that no route matches is a 404. A method its path does not take is a 405 naming the
+methods it does take.
+
+A resource flows through `models/` (wire structs), `repository/` (all SQL), and `handlers/` (HTTP,
+mapping repository errors to status codes), one file per resource. A list endpoint owns its filters
+as query parameters. A detail response embeds its relations, so one GET renders a screen. A workout
+carries its ordered entries, a session its entries and their sets, a cycle its ordered workouts,
+and a movement its muscles and related movements. The database owns computed values such as
+timestamps, never the client. Every resource has a testcontainers-backed handler test.
+
+Three kinds of credential reach it. A bearer credential's shape decides which check grades it,
+before either check runs, so one cannot be graded by the other's rules.
+
+- **A JWT bearer is the CLI.** The API checks, in order, that the header is `typ=at+jwt`, that the
+  signature verifies against the issuer's JWKS, that `iss` matches, that `sub` is non-empty, that
+  `client_id` starts with `meso-cli-`, and that `exp` is in the future. Every rejection is the same
+  401 with the same message, so a probe cannot learn which check it failed. An identity provider
+  that does not answer is a 503 instead, because logging in again cannot fix a network failure.
+- **Any other bearer is an internal service-to-service caller.** It must equal
+  `MESO_SERVICE_TOKEN`, compared in constant time. It names no user and carries no group.
+- **No bearer is the browser.** The edge's ForwardAuth sets `Remote-User` and `Remote-Groups` after
+  the identity provider's cookie login. That path trusts the headers, which is sound only for
+  requests that traverse the edge. A request carrying any bearer never reaches it, so a junk token
+  cannot be paired with a forged header.
+
+`client_id`, not `aud`, isolates meso from other products on the same identity provider. Authelia
+does not carry the audience through the device grant, so the `aud` claim comes back empty and
+cannot be relied on. `authelia.bearer.authz` is absent from the scopes because Authelia forbids the
+device grant alongside it.
+
+`/health` and `/.well-known/oauth-protected-resource` need no credential. Health answers 503 when
+Postgres fails, so an orchestrator sees the outage. The metadata is what a CLI reads before it
+holds a token, and the API serves it only while `PUBLIC_URL` is set.
+
+With `ENV=development` none of this runs. Every request is accepted and placed in the admin group.
+
+## Deployment — images are pulled, never built on the host
+
+A push to `main` runs `.github/workflows/release.yml`. It validates first: lint, format, typecheck,
+build and tests for web, and the Go jobs for api and cli. It then builds the api and web images and
+pushes them to `ghcr.io/datapointchris/meso-api` and `ghcr.io/datapointchris/meso-web`, tagged
+`:latest` and `:sha-<short>`. The `:sha-` tag never moves, so a rollback is a manifest edit. A push
+with releasable commits under `cli/` also cuts a `cli/v*` release of the binaries.
+
+When the workflow finishes, GitHub fires a repository `workflow_run` webhook. Its receiver lives
+outside this repo. It pulls the checkout on the host and runs:
+
+```bash
+docker compose pull && docker compose up -d --no-build  # the images CI pushed; nothing compiles on the host
+docker compose run --rm --entrypoint ./meso-seed api    # after up, once the API has migrated; idempotent
+```
+
+A webhook 200 means the deploy script started, not that it succeeded. The receiver's own log
+answers "did it deploy?", and `gh run list` does not. The receiver deploys only when the finished
+workflow's path is `release.yml`, so renaming that file stops every deploy. A manual workflow in
+`.github/workflows/` re-fires the webhook, for a redeploy without a commit.
+
+`docker-compose.yml` reads its secrets from env files that are never committed:
+`/etc/meso/.env.postgres` for Postgres and `/etc/meso/.env.api` for the API. It sets `PUBLIC_URL`
+inline, so a deployment edits it there. The API reads:
+
+| Variable | What it sets |
+| --- | --- |
+| `DATABASE_URL` | the Postgres connection |
+| `ENV` | `development` accepts every request unauthenticated; any other value enforces auth |
+| `OIDC_ISSUER` | the identity provider whose JWKS signs the CLI's tokens |
+| `CLI_CLIENT_ID_PREFIX` | the `client_id` prefix a token must carry, `meso-cli-` by default |
+| `PUBLIC_URL` | the address the edge serves the API at; the metadata names it, and a CLI refuses it unless it matches exactly |
+| `MESO_SERVICE_TOKEN` | the shared secret for internal callers; empty disables that path |
+| `PORT` | the listen port, 8088 by default |
+
+**Set `ENV` in the env file.** Its default is `development`, which accepts every request
+unauthenticated.
+
+The edge in front of the web container has three duties:
+
+- route the public hostname to the web container's port 80, behind the identity provider's
+  ForwardAuth middleware;
+- serve `/.well-known/oauth-protected-resource` without that middleware, since a CLI reads it
+  before it holds a token;
+- strip any client-supplied `Remote-Groups` before ForwardAuth sets it, or any signed-in browser
+  user can name their own groups.
+
+The web container is Caddy. It serves the SPA with a fallback to `index.html`, and proxies
+`/api/*` and the RFC 9728 path to the API. Both containers answer `/health` unauthenticated. The
+API shuts down gracefully on SIGTERM and writes structured JSON logs to stdout.
+
+## Out of scope
+
+- Offline logging and sync, and an installable PWA. The SPA needs a connection and ships no web app
+  manifest or service worker. UUID7 keys keep offline creation possible.
+- Wearable and health-app import, such as Apple Health or Strava.
+- Deriving lift stats from logged sessions. Measurements are entered by hand. `source` admits
+  `session`, so a derived reading would need no schema change.
+- Video attachments for movements. `source_url` links out instead.
+- Social features and sharing.
+
+## Why `meso` is a codebase name, not a brand
+
+"meso" is accurate and spare for a private tool. It is a weak commercial mark. "Mesocycle" is an
+industry term, so the name is descriptive. Several fitness apps already carry it on the same
+periodization thesis: meso.fitness, joinmeso.com, MesoBuilder, MesoTrack and Mesostrength.
+Registered marks such as MESO FIT and MESO METHOD sit in Class 41. None of that reaches a private,
+self-hosted, single-user tool. A product name would be chosen separately if one were ever wanted,
+and `meso` would stay the codebase's name.
