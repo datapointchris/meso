@@ -176,7 +176,7 @@ func TestResolveIDOrName_TokensInAnyOrder(t *testing.T) {
 // TestResolveIDOrName_Ambiguous is the presentation rule: an ambiguous name is a
 // choice not yet made, not a mistake. Every candidate comes back as a runnable
 // command, and the exit code is the not-found 1 rather than the usage-error 2,
-// which stays with what usageArgs classifies.
+// which stays with a line typed wrong.
 func TestResolveIDOrName_Ambiguous(t *testing.T) {
 	lib := &fakeLibrary{rows: []api.Movement{
 		{ID: 7, Name: "Front Squat"},

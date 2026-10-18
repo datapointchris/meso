@@ -24,7 +24,7 @@ func newReviewCommand() *cobra.Command {
 			"history, then persist it with ordinary `meso cycles` writes. There is no\n" +
 			"server-side AI; the reasoning happens in the conversation.",
 		Example: "  meso review\n  meso review --since 12w --json",
-		Args:    usageArgs(cobra.NoArgs),
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {

@@ -42,7 +42,7 @@ func newMeasurementsRecordCommand() *cobra.Command {
 			"defined (`meso metrics define`).",
 		Example: "  meso measurements record deadlift-working-weight --value 225\n" +
 			"  meso measurements record 5k-time --value 1650 --date 2026-07-27 --notes 'negative split'",
-		Args: usageArgs(cobra.ExactArgs(1)),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !cmd.Flags().Changed("value") {
 				return usageError{fmt.Errorf("a --value is required")}
@@ -80,7 +80,7 @@ func newMeasurementsListCommand() *cobra.Command {
 		Use:     "list [flags]",
 		Short:   "List measurements, newest first, optionally filtered",
 		Example: "  meso measurements list --metric deadlift-working-weight\n  meso measurements list --from 2026-07-01 --json",
-		Args:    usageArgs(cobra.NoArgs),
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			filter := api.MeasurementFilter{Metric: metric, From: from, To: to}
 			client, err := newAPIClient(cmd.Context())
@@ -115,7 +115,7 @@ func newMeasurementsTrendCommand() *cobra.Command {
 		Use:     "trend <metric> [flags]",
 		Short:   "Show a metric's trend over time with its improvement summary",
 		Example: "  meso measurements trend deadlift-working-weight\n  meso measurements trend 5k-time --from 2026-07-01 --json",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {

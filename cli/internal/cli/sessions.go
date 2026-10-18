@@ -55,7 +55,7 @@ func newSessionsPromoteCommand() *cobra.Command {
 			"session can be promoted — one started from a workout already has a template.",
 		Example: "  meso sessions promote 018f... --name \"Cable pull day\"\n" +
 			"  meso sessions promote 018f... --name \"Cable pull day\" --theme pull --tag upper",
-		Args: usageArgs(cobra.ExactArgs(1)),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if in.Name == "" {
 				return usageError{fmt.Errorf("--name is required")}
@@ -124,7 +124,7 @@ func newSessionsLogCommand() *cobra.Command {
 		Example: "  meso sessions log --from-workout 1\n" +
 			"  meso sessions log --from-workout 1 --date 2026-07-24 --felt strong\n" +
 			"  meso sessions log --felt strong   # free-form, add movements as you go",
-		Args: usageArgs(cobra.NoArgs),
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			in := api.SessionCreate{PerformedOn: s.date, OverallNotes: s.notes}
 			f := cmd.Flags()
@@ -166,7 +166,7 @@ func newSessionsListCommand() *cobra.Command {
 		Short: "List sessions, newest first, optionally filtered by date or workout",
 		Example: "  meso sessions list\n  meso sessions list --unfinished\n" +
 			"  meso sessions list --from 2026-07-01 --to 2026-07-31 --json",
-		Args: usageArgs(cobra.NoArgs),
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			filter := api.SessionFilter{From: from, To: to, Unfinished: unfinished}
 			if cmd.Flags().Changed("workout") {
@@ -202,7 +202,7 @@ func newSessionsShowCommand() *cobra.Command {
 		Use:     "show <id>",
 		Short:   "Show a session and its logged movements",
 		Example: "  meso sessions show 018f...  --json",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -236,7 +236,7 @@ func newSessionsUpdateCommand() *cobra.Command {
 		Short: "Edit a session's date, felt, duration or notes (only the flags you pass change)",
 		Example: "  meso sessions update 018f... --felt tired\n" +
 			"  meso sessions update 018f... --date 2026-07-24 --duration 52",
-		Args: usageArgs(cobra.ExactArgs(1)),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := cmd.Flags()
 			patch := map[string]any{}
@@ -281,7 +281,7 @@ func newSessionsFinishCommand() *cobra.Command {
 			"resume. This says nothing about whether the plan was completed — a session\n" +
 			"finished two movements in is a finished session. Safe to run twice.",
 		Example: "  meso sessions finish 018f...",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -304,7 +304,7 @@ func newSessionsDeleteCommand() *cobra.Command {
 		Use:     "delete <id>",
 		Short:   "Delete a session and its logged movements",
 		Example: "  meso sessions delete 018f... --yes",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -369,7 +369,7 @@ func newSessionMovementAddCommand() *cobra.Command {
 			"`sessions set add` to log what was performed.",
 		Example: "  meso sessions movement add 018f... 37 --target-sets 3 --target-reps 12\n" +
 			"  meso sessions movement add 018f... 85 --done",
-		Args: usageArgs(cobra.ExactArgs(2)),
+		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			movementID, err := api.ParseID(args[1])
 			if err != nil {
@@ -414,7 +414,7 @@ func newSessionMovementRemoveCommand() *cobra.Command {
 		Use:     "rm <session-id> <entry-id>",
 		Short:   "Drop one entry from a session",
 		Example: "  meso sessions movement rm 018f... 42",
-		Args:    usageArgs(cobra.ExactArgs(2)),
+		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			entryID, err := api.ParseID(args[1])
 			if err != nil {
@@ -441,7 +441,7 @@ func newSessionMovementDoneCommand() *cobra.Command {
 		Use:     "done <session-id> <entry-id>",
 		Short:   "Mark one entry done (shortcut for `update --done`)",
 		Example: "  meso sessions movement done 018f... 42",
-		Args:    usageArgs(cobra.ExactArgs(2)),
+		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			entryID, err := api.ParseID(args[1])
 			if err != nil {
@@ -484,7 +484,7 @@ func newSessionMovementUpdateCommand() *cobra.Command {
 		Example: "  meso sessions movement update 018f... 42 --done\n" +
 			"  meso sessions movement update 018f... 42 --target-load 105lb\n" +
 			"  meso sessions movement update 018f... 42 --movement 9   # swap, sets carry over",
-		Args: usageArgs(cobra.ExactArgs(2)),
+		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			entryID, err := api.ParseID(args[1])
 			if err != nil {
@@ -590,7 +590,7 @@ func newSessionSetAddCommand() *cobra.Command {
 		Example: "  meso sessions set add 018f... 42                      # another like the last\n" +
 			"  meso sessions set add 018f... 42 --reps 8 --load 100lb\n" +
 			"  meso sessions set add 018f... 42 --load 85lb --kind drop",
-		Args: usageArgs(cobra.ExactArgs(2)),
+		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			entryID, err := api.ParseID(args[1])
 			if err != nil {
@@ -633,7 +633,7 @@ func newSessionSetUpdateCommand() *cobra.Command {
 		Use:     "update <session-id> <entry-id> <set-id> [flags]",
 		Short:   "Fix one logged set (only the flags you pass change)",
 		Example: "  meso sessions set update 018f... 42 7 --reps 6",
-		Args:    usageArgs(cobra.ExactArgs(3)),
+		Args:    cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			entryID, setID, err := parseEntryAndSetIDs(args[1], args[2])
 			if err != nil {
@@ -682,7 +682,7 @@ func newSessionSetRemoveCommand() *cobra.Command {
 		Use:     "rm <session-id> <entry-id> <set-id>",
 		Short:   "Drop one logged set",
 		Example: "  meso sessions set rm 018f... 42 7",
-		Args:    usageArgs(cobra.ExactArgs(3)),
+		Args:    cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			entryID, setID, err := parseEntryAndSetIDs(args[1], args[2])
 			if err != nil {

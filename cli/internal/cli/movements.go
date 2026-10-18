@@ -52,7 +52,7 @@ func newMovementsMusclesCommand() *cobra.Command {
 		Use:     "muscles",
 		Short:   "List the muscle vocabulary --muscle accepts",
 		Example: "  meso movements muscles\n  meso movements muscles --json",
-		Args:    usageArgs(cobra.NoArgs),
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -106,7 +106,7 @@ func newMovementsRelatedAddCommand() *cobra.Command {
 		Use:     "add <movement-id> <related-id> --kind <kind>",
 		Short:   "Relate a movement to another",
 		Example: "  meso movements related add 3 8 --kind alternate",
-		Args:    usageArgs(cobra.ExactArgs(2)),
+		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseID(args[0])
 			if err != nil {
@@ -149,7 +149,7 @@ func newMovementsRelatedRemoveCommand() *cobra.Command {
 		Use:     "rm <movement-id> <related-id> [--kind <kind>]",
 		Short:   "Remove a relationship (omit --kind to remove every kind between the pair)",
 		Example: "  meso movements related rm 3 8 --kind alternate\n  meso movements related rm 3 8",
-		Args:    usageArgs(cobra.ExactArgs(2)),
+		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseID(args[0])
 			if err != nil {
@@ -217,7 +217,7 @@ func newMovementsListCommand() *cobra.Command {
 		Example: "  meso movements list\n  meso movements list --kind stretch\n" +
 			"  meso movements list --load-mode bodyweight\n" +
 			"  meso movements list --region posterior --favorite --json",
-		Args: usageArgs(cobra.NoArgs),
+		Args: cobra.NoArgs,
 	}
 	readFilter := movementFilterFlags(cmd)
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output movements as JSON to stdout")
@@ -265,7 +265,7 @@ func newMovementsShowCommand() *cobra.Command {
 			"reads and never where it writes, because a name that narrows to the wrong\n" +
 			"movement costs a wrong screen on a read and a wrong row on a write.",
 		Example: "  meso movements show 1\n  meso movements show \"front squat\"\n  meso movements show squat --json",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -339,7 +339,7 @@ func newMovementsCreateCommand() *cobra.Command {
 		Use:     "create <name> --kind <kind> [flags]",
 		Short:   "Create a movement",
 		Example: "  meso movements create \"Front Squat\" --kind exercise --tag legs --muscle quads:primary --muscle glutes:secondary",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if w.kind == "" {
 				return usageError{fmt.Errorf("--kind is required")}
@@ -409,7 +409,7 @@ func newMovementsUpdateCommand() *cobra.Command {
 		Example: "  meso movements update 3 --favorite\n" +
 			"  meso movements update 3 --tag mobility --muscle glutes:primary\n" +
 			"  meso movements update 37 --name \"Straight-Arm Pulldown\"",
-		Args: usageArgs(cobra.ExactArgs(1)),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseID(args[0])
 			if err != nil {
@@ -515,7 +515,7 @@ func newMovementsDeleteCommand() *cobra.Command {
 		Use:     "delete <id>",
 		Short:   "Delete a movement",
 		Example: "  meso movements delete 12\n  meso movements delete 12 --yes",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseID(args[0])
 			if err != nil {
@@ -559,7 +559,7 @@ func newMovementsExportCommand() *cobra.Command {
 			"data portability from day one. CSV is the only format so far; --format is\n" +
 			"how a second one arrives without changing what `export` already means.",
 		Example: "  meso movements export > movements.csv\n  meso movements export --kind exercise\n  meso movements export --format csv",
-		Args:    usageArgs(cobra.NoArgs),
+		Args:    cobra.NoArgs,
 	}
 	readFilter := movementFilterFlags(cmd)
 	cmd.Flags().StringVar(&format, "format", "csv", "Output format ("+strings.Join(exportFormats, "|")+")")

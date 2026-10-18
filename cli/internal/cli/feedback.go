@@ -84,7 +84,7 @@ func newFeedbackListCommand() *cobra.Command {
 		Example: "  meso admin feedback list\n" +
 			"  meso admin feedback list --all\n" +
 			"  meso admin feedback list --search timer --json",
-		Args: usageArgs(cobra.NoArgs),
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			wanted, err := feedbackFilters{
 				status:    status,
@@ -127,7 +127,7 @@ func newFeedbackShowCommand() *cobra.Command {
 		Use:     "show <id>",
 		Short:   "Show one piece of feedback in full",
 		Example: "  meso admin feedback show 019f... --json",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -161,7 +161,7 @@ func newFeedbackAddCommand() *cobra.Command {
 			"or for filing something on your behalf from a conversation.",
 		Example: "  meso admin feedback add \"Session timer keeps resetting when the screen sleeps\"\n" +
 			"  meso admin feedback add \"Cycle detail should show the week number\" --context /cycles/3",
-		Args: usageArgs(cobra.ExactArgs(1)),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -191,7 +191,7 @@ func newFeedbackEditCommand() *cobra.Command {
 		Use:     "edit <id> [flags]",
 		Short:   "Edit feedback (only the flags you pass change)",
 		Example: "  meso admin feedback edit 019f... --body \"clearer restatement\"\n  meso admin feedback edit 019f... --status done",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := cmd.Flags()
 			patch := map[string]any{}
@@ -233,7 +233,7 @@ func newFeedbackDoneCommand() *cobra.Command {
 		Short:   "Close a piece of feedback",
 		Long:    "Mark feedback done. Sugar over `edit --status done`, since closing is the verb\n you reach for constantly and editing is the one you rarely do.",
 		Example: "  meso admin feedback done 019f...",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -256,7 +256,7 @@ func newFeedbackDeleteCommand() *cobra.Command {
 		Use:     "delete <id>",
 		Short:   "Delete a piece of feedback",
 		Example: "  meso admin feedback delete 019f... --yes",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {

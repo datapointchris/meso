@@ -53,7 +53,7 @@ data. Every command it composes takes its path from `cmd.CommandPath()` and its 
 through `shellArg`, so a menu line can be pasted back as typed.
 
 **It reaches `show` on movements, workouts and cycles, and nothing else yet.** Every other
-verb returns plain errors through `handleAPIError` and `usageArgs`, and widening it belongs
+verb returns plain errors through `handleAPIError`, and widening it belongs
 in `goclikit` rather than here — so treat this as describing three commands, not the CLI.
 
 **A name is accepted where a command reads and never where it writes.** `show` resolves

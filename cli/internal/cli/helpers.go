@@ -18,18 +18,6 @@ import (
 	"github.com/datapointchris/meso/cli/internal/api"
 )
 
-// usageArgs wraps a positional-args validator so a violation (wrong count, etc.)
-// surfaces as a usageError → exit 2, matching how flag errors are classified.
-// Cobra's built-in validators return plain errors that would otherwise exit 1.
-func usageArgs(validate cobra.PositionalArgs) cobra.PositionalArgs {
-	return func(cmd *cobra.Command, args []string) error {
-		if err := validate(cmd, args); err != nil {
-			return usageError{err}
-		}
-		return nil
-	}
-}
-
 // encodeJSON writes v as indented JSON — the scripting-friendly output shared by
 // every resource command's --json flag.
 func encodeJSON(out io.Writer, v any) error {

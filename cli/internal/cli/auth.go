@@ -51,7 +51,7 @@ func newAuthLoginCommand() *cobra.Command {
 			"A value already in the file is never rewritten.",
 		Example: "  meso auth login\n  meso auth login https://meso.example.com\n" +
 			"  meso auth login https://meso.example.com --client-id meso-cli-laptop",
-		Args: usageArgs(cobra.MaximumNArgs(1)),
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			url := apiOverride
 			if len(args) == 1 {
@@ -124,7 +124,7 @@ func newAuthLogoutCommand() *cobra.Command {
 		Use:     "logout",
 		Short:   "Remove the stored token from this machine's keychain",
 		Example: "  meso auth logout",
-		Args:    usageArgs(cobra.NoArgs),
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			// Only the client id is needed to find the token, so a file that
 			// lacks the other two keys still logs out. A file naming no client
@@ -162,7 +162,7 @@ func newAuthTokenCommand() *cobra.Command {
 			"expired. Intended for scripting, e.g. `curl -H \"Authorization: Bearer\n" +
 			"$(meso auth token)\" …`. Exits non-zero if not logged in.",
 		Example: "  meso auth token",
-		Args:    usageArgs(cobra.NoArgs),
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			deployment, err := config.Load(cmd.Context(), apiOverride)
 			if err != nil {
@@ -218,7 +218,7 @@ func newAuthStatusCommand() *cobra.Command {
 			"from, the config file's path, and whether a token is stored for the client.\n" +
 			"Exits 1 when the file lacks a value or no token is stored.",
 		Example: "  meso auth status\n  meso auth status --json",
-		Args:    usageArgs(cobra.NoArgs),
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			deployment, loadErr := config.Load(cmd.Context(), apiOverride)
 			if loadErr != nil && !errors.Is(loadErr, goclilogin.ErrNotConfigured) {

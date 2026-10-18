@@ -38,7 +38,7 @@ func newMetricsShowCommand() *cobra.Command {
 			"the how-to-measure lives. Read it before recording a reading — the series is\n" +
 			"only comparable if every reading was taken the same way.",
 		Example: "  meso metrics show heel-raise-capacity-right",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -73,7 +73,7 @@ func newMetricsEditCommand() *cobra.Command {
 		Example: "  meso metrics edit back-squat-working-weight --label \"Back Squat (working)\"\n" +
 			"  meso metrics edit row-machine-500m --unit seconds --direction lower_better\n" +
 			"  meso metrics edit toe-reach --how-to-measure \"Seated, legs straight...\"",
-		Args: usageArgs(cobra.ExactArgs(1)),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in := api.MetricDefinitionUpdate{}
 			f := cmd.Flags()
@@ -130,7 +130,7 @@ func newMetricsDeleteCommand() *cobra.Command {
 			"measurements can't be deleted (delete those readings first); a cycle that\n" +
 			"targets it simply loses its target.",
 		Example: "  meso metrics delete continuous-easy-run",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 			if !yes {
@@ -164,7 +164,7 @@ func newMetricsListCommand() *cobra.Command {
 		Use:     "list",
 		Short:   "List metric definitions, grouped by category",
 		Example: "  meso metrics list\n  meso metrics list --json",
-		Args:    usageArgs(cobra.NoArgs),
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -203,7 +203,7 @@ func newMetricsDefineCommand() *cobra.Command {
 		Example: "  meso metrics define deadlift-working-weight --unit lb --direction higher_better --category strength\n" +
 			"  meso metrics define 5k-time --unit seconds --direction lower_better --category cardio\n" +
 			"  meso metrics define row-machine-500m --label \"Row 500m\" --unit seconds --direction lower_better --category cardio",
-		Args: usageArgs(cobra.ExactArgs(1)),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in := api.MetricDefinitionCreate{
 				Name: args[0], Label: label, Unit: unit, Direction: direction,

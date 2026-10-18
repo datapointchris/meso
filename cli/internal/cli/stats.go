@@ -19,7 +19,7 @@ func newStatsCommand() *cobra.Command {
 			"movement library counts, and recent session frequency. `--json` gives the full\n" +
 			"structured payload (per-metric point series included) for scripting.",
 		Example: "  meso stats\n  meso stats --json",
-		Args:    usageArgs(cobra.NoArgs),
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {

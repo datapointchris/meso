@@ -149,13 +149,12 @@ func Execute() int {
 		return int(ec)
 	}
 
-	// `update` writes its own ✓/✗ line, so printing here would report the same
-	// failure twice.
-	if errors.Is(err, goclikit.ErrReported) {
-		return 1
+	// The failure is already on screen: `update` writes its own ✓/✗ line, and a
+	// command given none of its arguments prints its help. Printing here would
+	// report it twice.
+	if !errors.Is(err, goclikit.ErrReported) {
+		fmt.Fprintln(os.Stderr, "error:", err)
 	}
-
-	fmt.Fprintln(os.Stderr, "error:", err)
 
 	var usageErr usageError
 	if errors.As(err, &usageErr) {

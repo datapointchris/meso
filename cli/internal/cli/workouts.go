@@ -61,7 +61,7 @@ func newWorkoutsListCommand() *cobra.Command {
 		Use:     "list [flags]",
 		Short:   "List workouts, optionally filtered",
 		Example: "  meso workouts list\n  meso workouts list --theme push --favorite --json",
-		Args:    usageArgs(cobra.NoArgs),
+		Args:    cobra.NoArgs,
 	}
 	readFilter := workoutFilterFlags(cmd)
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output workouts as JSON to stdout")
@@ -112,7 +112,7 @@ func newWorkoutsShowCommand() *cobra.Command {
 			"movement's kind, equipment, muscles and form cues. The how-to and common\n" +
 			"faults stay in `meso movements show`, whose id every block prints.",
 		Example: "  meso workouts show 1\n  meso workouts show \"push day\"\n  meso workouts show 1 --detailed",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if detailed && asJSON {
 				printWorkoutViews(cmd, args[0])
@@ -180,7 +180,7 @@ func newWorkoutsCreateCommand() *cobra.Command {
 		Use:     "create <name> [flags]",
 		Short:   "Create a workout (add movements with `workouts movements add`)",
 		Example: "  meso workouts create \"Push Day\" --theme push --tag upper",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in := api.WorkoutCreate{
 				Name:     args[0],
@@ -219,7 +219,7 @@ func newWorkoutsUpdateCommand() *cobra.Command {
 		Use:     "update <id> [flags]",
 		Short:   "Update a workout's fields (only the flags you pass change)",
 		Example: "  meso workouts update 3 --favorite\n  meso workouts update 3 --theme \"lower + rehab\"",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseWorkoutID(args[0])
 			if err != nil {
@@ -273,7 +273,7 @@ func newWorkoutsDeleteCommand() *cobra.Command {
 		Use:     "delete <id>",
 		Short:   "Delete a workout",
 		Example: "  meso workouts delete 12 --yes",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseWorkoutID(args[0])
 			if err != nil {
@@ -361,7 +361,7 @@ func newWorkoutMovementsAddCommand() *cobra.Command {
 		Use:     "add <workout-id> <movement-id> [flags]",
 		Short:   "Append a movement to a workout with its prescription",
 		Example: "  meso workouts movements add 1 7 --sets 5 --reps 5 --load \"80% 1RM\"",
-		Args:    usageArgs(cobra.ExactArgs(2)),
+		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workoutID, err := api.ParseWorkoutID(args[0])
 			if err != nil {
@@ -412,7 +412,7 @@ func newWorkoutMovementsUpdateCommand() *cobra.Command {
 		Use:     "update <workout-id> <entry-id> [flags]",
 		Short:   "Edit or swap one entry (only the flags you pass change)",
 		Example: "  meso workouts movements update 1 4 --load \"85% 1RM\"\n  meso workouts movements update 1 4 --movement 9   # swap, target carries over",
-		Args:    usageArgs(cobra.ExactArgs(2)),
+		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workoutID, err := api.ParseWorkoutID(args[0])
 			if err != nil {
@@ -476,7 +476,7 @@ func newWorkoutMovementsReorderCommand() *cobra.Command {
 		Use:     "reorder <workout-id> <entry-id>...",
 		Short:   "Set the movement order (list every entry id in the desired order)",
 		Example: "  meso workouts movements reorder 1 4 2 3",
-		Args:    usageArgs(cobra.MinimumNArgs(2)),
+		Args:    cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workoutID, err := api.ParseWorkoutID(args[0])
 			if err != nil {
@@ -512,7 +512,7 @@ func newWorkoutMovementsRemoveCommand() *cobra.Command {
 		Use:     "rm <workout-id> <entry-id>",
 		Short:   "Remove one entry from a workout",
 		Example: "  meso workouts movements rm 1 4",
-		Args:    usageArgs(cobra.ExactArgs(2)),
+		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workoutID, err := api.ParseWorkoutID(args[0])
 			if err != nil {

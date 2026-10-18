@@ -43,7 +43,7 @@ func newLogAddCommand() *cobra.Command {
 			"repeatable and mood is a free-form note (e.g. strong, tired, focused).",
 		Example: "  meso log add \"Deadlifts moved well, knee-to-wall symmetric.\" --tag strength --mood focused\n" +
 			"  meso log add \"Rest day, legs sore.\" --date 2026-07-24 --tag rest",
-		Args: usageArgs(cobra.ExactArgs(1)),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in := api.LogEntryCreate{Body: args[0], EntryDate: date, Tags: tags}
 			if cmd.Flags().Changed("mood") {
@@ -77,7 +77,7 @@ func newLogListCommand() *cobra.Command {
 		Use:     "list [flags]",
 		Short:   "List journal entries, newest first, optionally filtered",
 		Example: "  meso log list\n  meso log list --from 2026-07-01 --tag strength --json",
-		Args:    usageArgs(cobra.NoArgs),
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			filter := api.LogFilter{From: from, To: to, Tag: tag}
 			client, err := newAPIClient(cmd.Context())
@@ -109,7 +109,7 @@ func newLogShowCommand() *cobra.Command {
 		Use:     "show <id>",
 		Short:   "Show a journal entry in full",
 		Example: "  meso log show 018f...  --json",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -140,7 +140,7 @@ func newLogEditCommand() *cobra.Command {
 		Use:     "edit <id> [flags]",
 		Short:   "Edit a journal entry (only the flags you pass change)",
 		Example: "  meso log edit 018f... --body \"revised note\" --mood tired\n  meso log edit 018f... --tag strength --tag pr",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := cmd.Flags()
 			patch := map[string]any{}
@@ -185,7 +185,7 @@ func newLogDeleteCommand() *cobra.Command {
 		Use:     "delete <id>",
 		Short:   "Delete a journal entry",
 		Example: "  meso log delete 018f... --yes",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {

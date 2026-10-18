@@ -51,7 +51,7 @@ func newCyclesListCommand() *cobra.Command {
 		Use:     "list [flags]",
 		Short:   "List cycles, optionally filtered",
 		Example: "  meso cycles list\n  meso cycles list --status active --json",
-		Args:    usageArgs(cobra.NoArgs),
+		Args:    cobra.NoArgs,
 	}
 	readFilter := cycleFilterFlags(cmd)
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Output cycles as JSON to stdout")
@@ -99,7 +99,7 @@ func newCyclesShowCommand() *cobra.Command {
 			"that narrows to the wrong cycle costs a wrong screen on a read and a\n" +
 			"wrong row on a write.",
 		Example: "  meso cycles show 1\n  meso cycles show \"winter strength\"\n  meso cycles show 1 --json",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -149,7 +149,7 @@ func newCyclesCreateCommand() *cobra.Command {
 		Use:     "create <name> [flags]",
 		Short:   "Create a cycle (add workouts with `cycles workouts add`)",
 		Example: "  meso cycles create \"Return to 5k\" --goal \"12-week run return\" --status active --target-date 2026-10-24",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in := api.CycleCreate{Name: args[0], GoalSummary: c.goal, Notes: c.notes, Status: c.status}
 			f := cmd.Flags()
@@ -189,7 +189,7 @@ func newCyclesUpdateCommand() *cobra.Command {
 		Use:     "update <id> [flags]",
 		Short:   "Update a cycle's fields (only the flags you pass change)",
 		Example: "  meso cycles update 3 --status active\n  meso cycles update 3 --start-date \"\"   # clear the start date",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseCycleID(args[0])
 			if err != nil {
@@ -249,7 +249,7 @@ func newCyclesDeleteCommand() *cobra.Command {
 		Use:     "delete <id>",
 		Short:   "Delete a cycle",
 		Example: "  meso cycles delete 12 --yes",
-		Args:    usageArgs(cobra.ExactArgs(1)),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseCycleID(args[0])
 			if err != nil {
@@ -334,7 +334,7 @@ func newCycleWorkoutsAddCommand() *cobra.Command {
 		Use:     "add <cycle-id> <workout-id> [flags]",
 		Short:   "Append a workout to a cycle with its periodization",
 		Example: "  meso cycles workouts add 1 7 --week 1 --phase base --frequency \"3×/week\" --intensity \"easy / Zone 2\"",
-		Args:    usageArgs(cobra.ExactArgs(2)),
+		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cycleID, err := api.ParseCycleID(args[0])
 			if err != nil {
@@ -385,7 +385,7 @@ func newCycleWorkoutsUpdateCommand() *cobra.Command {
 		Use:     "update <cycle-id> <entry-id> [flags]",
 		Short:   "Edit or swap one entry (only the flags you pass change)",
 		Example: "  meso cycles workouts update 1 4 --phase taper\n  meso cycles workouts update 1 4 --workout 9   # swap, prescription carries over",
-		Args:    usageArgs(cobra.ExactArgs(2)),
+		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cycleID, err := api.ParseCycleID(args[0])
 			if err != nil {
@@ -446,7 +446,7 @@ func newCycleWorkoutsReorderCommand() *cobra.Command {
 		Use:     "reorder <cycle-id> <entry-id>...",
 		Short:   "Set the workout order (list every entry id in the desired order)",
 		Example: "  meso cycles workouts reorder 1 4 2 3",
-		Args:    usageArgs(cobra.MinimumNArgs(2)),
+		Args:    cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cycleID, err := api.ParseCycleID(args[0])
 			if err != nil {
@@ -482,7 +482,7 @@ func newCycleWorkoutsRemoveCommand() *cobra.Command {
 		Use:     "rm <cycle-id> <entry-id>",
 		Short:   "Remove one entry from a cycle",
 		Example: "  meso cycles workouts rm 1 4",
-		Args:    usageArgs(cobra.ExactArgs(2)),
+		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cycleID, err := api.ParseCycleID(args[0])
 			if err != nil {
