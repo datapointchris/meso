@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -45,8 +46,33 @@ type Identity struct {
 type Verifier struct {
 	issuer         string
 	clientIDPrefix string
-	keySet         *oidc.RemoteKeySet
+	keySet         *expiringKeySet
 	now            func() time.Time
+}
+
+// keySetLifespan bounds how long a key the issuer stopped publishing still verifies. go-oidc's
+// RemoteKeySet alone keeps a key until a token none of its keys verifies.
+const keySetLifespan = 5 * time.Minute
+
+// expiringKeySet starts a new RemoteKeySet, which reads the issuer's keys on first use, once the
+// one it holds is older than keySetLifespan.
+type expiringKeySet struct {
+	ctx     context.Context
+	uri     string
+	mu      sync.Mutex
+	current *oidc.RemoteKeySet
+	started time.Time
+}
+
+func (s *expiringKeySet) VerifySignature(ctx context.Context, raw string, now time.Time) ([]byte, error) {
+	s.mu.Lock()
+	if s.current == nil || now.Sub(s.started) >= keySetLifespan {
+		s.current = oidc.NewRemoteKeySet(s.ctx, s.uri)
+		s.started = now
+	}
+	current := s.current
+	s.mu.Unlock()
+	return current.VerifySignature(ctx, raw)
 }
 
 // userAgent identifies this API to the issuer. A bot rule at a CDN in front of an issuer can
@@ -98,7 +124,7 @@ func NewVerifier(ctx context.Context, issuer, clientIDPrefix string) (*Verifier,
 	return &Verifier{
 		issuer:         issuer,
 		clientIDPrefix: clientIDPrefix,
-		keySet:         oidc.NewRemoteKeySet(oidc.ClientContext(ctx, identifiedClient()), doc.JWKSURI),
+		keySet:         &expiringKeySet{ctx: oidc.ClientContext(ctx, identifiedClient()), uri: doc.JWKSURI},
 		now:            time.Now,
 	}, nil
 }
@@ -144,7 +170,7 @@ func (v *Verifier) Verify(ctx context.Context, raw string) (Identity, error) {
 		return Identity{}, err
 	}
 
-	payload, err := v.keySet.VerifySignature(ctx, raw)
+	payload, err := v.keySet.VerifySignature(ctx, raw, v.now())
 	if err != nil {
 		if isRetrievalFailure(err) {
 			return Identity{}, fmt.Errorf("%w: %v", ErrProviderUnavailable, err)

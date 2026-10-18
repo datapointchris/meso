@@ -19,8 +19,17 @@ import (
 const testKeyID = "main"
 
 type testIDP struct {
-	server *httptest.Server
-	key    *rsa.PrivateKey
+	server    *httptest.Server
+	key       *rsa.PrivateKey
+	mu        sync.Mutex
+	published *rsa.PrivateKey
+}
+
+// publish replaces the key the IDP's JWKS serves.
+func (i *testIDP) publish(key *rsa.PrivateKey) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.published = key
 }
 
 func newTestIDP(t *testing.T) *testIDP {
@@ -29,7 +38,7 @@ func newTestIDP(t *testing.T) *testIDP {
 	if err != nil {
 		t.Fatalf("generate key: %v", err)
 	}
-	idp := &testIDP{key: key}
+	idp := &testIDP{key: key, published: key}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
@@ -39,8 +48,10 @@ func newTestIDP(t *testing.T) *testIDP {
 		})
 	})
 	mux.HandleFunc("/jwks.json", func(w http.ResponseWriter, _ *http.Request) {
+		idp.mu.Lock()
+		defer idp.mu.Unlock()
 		set := jose.JSONWebKeySet{Keys: []jose.JSONWebKey{{
-			Key:       key.Public(),
+			Key:       idp.published.Public(),
 			KeyID:     testKeyID,
 			Algorithm: string(jose.RS256),
 			Use:       "sig",
@@ -158,6 +169,29 @@ func TestVerify_RejectsForeignSigningKey(t *testing.T) {
 	_, err = v.Verify(context.Background(), idp.sign(t, "at+jwt", idp.validClaims(), attacker))
 	if !errors.Is(err, ErrUnauthorized) {
 		t.Fatalf("expected ErrUnauthorized for a foreign key, got %v", err)
+	}
+}
+
+// A rotated-out signing key may have leaked, so it must stop verifying without waiting for a
+// token under the new key to arrive.
+func TestVerify_RejectsARetiredKeyOnceTheKeySetExpires(t *testing.T) {
+	idp := newTestIDP(t)
+	v := newTestVerifier(t, idp)
+	retired := idp.sign(t, "at+jwt", idp.validClaims(), nil)
+	if _, err := v.Verify(context.Background(), retired); err != nil {
+		t.Fatalf("Verify before the rotation: %v", err)
+	}
+
+	successor, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("generate successor key: %v", err)
+	}
+	idp.publish(successor)
+	later := time.Now().Add(keySetLifespan)
+	v.now = func() time.Time { return later }
+
+	if _, err := v.Verify(context.Background(), retired); !errors.Is(err, ErrUnauthorized) {
+		t.Fatalf("expected ErrUnauthorized once the key set expired, got %v", err)
 	}
 }
 
