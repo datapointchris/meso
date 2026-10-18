@@ -5,8 +5,8 @@
 -- A Workout is an ordered, themed composition of movements (the "plan"); its
 -- ordered list of prescribed movements lives in workout_movements — a
 -- payload-bearing join carrying order + prescription, read on every render. A
--- workout is a catalog row (identity PK) with a natural key (name UNIQUE) so
--- seed/import can upsert idempotently, mirroring movements.
+-- workout is a catalog row (identity PK) with a natural key (name UNIQUE) so a
+-- name resolves to one row, mirroring movements.
 --
 -- movement_relationships is the self-referential alternate/antagonist join
 -- deferred from Phase 1 — it earns a table because swapping a movement for an
@@ -14,8 +14,8 @@
 
 CREATE TABLE workouts (
     id                BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    -- name is the natural key: seed/import upsert on it, so it is unique even
-    -- though id is the surrogate PK.
+    -- name is the natural key: `show <name>` resolves it to one row, so it is
+    -- unique even though id is the surrogate PK.
     name              TEXT NOT NULL UNIQUE,
     theme             TEXT,
     tags              TEXT[] NOT NULL DEFAULT '{}',

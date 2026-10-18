@@ -4,8 +4,8 @@
 --
 -- A Cycle is the unit of training planning: a multi-week block aimed at a target
 -- (a race date, a working weight, a symmetric knee-to-wall). Like a Workout it is a
--- catalog row (identity PK) with a natural key (name UNIQUE) so seed/import can
--- upsert idempotently, and its ordered contents live in a payload-bearing join
+-- catalog row (identity PK) with a natural key (name UNIQUE) so a name resolves to
+-- one row, and its ordered contents live in a payload-bearing join
 -- (cycle_workouts) read on every render.
 --
 -- status is FK-guarded by the cycle_statuses lookup seeded in cmd/seed
@@ -17,8 +17,8 @@
 
 CREATE TABLE cycles (
     id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    -- name is the natural key: seed/import upsert on it, so it is unique even
-    -- though id is the surrogate PK.
+    -- name is the natural key: `show <name>` resolves it to one row, so it is
+    -- unique even though id is the surrogate PK.
     name          TEXT NOT NULL UNIQUE,
     goal_summary  TEXT NOT NULL DEFAULT '',
     target_metric TEXT REFERENCES metric_definitions(name) ON DELETE SET NULL,

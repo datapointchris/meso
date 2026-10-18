@@ -200,41 +200,6 @@ func (r *WorkoutRepo) Update(ctx context.Context, id int64, in models.WorkoutUpd
 	return r.GetByID(ctx, id)
 }
 
-// Upsert inserts a workout or overwrites an existing one matched by name, replacing
-// its movement list wholesale — the idempotent write path for cmd/seed and the CLI
-// import pass.
-func (r *WorkoutRepo) Upsert(ctx context.Context, in models.WorkoutCreate) (models.Workout, error) {
-	tx, err := r.pool.Begin(ctx)
-	if err != nil {
-		return models.Workout{}, fmt.Errorf("begin tx: %w", err)
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-
-	var id int64
-	err = tx.QueryRow(ctx, `
-		INSERT INTO workouts (name, theme, tags, notes, favorite, estimated_minutes)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		ON CONFLICT (name) DO UPDATE SET
-			theme = EXCLUDED.theme, tags = EXCLUDED.tags, notes = EXCLUDED.notes,
-			favorite = EXCLUDED.favorite, estimated_minutes = EXCLUDED.estimated_minutes,
-			updated_at = now()
-		RETURNING id`,
-		in.Name, in.Theme, normalizeArray(in.Tags), in.Notes, in.Favorite, in.EstimatedMinutes).Scan(&id)
-	if err != nil {
-		return models.Workout{}, mapWriteError("upserting workout", err)
-	}
-	if _, err := tx.Exec(ctx, `DELETE FROM workout_movements WHERE workout_id = $1`, id); err != nil {
-		return models.Workout{}, fmt.Errorf("clearing workout movements: %w", err)
-	}
-	if err := insertMovementsInOrder(ctx, tx, id, in.Movements); err != nil {
-		return models.Workout{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return models.Workout{}, fmt.Errorf("commit: %w", err)
-	}
-	return r.GetByID(ctx, id)
-}
-
 // Delete removes a workout. A workout referenced by a cycle (cycle_workouts FKs it
 // with ON DELETE RESTRICT) surfaces as ErrReferenced (409); sessions reference it
 // with SET NULL, so a logged session never blocks the delete.

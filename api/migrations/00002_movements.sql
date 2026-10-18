@@ -15,8 +15,8 @@ CREATE TABLE muscles (
 
 CREATE TABLE movements (
     id                   BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    -- name is the natural key for catalog rows: the seed/import upserts on it and
-    -- the UI dedupes by it, so it is unique even though id is the surrogate PK.
+    -- name is the natural key for catalog rows: `show <name>` resolves it to one row
+    -- and the UI dedupes by it, so it is unique even though id is the surrogate PK.
     name                 TEXT NOT NULL UNIQUE,
     movement_kind        TEXT NOT NULL REFERENCES movement_kinds(name),
     favorite             BOOLEAN NOT NULL DEFAULT false,

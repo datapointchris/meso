@@ -359,51 +359,6 @@ func (r *MovementRepo) Update(ctx context.Context, id int64, in models.MovementU
 	return r.GetByID(ctx, id)
 }
 
-// Upsert inserts a movement or overwrites every column of an existing one matched
-// by name — the idempotent write path for cmd/seed and the CLI import pass. Muscle
-// tags are replaced wholesale. Run repeatedly, it converges each row to the
-// supplied values.
-func (r *MovementRepo) Upsert(ctx context.Context, in models.MovementCreate) (models.Movement, error) {
-	tx, err := r.pool.Begin(ctx)
-	if err != nil {
-		return models.Movement{}, fmt.Errorf("begin tx: %w", err)
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-
-	var id int64
-	err = tx.QueryRow(ctx, `
-		INSERT INTO movements (name, movement_kind, favorite, rating, tags, equipment,
-			how_to, form_cues, common_faults, default_sets, default_reps, default_hold_seconds,
-			sanskrit_name, measurable_rom, source_url, source_name, load_mode)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-		ON CONFLICT (name) DO UPDATE SET
-			movement_kind = EXCLUDED.movement_kind, favorite = EXCLUDED.favorite, rating = EXCLUDED.rating,
-			tags = EXCLUDED.tags, equipment = EXCLUDED.equipment, how_to = EXCLUDED.how_to,
-			form_cues = EXCLUDED.form_cues, common_faults = EXCLUDED.common_faults,
-			default_sets = EXCLUDED.default_sets, default_reps = EXCLUDED.default_reps,
-			default_hold_seconds = EXCLUDED.default_hold_seconds, sanskrit_name = EXCLUDED.sanskrit_name,
-			measurable_rom = EXCLUDED.measurable_rom, source_url = EXCLUDED.source_url,
-			source_name = EXCLUDED.source_name, updated_at = now(),
-			-- The raw parameter, not EXCLUDED: that carries the resolved guess, so an
-			-- import silent about load mode would undo every hand correction on rerun.
-			load_mode = COALESCE(NULLIF($18, ''), movements.load_mode)
-		RETURNING id`,
-		in.Name, in.MovementKind, in.Favorite, in.Rating, normalizeArray(in.Tags), normalizeArray(in.Equipment),
-		in.HowTo, in.FormCues, in.CommonFaults, in.DefaultSets, in.DefaultReps, in.DefaultHoldSeconds,
-		in.SanskritName, in.MeasurableROM, in.SourceURL, in.SourceName,
-		resolveLoadMode(in.LoadMode, in.MovementKind), in.LoadMode).Scan(&id)
-	if err != nil {
-		return models.Movement{}, mapWriteError("upserting movement", err)
-	}
-	if err := replaceMuscles(ctx, tx, id, in.Muscles); err != nil {
-		return models.Movement{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return models.Movement{}, fmt.Errorf("commit: %w", err)
-	}
-	return r.GetByID(ctx, id)
-}
-
 func (r *MovementRepo) Delete(ctx context.Context, id int64) error {
 	tag, err := r.pool.Exec(ctx, `DELETE FROM movements WHERE id = $1`, id)
 	if err != nil {

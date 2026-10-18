@@ -7,7 +7,7 @@
 -- id is a UUID7 minted by the API (google/uuid NewV7) — user-generated top-level
 -- content, like workout_sessions, so the id is time-ordered and offline-creatable
 -- (design: UUID7 for user-generated rows, identity for catalog rows). It is NOT a
--- catalog row: there is no natural key to upsert on, entries are appended over time.
+-- catalog row: there is no natural key, and entries are appended over time.
 --
 -- entry_date defaults to today. tags is NOT NULL DEFAULT '{}' and normalized nil->[]
 -- on write, so reads are branch-free (the movements.tags precedent). mood is the one

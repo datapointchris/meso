@@ -215,55 +215,6 @@ func (r *CycleRepo) Update(ctx context.Context, id int64, in models.CycleUpdate)
 	return r.GetByID(ctx, id)
 }
 
-// Upsert inserts a cycle or overwrites an existing one matched by name, replacing
-// its workout sequence wholesale — the idempotent write path for cmd/seed and the
-// CLI import pass (the research plans become cycles this way).
-func (r *CycleRepo) Upsert(ctx context.Context, in models.CycleCreate) (models.Cycle, error) {
-	tx, err := r.pool.Begin(ctx)
-	if err != nil {
-		return models.Cycle{}, fmt.Errorf("begin tx: %w", err)
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-
-	targetDate, err := parseNullableDate(in.TargetDate)
-	if err != nil {
-		return models.Cycle{}, err
-	}
-	startDate, err := parseNullableDate(in.StartDate)
-	if err != nil {
-		return models.Cycle{}, err
-	}
-	status := in.Status
-	if status == "" {
-		status = "planned"
-	}
-
-	var id int64
-	err = tx.QueryRow(ctx, `
-		INSERT INTO cycles (name, goal_summary, target_metric, target_value, target_date, start_date, status, notes)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		ON CONFLICT (name) DO UPDATE SET
-			goal_summary = EXCLUDED.goal_summary, target_metric = EXCLUDED.target_metric,
-			target_value = EXCLUDED.target_value, target_date = EXCLUDED.target_date,
-			start_date = EXCLUDED.start_date, status = EXCLUDED.status,
-			notes = EXCLUDED.notes, updated_at = now()
-		RETURNING id`,
-		in.Name, in.GoalSummary, in.TargetMetric, in.TargetValue, targetDate, startDate, status, in.Notes).Scan(&id)
-	if err != nil {
-		return models.Cycle{}, mapWriteError("upserting cycle", err)
-	}
-	if _, err := tx.Exec(ctx, `DELETE FROM cycle_workouts WHERE cycle_id = $1`, id); err != nil {
-		return models.Cycle{}, fmt.Errorf("clearing cycle workouts: %w", err)
-	}
-	if err := insertCycleWorkoutsInOrder(ctx, tx, id, in.Workouts); err != nil {
-		return models.Cycle{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return models.Cycle{}, fmt.Errorf("commit: %w", err)
-	}
-	return r.GetByID(ctx, id)
-}
-
 func (r *CycleRepo) Delete(ctx context.Context, id int64) error {
 	tag, err := r.pool.Exec(ctx, `DELETE FROM cycles WHERE id = $1`, id)
 	if err != nil {
