@@ -92,7 +92,7 @@ func newSessionsPromoteCommand() *cobra.Command {
 }
 
 // sessionWriteFlags are the session-level fields settable on log (and reused as the
-// update shape).
+// edit shape).
 type sessionWriteFlags struct {
 	date     string
 	felt     string
@@ -233,10 +233,11 @@ func newSessionsUpdateCommand() *cobra.Command {
 		asJSON bool
 	)
 	cmd := &cobra.Command{
-		Use:   "update <id> [flags]",
-		Short: "Edit a session's date, felt, duration or notes (only the flags you pass change)",
-		Example: "  meso sessions update 018f... --felt tired\n" +
-			"  meso sessions update 018f... --date 2026-07-24 --duration 52",
+		Use:        "edit <id> [flags]",
+		SuggestFor: []string{"update"},
+		Short:      "Edit a session's date, felt, duration or notes (only the flags you pass change)",
+		Example: "  meso sessions edit 018f... --felt tired\n" +
+			"  meso sessions edit 018f... --date 2026-07-24 --duration 52",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f := cmd.Flags()
@@ -254,7 +255,7 @@ func newSessionsUpdateCommand() *cobra.Command {
 				patch["duration_minutes"] = w.duration
 			}
 			if len(patch) == 0 {
-				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
+				return goclikit.UsageError(fmt.Errorf("nothing to change — pass at least one field flag"))
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -337,7 +338,7 @@ func newSessionsDeleteCommand() *cobra.Command {
 }
 
 // newSessionMovementCommand groups the per-entry sub-commands: composing the session
-// (add / rm) and logging against it (done, update).
+// (add / rm) and logging against it (done, edit).
 func newSessionMovementCommand() *cobra.Command {
 	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "movement",
@@ -440,7 +441,7 @@ func newSessionMovementDoneCommand() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:     "done <session-id> <entry-id>",
-		Short:   "Mark one entry done (shortcut for `update --done`)",
+		Short:   "Mark one entry done (shortcut for `edit --done`)",
 		Example: "  meso sessions movement done 018f... 42",
 		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -463,7 +464,7 @@ func newSessionMovementDoneCommand() *cobra.Command {
 	return cmd
 }
 
-// sessionTargetFlags are the per-entry plan fields settable on `movement add/update`.
+// sessionTargetFlags are the per-entry plan fields settable on `movement add/edit`.
 // They are the target, not the result: what happened lives in the sets.
 type sessionTargetFlags struct {
 	reps     string
@@ -480,11 +481,12 @@ func newSessionMovementUpdateCommand() *cobra.Command {
 		asJSON bool
 	)
 	cmd := &cobra.Command{
-		Use:   "update <session-id> <entry-id> [flags]",
-		Short: "Adjust the target, check off, or swap one entry (only the flags you pass change)",
-		Example: "  meso sessions movement update 018f... 42 --done\n" +
-			"  meso sessions movement update 018f... 42 --target-load 105lb\n" +
-			"  meso sessions movement update 018f... 42 --movement 9   # swap, sets carry over",
+		Use:        "edit <session-id> <entry-id> [flags]",
+		SuggestFor: []string{"update"},
+		Short:      "Adjust the target, check off, or swap one entry (only the flags you pass change)",
+		Example: "  meso sessions movement edit 018f... 42 --done\n" +
+			"  meso sessions movement edit 018f... 42 --target-load 105lb\n" +
+			"  meso sessions movement edit 018f... 42 --movement 9   # swap, sets carry over",
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			entryID, err := api.ParseID(args[1])
@@ -493,7 +495,7 @@ func newSessionMovementUpdateCommand() *cobra.Command {
 			}
 			patch := buildSessionMovementPatch(cmd, &a)
 			if len(patch) == 0 {
-				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
+				return goclikit.UsageError(fmt.Errorf("nothing to change — pass at least one field flag"))
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -631,10 +633,11 @@ func newSessionSetUpdateCommand() *cobra.Command {
 		asJSON bool
 	)
 	cmd := &cobra.Command{
-		Use:     "update <session-id> <entry-id> <set-id> [flags]",
-		Short:   "Fix one logged set (only the flags you pass change)",
-		Example: "  meso sessions set update 018f... 42 7 --reps 6",
-		Args:    cobra.ExactArgs(3),
+		Use:        "edit <session-id> <entry-id> <set-id> [flags]",
+		SuggestFor: []string{"update"},
+		Short:      "Fix one logged set (only the flags you pass change)",
+		Example:    "  meso sessions set edit 018f... 42 7 --reps 6",
+		Args:       cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			entryID, setID, err := parseEntryAndSetIDs(args[1], args[2])
 			if err != nil {
@@ -658,7 +661,7 @@ func newSessionSetUpdateCommand() *cobra.Command {
 				patch["notes"] = v.notes
 			}
 			if len(patch) == 0 {
-				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
+				return goclikit.UsageError(fmt.Errorf("nothing to change — pass at least one field flag"))
 			}
 
 			client, err := newAPIClient(cmd.Context())
@@ -782,7 +785,7 @@ func printSessionDetail(out io.Writer, s api.Session) {
 }
 
 // printSessionSets lists the sets under each entry that has any. Set ids have to be
-// reachable for `sessions set update/rm`, and the per-set numbers are the actual record
+// reachable for `sessions set edit/rm`, and the per-set numbers are the actual record
 // — the entry row above only summarizes them.
 func printSessionSets(out io.Writer, s api.Session) {
 	for _, m := range s.Movements {

@@ -42,7 +42,7 @@ func NewRootCommand() *cobra.Command {
 			"\n" +
 			"The noun comes first and the verb last, so moving from reading to acting\n" +
 			"changes only the verb: `meso workouts show 3` becomes\n" +
-			"`meso workouts update 3`. Every top-level noun is a training noun — anything\n" +
+			"`meso workouts edit 3`. Every top-level noun is a training noun — anything\n" +
 			"about the app rather than the training lives under `meso admin`. Every\n" +
 			"list and show takes --json.\n" +
 			"\n" +

@@ -90,7 +90,7 @@ func TestMovementLabel(t *testing.T) {
 }
 
 // TestPrintWorkoutDetail_MovementHandles checks each row carries both handles:
-// the entry id `workouts movements update` takes, and the movement id
+// the entry id `workouts movements edit` takes, and the movement id
 // `movements show` takes. Column order and padding are the renderer's business,
 // so the row is split on whitespace rather than matched against a fixed width.
 func TestPrintWorkoutDetail_MovementHandles(t *testing.T) {
@@ -255,7 +255,7 @@ func TestPrintWorkoutDetail_Empty(t *testing.T) {
 // swap via --movement and a zero-valued --sets that was explicitly passed.
 func TestBuildPrescriptionPatch(t *testing.T) {
 	var p prescriptionFlags
-	cmd := &cobra.Command{Use: "update", RunE: func(*cobra.Command, []string) error { return nil }}
+	cmd := &cobra.Command{Use: "edit", RunE: func(*cobra.Command, []string) error { return nil }}
 	bindPrescriptionFlags(cmd, &p, true)
 	cmd.SetArgs([]string{"--movement", "9", "--load", "85% 1RM"})
 	if err := cmd.Execute(); err != nil {
@@ -277,7 +277,7 @@ func TestBuildPrescriptionPatch(t *testing.T) {
 
 func TestBuildWorkoutPatch(t *testing.T) {
 	var w workoutWriteFlags
-	cmd := &cobra.Command{Use: "update", RunE: func(*cobra.Command, []string) error { return nil }}
+	cmd := &cobra.Command{Use: "edit", RunE: func(*cobra.Command, []string) error { return nil }}
 	bindWorkoutWriteFlags(cmd, &w)
 	cmd.SetArgs([]string{"--favorite=false", "--theme", "legs"})
 	if err := cmd.Execute(); err != nil {

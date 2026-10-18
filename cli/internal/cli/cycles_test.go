@@ -60,7 +60,7 @@ func TestPrintCycleDetail(t *testing.T) {
 			t.Errorf("detail missing %q:\n%s", want, out)
 		}
 	}
-	// The entry id drives `cycles workouts update/rm`; the workout id drives
+	// The entry id drives `cycles workouts edit/rm`; the workout id drives
 	// `workouts show`. Both have to be typeable off the row.
 	if !strings.Contains(out, "4      Base Week (#7)") {
 		t.Errorf("row is missing an entry id or a workout id:\n%s", out)
@@ -80,7 +80,7 @@ func TestPrintCycleDetail_Empty(t *testing.T) {
 // nullable date by passing an explicit empty string.
 func TestBuildCyclePatch(t *testing.T) {
 	var c cycleWriteFlags
-	cmd := &cobra.Command{Use: "update", RunE: func(*cobra.Command, []string) error { return nil }}
+	cmd := &cobra.Command{Use: "edit", RunE: func(*cobra.Command, []string) error { return nil }}
 	bindCycleWriteFlags(cmd, &c)
 	cmd.SetArgs([]string{"--status", "active", "--start-date", ""})
 	if err := cmd.Execute(); err != nil {
@@ -104,7 +104,7 @@ func TestBuildCyclePatch(t *testing.T) {
 // TestBuildPeriodizationPatch checks the swap via --workout and a passed --phase.
 func TestBuildPeriodizationPatch(t *testing.T) {
 	var p periodizationFlags
-	cmd := &cobra.Command{Use: "update", RunE: func(*cobra.Command, []string) error { return nil }}
+	cmd := &cobra.Command{Use: "edit", RunE: func(*cobra.Command, []string) error { return nil }}
 	bindPeriodizationFlags(cmd, &p, true)
 	cmd.SetArgs([]string{"--workout", "9", "--phase", "taper"})
 	if err := cmd.Execute(); err != nil {

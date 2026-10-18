@@ -19,7 +19,7 @@ func newWorkoutsCommand() *cobra.Command {
 		Use:   "workouts",
 		Short: "Build and manage workouts — ordered compositions of movements",
 		Long: "A workout is an ordered, themed list of prescribed movements. List and\n" +
-			"filter, inspect the composition, create/update/delete workouts, and manage\n" +
+			"filter, inspect the composition, create/edit/delete workouts, and manage\n" +
 			"their movement list (add, edit/swap, reorder, remove).",
 	})
 	withNotFoundHints(cmd, hintWorkouts)
@@ -105,7 +105,7 @@ func newWorkoutsShowCommand() *cobra.Command {
 			"an exact name wins outright, and a partial name resolves when it matches\n" +
 			"one workout. A name matching several comes back as one ready-to-run\n" +
 			"command per match; a name matching none offers to create it.\n\n" +
-			"`update`, `delete` and the `movements` verbs still take an id. A name is\n" +
+			"`edit`, `delete` and the `movements` verbs still take an id. A name is\n" +
 			"accepted where a command reads and never where it writes, because a name\n" +
 			"that narrows to the wrong workout costs a wrong screen on a read and a\n" +
 			"wrong row on a write.\n\n" +
@@ -156,7 +156,7 @@ func newWorkoutsShowCommand() *cobra.Command {
 	return cmd
 }
 
-// workoutWriteFlags are the workout-level fields settable on create and update.
+// workoutWriteFlags are the workout-level fields settable on create and edit.
 type workoutWriteFlags struct {
 	theme     string
 	tags      []string
@@ -217,10 +217,11 @@ func newWorkoutsUpdateCommand() *cobra.Command {
 	var w workoutWriteFlags
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "update <id> [flags]",
-		Short:   "Update a workout's fields (only the flags you pass change)",
-		Example: "  meso workouts update 3 --favorite\n  meso workouts update 3 --theme \"lower + rehab\"",
-		Args:    cobra.ExactArgs(1),
+		Use:        "edit <id> [flags]",
+		SuggestFor: []string{"update"},
+		Short:      "Change a workout's fields (only the flags you pass change)",
+		Example:    "  meso workouts edit 3 --favorite\n  meso workouts edit 3 --theme \"lower + rehab\"",
+		Args:       cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseWorkoutID(args[0])
 			if err != nil {
@@ -228,7 +229,7 @@ func newWorkoutsUpdateCommand() *cobra.Command {
 			}
 			patch := buildWorkoutPatch(cmd, &w)
 			if len(patch) == 0 {
-				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
+				return goclikit.UsageError(fmt.Errorf("nothing to change — pass at least one field flag"))
 			}
 
 			client, err := newAPIClient(cmd.Context())
@@ -309,7 +310,7 @@ func newWorkoutsDeleteCommand() *cobra.Command {
 	return cmd
 }
 
-// newWorkoutMovementsCommand groups the composition sub-commands: add / update /
+// newWorkoutMovementsCommand groups the composition sub-commands: add / edit /
 // reorder / rm operate on a workout's ordered movement list.
 func newWorkoutMovementsCommand() *cobra.Command {
 	cmd := goclikit.AsNamespace(&cobra.Command{
@@ -331,7 +332,7 @@ func newWorkoutMovementsCommand() *cobra.Command {
 	return cmd
 }
 
-// prescriptionFlags binds the per-entry prescription flags shared by add/update.
+// prescriptionFlags binds the per-entry prescription flags shared by add/edit.
 type prescriptionFlags struct {
 	reps     string
 	load     string
@@ -339,7 +340,7 @@ type prescriptionFlags struct {
 	notes    string
 	sets     int
 	rest     int
-	movement int64 // swap target, update only
+	movement int64 // swap target, edit only
 }
 
 func bindPrescriptionFlags(cmd *cobra.Command, p *prescriptionFlags, withSwap bool) {
@@ -410,10 +411,11 @@ func newWorkoutMovementsUpdateCommand() *cobra.Command {
 	var p prescriptionFlags
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "update <workout-id> <entry-id> [flags]",
-		Short:   "Edit or swap one entry (only the flags you pass change)",
-		Example: "  meso workouts movements update 1 4 --load \"85% 1RM\"\n  meso workouts movements update 1 4 --movement 9   # swap, target carries over",
-		Args:    cobra.ExactArgs(2),
+		Use:        "edit <workout-id> <entry-id> [flags]",
+		SuggestFor: []string{"update"},
+		Short:      "Edit or swap one entry (only the flags you pass change)",
+		Example:    "  meso workouts movements edit 1 4 --load \"85% 1RM\"\n  meso workouts movements edit 1 4 --movement 9   # swap, target carries over",
+		Args:       cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workoutID, err := api.ParseWorkoutID(args[0])
 			if err != nil {
@@ -425,7 +427,7 @@ func newWorkoutMovementsUpdateCommand() *cobra.Command {
 			}
 			patch := buildPrescriptionPatch(cmd, &p)
 			if len(patch) == 0 {
-				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
+				return goclikit.UsageError(fmt.Errorf("nothing to change — pass at least one field flag"))
 			}
 
 			client, err := newAPIClient(cmd.Context())

@@ -105,9 +105,9 @@ func TestEveryNounNamesItsOwnWayIn(t *testing.T) {
 		path []string
 		want string
 	}{
-		{[]string{"movements", "update"}, hintMovements},
-		{[]string{"workouts", "update"}, hintWorkouts},
-		{[]string{"cycles", "update"}, hintCycles},
+		{[]string{"movements", "edit"}, hintMovements},
+		{[]string{"workouts", "edit"}, hintWorkouts},
+		{[]string{"cycles", "edit"}, hintCycles},
 		{[]string{"measurements", "list"}, hintMeasurements},
 		{[]string{"sessions", "list"}, hintSessions},
 		// feedback is registered under admin, not on the root.
@@ -132,9 +132,7 @@ func TestAnEntryPointsAtItsParentsShow(t *testing.T) {
 	}{
 		// An entry id exists only inside its parent and is listed nowhere else.
 		{[]string{"workouts", "movements", "rm"}, hintWorkoutEntries},
-		{[]string{"workouts", "movements", "update"}, hintWorkoutEntries},
 		{[]string{"cycles", "workouts", "rm"}, hintCycleEntries},
-		{[]string{"cycles", "workouts", "update"}, hintCycleEntries},
 	} {
 		command := findLeaf(t, root, tc.path)
 		if got := hintsFor(command); !strings.Contains(got, tc.want) {

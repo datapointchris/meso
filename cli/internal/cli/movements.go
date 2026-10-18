@@ -26,7 +26,7 @@ func newMovementsCommand() *cobra.Command {
 		Short: "Browse and manage the movement library",
 		Long: "The unified library of exercises, stretches, and yoga poses. List and\n" +
 			"filter, inspect a movement's how-to/cues/faults and muscles, and create,\n" +
-			"update, or delete entries.",
+			"edit, or delete entries.",
 	})
 	// show goes through resolveIDOrName, which answers a miss with computed
 	// candidates and never reaches the classifier. These reach the other verbs.
@@ -262,7 +262,7 @@ func newMovementsShowCommand() *cobra.Command {
 			"an exact name wins outright, and a partial name resolves when it matches\n" +
 			"one movement. A name matching several comes back as one ready-to-run\n" +
 			"command per match; a name matching none offers to create it.\n\n" +
-			"`update` and `delete` still take an id. A name is accepted where a command\n" +
+			"`edit` and `delete` still take an id. A name is accepted where a command\n" +
 			"reads and never where it writes, because a name that narrows to the wrong\n" +
 			"movement costs a wrong screen on a read and a wrong row on a write.",
 		Example: "  meso movements show 1\n  meso movements show \"front squat\"\n  meso movements show squat --json",
@@ -287,8 +287,8 @@ func newMovementsShowCommand() *cobra.Command {
 	return cmd
 }
 
-// movementWriteFlags are the fields settable on create and update. Pointers stay
-// nil unless the flag was changed, so update sends only what the user touched.
+// movementWriteFlags are the fields settable on create and edit. Pointers stay
+// nil unless the flag was changed, so edit sends only what the user touched.
 type movementWriteFlags struct {
 	name         string
 	kind         string
@@ -405,11 +405,12 @@ func newMovementsUpdateCommand() *cobra.Command {
 	var w movementWriteFlags
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:   "update <id> [flags]",
-		Short: "Update a movement (only the flags you pass change)",
-		Example: "  meso movements update 3 --favorite\n" +
-			"  meso movements update 3 --tag mobility --muscle glutes:primary\n" +
-			"  meso movements update 37 --name \"Straight-Arm Pulldown\"",
+		Use:        "edit <id> [flags]",
+		SuggestFor: []string{"update"},
+		Short:      "Change a movement's fields (only the flags you pass change)",
+		Example: "  meso movements edit 3 --favorite\n" +
+			"  meso movements edit 3 --tag mobility --muscle glutes:primary\n" +
+			"  meso movements edit 37 --name \"Straight-Arm Pulldown\"",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseID(args[0])
@@ -421,7 +422,7 @@ func newMovementsUpdateCommand() *cobra.Command {
 				return goclikit.UsageError(err)
 			}
 			if len(patch) == 0 {
-				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
+				return goclikit.UsageError(fmt.Errorf("nothing to change — pass at least one field flag"))
 			}
 
 			client, err := newAPIClient(cmd.Context())
@@ -436,7 +437,7 @@ func newMovementsUpdateCommand() *cobra.Command {
 		},
 	}
 	bindMovementWriteFlags(cmd, &w)
-	// Only update takes --name; on create the name is the positional argument.
+	// Only edit takes --name; on create the name is the positional argument.
 	// Renaming matters because a movement's name can turn out to over-specify it —
 	// "Eccentric Straight-Arm Pulldown" named a prescription, not a movement.
 	cmd.Flags().StringVar(&w.name, "name", "", "Rename the movement (must stay unique)")

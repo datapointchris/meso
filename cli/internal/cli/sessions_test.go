@@ -67,14 +67,14 @@ func TestPrintSessionDetail(t *testing.T) {
 	for _, want := range []string{
 		"Session on 2026-07-24", "018f-aaa", "Push Day", "in progress",
 		"Movements:", "ENTRY", "PERFORMED", "TARGET", "Bench Press", "✓", "Push-up",
-		// The per-set list, so a set id is reachable for `sessions set update/rm`.
+		// The per-set list, so a set id is reachable for `sessions set edit/rm`.
 		"Bench Press (entry 4)", "failure", "110lb",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("detail missing %q:\n%s", want, out)
 		}
 	}
-	// The entry id drives `sessions movements update/rm`; the movement id drives
+	// The entry id drives `sessions movement edit/rm`; the movement id drives
 	// `movements show`. Both have to be typeable off the row.
 	if !strings.Contains(out, "Bench Press (#7)") {
 		t.Errorf("movement id missing from the row:\n%s", out)
@@ -138,7 +138,7 @@ func TestFormatPrevious(t *testing.T) {
 // swap via --movement and an explicit --done.
 func TestBuildSessionMovementPatch(t *testing.T) {
 	var a sessionTargetFlags
-	cmd := &cobra.Command{Use: "update", RunE: func(*cobra.Command, []string) error { return nil }}
+	cmd := &cobra.Command{Use: "edit", RunE: func(*cobra.Command, []string) error { return nil }}
 	f := cmd.Flags()
 	f.BoolVar(&a.done, "done", false, "")
 	f.IntVar(&a.sets, "target-sets", 0, "")

@@ -19,7 +19,7 @@ func newCyclesCommand() *cobra.Command {
 		Short: "Plan and manage cycles — ordered sequences of workouts toward a goal",
 		Long: "A cycle (mesocycle) is a multi-week block of workouts aimed at a target — a\n" +
 			"race date, a working weight, restored range of motion. List and filter, inspect\n" +
-			"the sequence, create/update/delete cycles, and manage their workout list (add,\n" +
+			"the sequence, create/edit/delete cycles, and manage their workout list (add,\n" +
 			"edit/swap, reorder, remove).",
 	})
 	withNotFoundHints(cmd, hintCycles)
@@ -95,7 +95,7 @@ func newCyclesShowCommand() *cobra.Command {
 			"an exact name wins outright, and a partial name resolves when it matches\n" +
 			"one cycle. A name matching several comes back as one ready-to-run\n" +
 			"command per match; a name matching none offers to create it.\n\n" +
-			"`update`, `delete` and the `workouts` verbs still take an id. A name is\n" +
+			"`edit`, `delete` and the `workouts` verbs still take an id. A name is\n" +
 			"accepted where a command reads and never where it writes, because a name\n" +
 			"that narrows to the wrong cycle costs a wrong screen on a read and a\n" +
 			"wrong row on a write.",
@@ -121,7 +121,7 @@ func newCyclesShowCommand() *cobra.Command {
 	return cmd
 }
 
-// cycleWriteFlags are the cycle-level fields settable on create and update.
+// cycleWriteFlags are the cycle-level fields settable on create and edit.
 type cycleWriteFlags struct {
 	goal         string
 	targetMetric string
@@ -187,10 +187,11 @@ func newCyclesUpdateCommand() *cobra.Command {
 	var c cycleWriteFlags
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "update <id> [flags]",
-		Short:   "Update a cycle's fields (only the flags you pass change)",
-		Example: "  meso cycles update 3 --status active\n  meso cycles update 3 --start-date \"\"   # clear the start date",
-		Args:    cobra.ExactArgs(1),
+		Use:        "edit <id> [flags]",
+		SuggestFor: []string{"update"},
+		Short:      "Change a cycle's fields (only the flags you pass change)",
+		Example:    "  meso cycles edit 3 --status active\n  meso cycles edit 3 --start-date \"\"   # clear the start date",
+		Args:       cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseCycleID(args[0])
 			if err != nil {
@@ -198,7 +199,7 @@ func newCyclesUpdateCommand() *cobra.Command {
 			}
 			patch := buildCyclePatch(cmd, &c)
 			if len(patch) == 0 {
-				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
+				return goclikit.UsageError(fmt.Errorf("nothing to change — pass at least one field flag"))
 			}
 
 			client, err := newAPIClient(cmd.Context())
@@ -285,7 +286,7 @@ func newCyclesDeleteCommand() *cobra.Command {
 	return cmd
 }
 
-// newCycleWorkoutsCommand groups the sequence sub-commands: add / update / reorder /
+// newCycleWorkoutsCommand groups the sequence sub-commands: add / edit / reorder /
 // rm operate on a cycle's ordered workout list.
 func newCycleWorkoutsCommand() *cobra.Command {
 	cmd := goclikit.AsNamespace(&cobra.Command{
@@ -306,14 +307,14 @@ func newCycleWorkoutsCommand() *cobra.Command {
 	return cmd
 }
 
-// periodizationFlags binds the per-entry prescription flags shared by add/update.
+// periodizationFlags binds the per-entry prescription flags shared by add/edit.
 type periodizationFlags struct {
 	phase      string
 	frequency  string
 	intensity  string
 	conditions string
 	week       int
-	workout    int64 // swap target, update only
+	workout    int64 // swap target, edit only
 }
 
 func bindPeriodizationFlags(cmd *cobra.Command, p *periodizationFlags, withSwap bool) {
@@ -383,10 +384,11 @@ func newCycleWorkoutsUpdateCommand() *cobra.Command {
 	var p periodizationFlags
 	var asJSON bool
 	cmd := &cobra.Command{
-		Use:     "update <cycle-id> <entry-id> [flags]",
-		Short:   "Edit or swap one entry (only the flags you pass change)",
-		Example: "  meso cycles workouts update 1 4 --phase taper\n  meso cycles workouts update 1 4 --workout 9   # swap, prescription carries over",
-		Args:    cobra.ExactArgs(2),
+		Use:        "edit <cycle-id> <entry-id> [flags]",
+		SuggestFor: []string{"update"},
+		Short:      "Edit or swap one entry (only the flags you pass change)",
+		Example:    "  meso cycles workouts edit 1 4 --phase taper\n  meso cycles workouts edit 1 4 --workout 9   # swap, prescription carries over",
+		Args:       cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cycleID, err := api.ParseCycleID(args[0])
 			if err != nil {
@@ -398,7 +400,7 @@ func newCycleWorkoutsUpdateCommand() *cobra.Command {
 			}
 			patch := buildPeriodizationPatch(cmd, &p)
 			if len(patch) == 0 {
-				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
+				return goclikit.UsageError(fmt.Errorf("nothing to change — pass at least one field flag"))
 			}
 
 			client, err := newAPIClient(cmd.Context())

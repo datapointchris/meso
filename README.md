@@ -93,7 +93,7 @@ The root help groups the nouns by what they hold:
 - **App** — `admin`, `auth`, `config`, `update`, `completion`. The software, not the training.
 
 A name is accepted where a command reads and never where it writes. `show` on movements, workouts
-and cycles takes an id or a name. `update`, `delete` and the composition verbs take ids. A name
+and cycles takes an id or a name. `edit`, `delete` and the composition verbs take ids. A name
 that narrows to the wrong record costs a wrong screen on a read and a wrong row on a write. A name
 matching several records prints one ready-to-run command per match, and `--json` returns the same
 candidates as data.
@@ -324,7 +324,7 @@ under it. Ticked with nothing logged is not a number to beat. The list endpoint 
 null. One `DISTINCT ON` query resolves it for the whole session.
 
 A swap re-points a session's entry to another movement, and its target and logged sets carry over
-to the substitute. The API and `meso sessions movement update --movement` offer it. The web
+to the substitute. The API and `meso sessions movement edit --movement` offer it. The web
 logging screen does not.
 
 **The rest timer and the plate calculator are deliberately excluded.** The rest timer is not wanted.

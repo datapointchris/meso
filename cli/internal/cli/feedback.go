@@ -206,7 +206,7 @@ func newFeedbackEditCommand() *cobra.Command {
 				patch["status"] = status
 			}
 			if len(patch) == 0 {
-				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
+				return goclikit.UsageError(fmt.Errorf("nothing to change — pass at least one field flag"))
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
