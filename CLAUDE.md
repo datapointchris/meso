@@ -2,12 +2,10 @@
 
 meso is a personal, mobile-first training app: a unified movement library that
 compiles into workouts, cycles, sessions, stats, and a journal, drivable by the
-`meso` CLI (no MCP). It follows the **nomad** product model wholesale — Go API +
-Go CLI + Vue, Authelia edge auth, registry-pull deploy.
+`meso` CLI (no MCP). It is a Go API, a Go CLI and a Vue SPA, behind Authelia edge
+auth, deployed by pulling images from a registry.
 
 - **What it is, why, and the domain model:** [`README.md`](README.md) — the README is the spec. Read it before adding an entity or endpoint.
-- **Reference build to copy patterns from:** `~/webapps/nomad/` (`CLAUDE.md`, `api/`, `cli/`).
-- **Universal rules live in `~/.claude/CLAUDE.md` and the fleet standards, and are not restated here.** `fleet standards applies meso` is which ones reach this repo.
 
 ## Architecture — three subsystems
 
@@ -22,9 +20,9 @@ The CLI's natural sibling is the API (shared REST contract), not the Vue fronten
 
 ### API layering (one file per resource)
 
-Mirrors nomad: a resource flows through `models/` (wire structs + Create/Update/
-Filter shapes) → `repository/` (all pgx SQL) → `handlers/` (HTTP, maps repo errors
-to status codes) → routes in `main.go`. `migrations/` holds goose DDL only; data
+A resource flows through `models/` (wire structs + Create/Update/Filter shapes) →
+`repository/` (all pgx SQL) → `handlers/` (HTTP, maps repo errors to status codes) →
+routes in `handlers/router.go`. `migrations/` holds goose DDL only; data
 lives in `cmd/seed`. Handler tests are testcontainers-backed (`handlers/main_test.go`).
 
 ### CLI layering
@@ -35,16 +33,18 @@ goclilogin's `LoadDeployment`, and `Login()` mapping that onto goclilogin) →
 tree). Resource commands live one file per resource under `internal/cli`, each with a
 matching `internal/api/<resource>.go` client.
 
-Top-level commands are **training nouns only**, and anything about the software rather
-than the training goes under `admin` (`internal/cli/admin.go`). The rule and the
-HashiCorp precedent behind the verb are `standards/cli-design.md` § "`admin` is the
-namespace for operating the app". `admin feedback` is its first inhabitant here; a new
-non-domain command belongs there, not at the root.
+Top-level commands are **training nouns only**, so `--help` reads as the domain rather than
+as plumbing, and anything about the software rather than the training goes under `admin`
+(`internal/cli/admin.go`). Vault and Consul call that namespace `operator`; it is `admin`
+here because `operator` there means cluster lifecycle. The server refuses `admin` routes to
+anyone outside the admin group, so the CLI only carries the door. `admin feedback` is its
+first inhabitant; a new non-domain command belongs there, not at the root. `update` is the
+one exception, because the update notice can only name a root command.
 
-**A command that cannot answer offers the commands that can.** What an error owes is a
-fleet rule — `help.md` § "An error is the help screen for the failure in hand", whose
-canonical source is the shared cobra bootstrap at `~/tools/goclikit`. What is meso's
-own is the step past it: where the caller typed something valid and the CLI
+**A command that cannot answer offers the commands that can.** An error owes what failed,
+what was expected, and the one command that changes the situation, and `goclikit.Execute`,
+the shared cobra bootstrap, adds the near matches and the `--help` pointer cobra leaves
+out. What is meso's own is the step past it: where the caller typed something valid and the CLI
 still has nothing to show, the response is a list of runnable commands rather than a
 failure at all. `resolveIDOrName` in `internal/cli/helpers.go` is the pattern. It writes
 the menu itself and returns `exitCode`, which sets the process status without `Execute`
@@ -62,23 +62,24 @@ narrows to the wrong record costs a wrong screen on a read and a wrong row on a 
 
 ## Conventions specific to meso
 
-Schema conventions (lookup tables not enums, `TEXT` columns, PK strategy, server-side filtering,
-seed-carries-only-the-FK-backbone) and product independence are fleet standards — see
-`standards/data.md` and `standards/api-design.md`. How they land here:
+The schema uses lookup tables rather than enums, `TEXT` columns, and server-side filtering, and
+its seed carries only the FK backbone. How that lands here:
 
 - **Lookup tables**: `movement_kinds`, `muscles`, `relationship_kinds`, `cycle_statuses`,
-  `set_kinds`, `load_modes` — and those six are also exactly what `seed` carries. Everything else
+  `set_kinds`, `load_modes`, and those are exactly what `seed` carries. Everything else
   (metrics, movements, workouts, cycles, measurements, journal) loads through the `meso` CLI.
-- **PKs**: catalog rows key on `.name` for the `UNIQUE` natural key, which is what lets a CLI
-  import upsert. `workout_sessions` and `fitness_log_entries` are on UUID, and
-  `session_movements` / `session_sets` are ordered-join rows.
+- **PKs**: catalog rows (movements, workouts, cycles) have an identity PK and a `UNIQUE` name as
+  their natural key, which is what lets `show <name>` resolve to one row. `workout_sessions`,
+  `fitness_log_entries` and `feedback` are on UUID, and `session_movements` / `session_sets` are
+  ordered-join rows.
 - **Plan vs. performance**: `session_movements.target_*` is the prescription copied from the
   workout; `session_sets` is what was actually done. They are never the same columns again —
-  merging them is what made a diverged session read as a failed one. This is the repo's own
-  hard-won distinction and is in no standard.
-- **Product independence** is `standards/api-design.md` § "Products depend on no sibling product",
-  which takes `feedback` from this repo as its example: stored and triaged here, never forwarded.
-  Don't re-propose a push integration.
+  merging them is what made a diverged session read as a failed one.
+- **Product independence**: the dependency points inward. `feedback` is stored and triaged here
+  and forwarded nowhere; whoever wants it reads it out with `--json`. Storing another system's
+  primary key would make this schema unreadable without theirs, so integration goes through
+  stable data interfaces (JSON over HTTP, or read-only views), never shared mutable state. Don't
+  re-propose a push integration.
 
 Web conventions: every dialog goes in `components/ModalShell.vue`, every "are you sure" through
 `composables/useConfirm.ts` — never `window.confirm`. `npm run typecheck` must keep its `--build`
@@ -107,7 +108,8 @@ default `/var/run/docker.sock` needs nothing. This is a machine concern, not a r
 verbs are `task {api,cli,web}:{lint,test}`.
 
 `task cli:install` writes `meso` to `~/.local/bin`, replacing the installed release, with a
-git-derived version embedded via ldflags. A locally built one reports as a dev
-build and refuses to self-update — that is `standards/go.md` § "A module in a
-subdirectory needs the full module path and a prefixed tag", not a defect to fix.
-Released binaries come from CI on a `cli/v*` tag.
+git-derived version embedded via ldflags. A locally built one reports as a dev build and
+refuses to self-update, by design rather than as a defect: `git describe` returns the prefixed
+tag (`cli/v0.2.0-3-gabc1234`), which is not a semantic version. The CLI is a module in a
+subdirectory, so it needs its full module path and a `cli/v*` tag before `go install` can
+resolve it. Released binaries come from CI on a `cli/v*` tag.

@@ -9,7 +9,7 @@
 # first boot (the seed one-shot ships in the api image):
 #   docker compose -f docker-compose.dev.yml run --rm --entrypoint ./meso-seed api
 #
-# For production deployment to meso-lxc, see docker-compose.yml.
+# For production deployment, see docker-compose.yml.
 
 name: meso-dev
 

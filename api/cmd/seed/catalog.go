@@ -4,10 +4,9 @@ import "meso/api/models"
 
 // muscleCatalog is the muscle lookup: every muscle a movement can tag, grouped by
 // region. region drives coarse filtering ("posterior chain") and a future body
-// map. Sourced from the anatomy references in ~/shart/fitness. This is reference
-// data with no CLI verb behind it, so — unlike metrics and movements, which are
-// content loaded through the `meso` CLI — it lives in the seed alongside the enum
-// lookups.
+// map. This is reference data with no CLI verb behind it, so — unlike metrics and
+// movements, which are content loaded through the `meso` CLI — it lives in the seed
+// alongside the vocabulary lookups.
 var muscleCatalog = []models.Muscle{
 	{Name: "chest", Region: "anterior"},
 	{Name: "front_delts", Region: "anterior"},

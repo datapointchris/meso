@@ -9,8 +9,8 @@
 //	DATABASE_URL=postgres://... go run ./cmd/seed
 //
 // Scope is deliberately minimal — only the categoricals with no CLI verb behind
-// them: the enum lookups (movement_kinds, relationship_kinds, cycle_statuses) and
-// the muscle lookup. All actual content — metrics, movements, workouts, cycles,
+// them: every vocabulary table in `lookups` below, and the muscle catalog in
+// catalog.go. All actual content — metrics, movements, workouts, cycles,
 // measurements, the journal — is loaded through the `meso` CLI, so it stays out of
 // the seed and out of migrations.
 package main

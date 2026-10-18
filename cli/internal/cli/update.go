@@ -12,13 +12,12 @@ import (
 
 // newUpdateCommand replaces this binary with the newest published release.
 //
-// It sits at the root rather than under `admin`, where it started, even though
-// updating is about the software rather than the training. The daily update
-// notice is a fixed sentence in goselfupdate/autoupdate — "meso vX available
-// (running vY) — run `meso update`" — built from the binary name, with no way
-// to name a nested command. Under `admin` the notice would direct the user to
-// a command that does not exist. It also puts all four product CLIs on one
-// spelling, which is worth something on its own.
+// It sits at the root rather than under `admin`, even though updating is about
+// the software rather than the training. The daily update notice is a fixed
+// sentence in goselfupdate/autoupdate — "meso vX available (running vY) — run
+// `meso update`" — built from the binary name, with no way to name a nested
+// command. Under `admin` the notice would direct the user to a command that
+// does not exist.
 //
 // TagPrefix is what makes it resolve the right thing. The CLI is a nested
 // module released under cli/v1.2.3 so its tags never collide with the app's,
@@ -45,14 +44,13 @@ func updateConfig() goselfupdate.Config {
 	}
 }
 
-// githubToken resolves a GitHub credential the way the dotfiles installer does:
-// the environment first, then the gh CLI's stored token.
+// githubToken resolves a GitHub credential: the environment first, then the gh
+// CLI's stored token.
 //
 // goselfupdate reads $GITHUB_TOKEN and $GH_TOKEN on its own, so this only adds
 // the third source. meso's repository is public, so this is not load-bearing
 // here — it lifts the 60-requests-per-hour unauthenticated rate limit, and it
-// keeps the four product CLIs resolving credentials identically rather than
-// each behaving differently the day one of them changes visibility.
+// keeps `meso update` working unchanged if the repository is ever made private.
 func githubToken() string {
 	for _, name := range []string{"GITHUB_TOKEN", "GH_TOKEN"} {
 		if token := os.Getenv(name); token != "" {

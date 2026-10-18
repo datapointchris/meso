@@ -23,8 +23,8 @@ import (
 func main() {
 	cfg := config.Load()
 
-	// Structured JSON logs to stdout — Promtail on docker_hosts scrapes
-	// container stdout into Loki, where JSON fields become queryable labels.
+	// Structured JSON logs to stdout, so a log collector reading container
+	// stdout can query their fields as labels.
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
 
 	ctx := context.Background()

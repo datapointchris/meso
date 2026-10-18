@@ -2,9 +2,9 @@
 
 -- The terminal cycle status is `completed`.
 --
--- Every other store in the fleet spells the end of a lifecycle `completed`, and a
--- reader moving between them should not have to learn that one of them means the
--- same state by a shorter word. The value is FK-guarded rather than free text, so
+-- `completed` is the common spelling for the end of a lifecycle, and a reader
+-- moving between systems should not have to learn that one of them means the same
+-- state by a shorter word. The value is FK-guarded rather than free text, so
 -- the vocabulary is a row and changing it is a data move, not a string edit.
 --
 -- Insert, repoint, delete — in that order, inside goose's transaction. The FK on

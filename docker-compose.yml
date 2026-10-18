@@ -1,8 +1,9 @@
-# Production stack for meso-lxc.
+# Production stack.
 #
-# Pulls images from ghcr.io built and pushed by CI. No `build:` directives — the
-# same images run unchanged in k3s after migration. Secrets and runtime config
-# come from env files in /etc/meso/ (deployed out-of-band; never committed).
+# Pulls images from ghcr.io built and pushed by CI. No `build:` directives, so a
+# host runs exactly the images CI built and any container runtime can run them
+# unchanged. Secrets and runtime config come from env files in /etc/meso/
+# (deployed out-of-band; never committed).
 #
 # For local development, use docker-compose.dev.yml instead.
 

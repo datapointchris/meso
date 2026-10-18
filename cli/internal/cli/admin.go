@@ -15,9 +15,11 @@ import (
 // means cluster and consensus lifecycle — raft, seal, autopilot — and meso has no
 // cluster. This is application administration.
 //
-// There is no separate privilege here today: meso is single-user and the real check
-// is Authelia at the edge, the same one every other command passes. The namespace is
-// where that check would go if it ever gained one.
+// The privilege lives on the server. The API refuses these routes to a caller outside
+// the identity provider's admin group, read from the access token's groups claim, so
+// the CLI only carries the door: anyone holding the binary can read this help and
+// cannot run what it describes. Capturing feedback needs only a login, and its own
+// help says so.
 func newAdminCommand() *cobra.Command {
 	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "admin",

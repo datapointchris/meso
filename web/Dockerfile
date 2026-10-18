@@ -1,5 +1,5 @@
 # Frontend image — Caddy serving the built Vite SPA + reverse-proxying /api.
-# Entry point on meso-lxc; app-ops Traefik forwards traffic here.
+# The stack's entry point: the edge proxy forwards traffic here.
 
 # ─── Build stage ───────────────────────────────────────────────────────────
 # Node major must match local (npm lockfile formats diverge across majors).

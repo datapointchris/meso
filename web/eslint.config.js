@@ -2,7 +2,7 @@ import pluginVue from 'eslint-plugin-vue'
 import { defineConfigWithVueTs, vueTsConfigs } from '@vue/eslint-config-typescript'
 import skipFormatting from '@vue/eslint-config-prettier/skip-formatting'
 
-// TypeScript-aware flat config (meso's frontend is TS, unlike nomad's JS).
+// TypeScript-aware flat config, since the frontend is TypeScript.
 // Prettier owns formatting; ESLint owns correctness only (skipFormatting drops
 // any stylistic rules that would fight Prettier).
 export default defineConfigWithVueTs(
