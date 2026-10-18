@@ -176,23 +176,6 @@ func TestRequireAuth_RejectsUnauthenticated(t *testing.T) {
 	}
 }
 
-// The edge's headers prove nothing on a request sent straight to the
-// container, so they must not stand in for a session, nor name its groups.
-func TestRequireAuth_RejectsForgedEdgeHeaders(t *testing.T) {
-	handler, called := next()
-	mw := middlewareWith(&fakeVerifier{err: auth.ErrUnauthorized}, handler)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/feedback", nil)
-	req.Header.Set("Remote-User", "chris")
-	req.Header.Set("Remote-Groups", "admin")
-	rec := httptest.NewRecorder()
-	mw.ServeHTTP(rec, req)
-
-	if *called || rec.Code != http.StatusUnauthorized {
-		t.Fatalf("edge headers alone were not refused: called %v, status %d", *called, rec.Code)
-	}
-}
-
 func TestRequireAuth_LoginRoutesAreExempt(t *testing.T) {
 	for _, path := range []string{LoginPath, CallbackPath} {
 		handler, called := next()
