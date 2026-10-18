@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/datapointchris/gobrowserlogin/postgresstore"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/require"
@@ -100,6 +101,10 @@ func runMigrations(url string) error {
 	}
 	if err := goose.Up(db, "../migrations"); err != nil {
 		return fmt.Errorf("running migrations: %w", err)
+	}
+	// The browser session migration copies postgresstore.Schema, and New refuses tables it no longer matches.
+	if _, err := postgresstore.New(context.Background(), db); err != nil {
+		return fmt.Errorf("checking the browser session tables against gobrowserlogin: %w", err)
 	}
 	return nil
 }
