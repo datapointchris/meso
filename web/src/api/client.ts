@@ -17,6 +17,7 @@ const LOGIN_STARTS_ALLOWED = 2
 const LOGIN_STARTS_KEY = 'loginStarts'
 
 const SESSION_ENDED = 'Your login has ended, so this change was not saved. Reload the page to log in again.'
+const LOGIN_REFUSED = 'Logging in did not complete. Wait a minute, then reload the page.'
 
 // One start per page: the reads a page fires together all get the 401.
 let loggingIn = false
@@ -81,6 +82,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     if (method !== 'GET') throw new ApiError(401, SESSION_ENDED)
     // The page is navigating away, so the caller never settles and shows no error.
     if (sendToLogin()) return new Promise<T>(() => {})
+    throw new ApiError(401, LOGIN_REFUSED)
   }
   if (!resp.ok) {
     throw new ApiError(resp.status, await errorMessage(resp))
