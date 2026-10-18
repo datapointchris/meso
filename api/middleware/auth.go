@@ -8,7 +8,8 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
-	"strings"
+
+	"github.com/datapointchris/gobrowserlogin"
 
 	"meso/api/auth"
 )
@@ -18,6 +19,17 @@ import (
 type TokenVerifier interface {
 	Verify(ctx context.Context, raw string) (auth.Identity, error)
 }
+
+// SessionAuthenticator is the same seam for the browser's session.
+type SessionAuthenticator interface {
+	Authenticate(r *http.Request) (gobrowserlogin.Identity, error)
+}
+
+// The browser login's routes, which a browser reaches before it holds a session.
+const (
+	LoginPath    = "/api/auth/login"
+	CallbackPath = "/api/auth/callback"
+)
 
 type contextKey string
 
@@ -39,26 +51,28 @@ const (
 // graded by the other's rules. A service token given a JWT shape would be sent
 // to the verifier and rejected there.
 //
-// The browser SPA authenticates with an Authelia session cookie and arrives
-// with a Remote-User header injected by ForwardAuth at the Traefik edge. That
-// path trusts the header, which is only sound for requests that actually
-// traverse Traefik. A request carrying any bearer credential never reaches it:
-// falling through would let a caller pair a junk token with a forged header.
+// The browser SPA sends the session cookie this API set when it logged the
+// browser in, and the CSRF header gobrowserlogin requires beside it. No header
+// a client can set alone identifies anyone, so a request sent straight to the
+// container, past the edge, proves nothing it did not prove there. A request
+// carrying any bearer credential never reaches the session: falling through
+// would let a caller pair a junk token with a stolen cookie.
 //
 // Each route puts the caller's groups on the request for RequireGroup: a JWT's
-// groups claim, or the edge's Remote-Groups header. The edge proxy must remove
-// any client-supplied Remote-Groups before ForwardAuth sets it. Otherwise any
-// signed-in browser user can name their own groups. The service token names no
-// user and carries no group.
+// groups claim, or the groups the provider's userinfo named at the session's
+// login. The service token names no user and carries no group.
 //
 // /health is exempt: docker-compose healthchecks and k8s liveness/readiness
 // probes hit this endpoint without credentials, and gating it would cause
 // orchestrators to mark a healthy service as unhealthy. The RFC 9728 metadata
-// is exempt too, because a CLI reads it to learn where to get its first token.
-func RequireAuth(verifier TokenVerifier, serviceToken string, logger *slog.Logger) func(http.Handler) http.Handler {
+// is exempt too, because a CLI reads it to learn where to get its first token,
+// and so are the login and its callback, which a browser reaches before it
+// holds a session.
+func RequireAuth(verifier TokenVerifier, serviceToken string, sessions SessionAuthenticator, logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/health" || r.URL.Path == auth.ProtectedResourcePath {
+			switch r.URL.Path {
+			case "/health", auth.ProtectedResourcePath, LoginPath, CallbackPath:
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -91,25 +105,24 @@ func RequireAuth(verifier TokenVerifier, serviceToken string, logger *slog.Logge
 				return
 			}
 
-			if r.Header.Get("Remote-User") == "" {
+			identity, err := sessions.Authenticate(r)
+			switch {
+			case errors.Is(err, gobrowserlogin.ErrNoSession):
 				refuse(w, http.StatusUnauthorized, noCredential)
 				return
+			case errors.Is(err, gobrowserlogin.ErrNoCSRFHeader):
+				refuse(w, http.StatusForbidden, "a request carrying the session cookie must send "+gobrowserlogin.CSRFHeader)
+				return
+			case err != nil:
+				logger.ErrorContext(r.Context(), "session store unreachable", "error", err, "path", r.URL.Path)
+				refuse(w, http.StatusServiceUnavailable, "the session store is unavailable")
+				return
 			}
-			ctx := context.WithValue(r.Context(), groupsKey, edgeGroups(r.Header.Get("Remote-Groups")))
+			ctx := context.WithValue(r.Context(), identityKey, auth.Identity{Subject: identity.Subject, Groups: identity.Groups})
+			ctx = context.WithValue(ctx, groupsKey, identity.Groups)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
-}
-
-// edgeGroups splits the comma-separated Remote-Groups header ForwardAuth sets.
-func edgeGroups(header string) []string {
-	var groups []string
-	for group := range strings.SplitSeq(header, ",") {
-		if group = strings.TrimSpace(group); group != "" {
-			groups = append(groups, group)
-		}
-	}
-	return groups
 }
 
 // noCredential is every 401's message. It is one sentence whichever check
@@ -144,10 +157,9 @@ func DevGroups(next http.Handler, groups ...string) http.Handler {
 	})
 }
 
-// IdentityFrom returns the identity established by a verified bearer token.
-// Requests authorized by the edge or by the service token carry no identity
-// here — the edge carries Remote-User instead, and the service token names no
-// user.
+// IdentityFrom returns the identity a bearer token or a browser session
+// established. A session's carries no ClientID, and a request authorized by
+// the service token carries none, because that token names no user.
 func IdentityFrom(ctx context.Context) (auth.Identity, bool) {
 	identity, ok := ctx.Value(identityKey).(auth.Identity)
 	return identity, ok
@@ -160,7 +172,7 @@ func DevCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3001")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, "+gobrowserlogin.CSRFHeader)
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
 			return

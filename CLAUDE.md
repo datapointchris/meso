@@ -13,7 +13,7 @@ auth, deployed by pulling images from a registry.
 | --------- | ------ | -------------------------------------------------------------------------------- |
 | API       | `api/` | Go 1.26, `net/http` ServeMux, `pgx/v5`, goose migrations at startup, `slog` JSON |
 | CLI       | `cli/` | Go/cobra thin REST client over the API — the agent + power-user surface          |
-| Web       | `web/` | Vue 3 + TypeScript + Vite SPA, Authelia cookie SSO (no login page in-app)        |
+| Web       | `web/` | Vue 3 + TypeScript + Vite SPA, logged in and kept in session by the API          |
 
 The CLI's natural sibling is the API (shared REST contract), not the Vue frontend
 — that is why the CLI is Go, not TS.

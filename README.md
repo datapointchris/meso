@@ -444,8 +444,9 @@ real API write path. The rule: an entity with a CLI verb is imported, never seed
 
 This is an iOS-in-the-gym app, and mobile-first is the whole point rather than a later pass. The
 SPA is Vue 3 and TypeScript on Vite, with `<script setup>` components, Vue Router and SCSS. It has
-no login page. In production the identity provider's session cookie signs the browser in at the
-edge.
+no login page. A read the API answers with 401 sends the browser to the API's login route, which
+logs it in through the identity provider and brings it back to the page it was on. A write it
+answers with 401 fails instead and says the change was not saved, so nothing is lost silently.
 
 - The minimum interactive target is 44px, the `--touch-target` design variable. The logging screen
   works one-handed without zoom.
@@ -527,9 +528,9 @@ convention is HashiCorp's (`vault operator`, `consul operator`). It is named
 **meso has one user, and the identity provider it signs in through can hold more.** A login admits
 a caller to every training route. Administration also needs the identity provider's `admin` group.
 `meso admin` stays in the CLI's help for anyone who holds the binary. Reading, editing and deleting
-feedback answer 403 to a non-member. Capturing it needs only a login. A browser request carries
-the group in `Remote-Groups`. A CLI request carries it in the access token's `groups` claim, which
-`meso auth login` requests.
+feedback answer 403 to a non-member. Capturing it needs only a login. A browser's groups are the
+ones the identity provider named when its session logged in. A CLI request carries them in the
+access token's `groups` claim, which `meso auth login` requests.
 
 **`update` sits at the root rather than under `admin`.** meso checks once a day for a newer release
 and prints a single line: "meso vX available (running vY) — run `meso update`". The shared library
@@ -571,19 +572,23 @@ before either check runs, so one cannot be graded by the other's rules.
   that does not answer is a 503 instead, because logging in again cannot fix a network failure.
 - **Any other bearer is an internal service-to-service caller.** It must equal
   `MESO_SERVICE_TOKEN`, compared in constant time. It names no user and carries no group.
-- **No bearer is the browser.** The edge's ForwardAuth sets `Remote-User` and `Remote-Groups` after
-  the identity provider's cookie login. That path trusts the headers, which is sound only for
-  requests that traverse the edge. A request carrying any bearer never reaches it, so a junk token
-  cannot be paired with a forged header.
+- **No bearer is the browser.** The API is the identity provider's confidential client `meso-web`,
+  and logs the browser in at `/api/auth/login`. The session lives in the API's database. The
+  browser holds one `HttpOnly`, `SameSite=Strict` cookie naming it, and no token. Every request
+  carrying that cookie must also send `X-CSRF: 1`, which a page on another origin cannot add. No
+  header identifies anyone, so a request sent straight to the container proves nothing. A request
+  carrying any bearer never reaches the session, so a junk token cannot be paired with a stolen
+  cookie.
 
 `client_id`, not `aud`, isolates meso from other products on the same identity provider. Authelia
 does not carry the audience through the device grant, so the `aud` claim comes back empty and
 cannot be relied on. `authelia.bearer.authz` is absent from the scopes because Authelia forbids the
 device grant alongside it.
 
-`/health` and `/.well-known/oauth-protected-resource` need no credential. Health answers 503 when
-Postgres fails, so an orchestrator sees the outage. The metadata is what a CLI reads before it
-holds a token, and the API serves it only while `PUBLIC_URL` is set.
+`/health`, `/.well-known/oauth-protected-resource` and the two login routes need no credential.
+Health answers 503 when Postgres fails, so an orchestrator sees the outage. The metadata is what a
+CLI reads before it holds a token, and the API serves it only while `PUBLIC_URL` is set.
+`/api/auth/login` and `/api/auth/callback` are what a browser reaches before it holds a session.
 
 With `ENV=development` none of this runs. Every request is accepted and placed in the admin group.
 
@@ -616,23 +621,26 @@ inline, so a deployment edits it there. The API reads:
 | --- | --- |
 | `DATABASE_URL` | the Postgres connection |
 | `ENV` | `development` accepts every request unauthenticated; any other value enforces auth |
-| `OIDC_ISSUER` | the identity provider whose JWKS signs the CLI's tokens |
+| `OIDC_ISSUER` | the identity provider whose JWKS signs the CLI's tokens, and which logs the browser in |
 | `CLI_CLIENT_ID_PREFIX` | the `client_id` prefix a token must carry, `meso-cli-` by default |
-| `PUBLIC_URL` | the address the edge serves the API at; the metadata names it, and a CLI refuses it unless it matches exactly |
+| `WEB_CLIENT_ID` | the confidential client the API logs browsers in as, `meso-web` by default |
+| `WEB_CLIENT_SECRET` | that client's secret; production refuses to start without it |
+| `PUBLIC_URL` | the address the edge serves the API at; the metadata names it, a CLI refuses it unless it matches exactly, and the browser login's callback is under it. Production refuses to start without it |
 | `MESO_SERVICE_TOKEN` | the shared secret for internal callers; empty disables that path |
 | `PORT` | the listen port, 8088 by default |
 
 **Set `ENV` in the env file.** Its default is `development`, which accepts every request
 unauthenticated.
 
-The edge in front of the web container has three duties:
+The edge in front of the web container has two duties:
 
 - route the public hostname to the web container's port 80, behind the identity provider's
   ForwardAuth middleware;
 - serve `/.well-known/oauth-protected-resource` without that middleware, since a CLI reads it
-  before it holds a token;
-- strip any client-supplied `Remote-Groups` before ForwardAuth sets it, or any signed-in browser
-  user can name their own groups.
+  before it holds a token.
+
+The API reads no header the edge sets, so the edge is a second gate rather than the one that
+identifies anyone.
 
 The web container is Caddy. It serves the SPA with a fallback to `index.html`, and proxies
 `/api/*` and the RFC 9728 path to the API. Both containers answer `/health` unauthenticated. The

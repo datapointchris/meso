@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/datapointchris/gobrowserlogin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -32,11 +33,26 @@ func (v verifiedAs) Verify(context.Context, string) (auth.Identity, error) {
 	return auth.Identity(v), nil
 }
 
+// sessionIn stands in for the browser login, answering every request as a
+// session whose login named these groups.
+type sessionIn []string
+
+func (s sessionIn) Authenticate(*http.Request) (gobrowserlogin.Identity, error) {
+	return gobrowserlogin.Identity{Subject: "user-uuid", Groups: s}, nil
+}
+
+// noSession is a browser that never logged in, as a CLI is.
+type noSession struct{}
+
+func (noSession) Authenticate(*http.Request) (gobrowserlogin.Identity, error) {
+	return gobrowserlogin.Identity{}, gobrowserlogin.ErrNoSession
+}
+
 // asCaller is the router behind RequireAuth, the way main() serves it, with each
-// request carrying headers the edge or the CLI would set.
-func asCaller(pool *database.TestPool, verifier middleware.TokenVerifier, headers map[string]string) http.Handler {
+// request carrying the browser's session or the headers the CLI sets.
+func asCaller(pool *database.TestPool, verifier middleware.TokenVerifier, sessions middleware.SessionAuthenticator, headers map[string]string) http.Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	authed := middleware.RequireAuth(verifier, "", logger)(handlers.NewRouter(pool.Pool, nil))
+	authed := middleware.RequireAuth(verifier, "", sessions, logger)(handlers.NewRouter(pool.Pool, nil))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		for name, value := range headers {
 			r.Header.Set(name, value)
@@ -46,12 +62,12 @@ func asCaller(pool *database.TestPool, verifier middleware.TokenVerifier, header
 }
 
 var (
-	edgeAdmin  = map[string]string{"Remote-User": "chris", "Remote-Groups": "dev, admin"}
-	cliRequest = map[string]string{"Authorization": "Bearer header.payload.signature"}
+	browserAdmin = sessionIn{"dev", "admin"}
+	cliRequest   = map[string]string{"Authorization": "Bearer header.payload.signature"}
 )
 
 func TestFeedback_CaptureListFilterUpdateDelete(t *testing.T) {
-	mux := asCaller(setupTestDB(t), nil, edgeAdmin)
+	mux := asCaller(setupTestDB(t), nil, browserAdmin, nil)
 
 	// Capture — status defaults to open, the route is retained.
 	rr := postJSON(t, mux, "/api/v1/feedback", map[string]any{
@@ -113,7 +129,7 @@ func TestFeedback_CaptureListFilterUpdateDelete(t *testing.T) {
 // one on a desktop, so it has to survive the round trip — and stay absent when the
 // client had no window to measure.
 func TestFeedback_ViewportRoundTrip(t *testing.T) {
-	mux := asCaller(setupTestDB(t), nil, edgeAdmin)
+	mux := asCaller(setupTestDB(t), nil, browserAdmin, nil)
 
 	rr := postJSON(t, mux, "/api/v1/feedback", map[string]any{
 		"body": "how-to is a wall of text", "context_path": "/movements/21",
@@ -169,35 +185,21 @@ func TestFeedback_AbsentFromReviewAndStats(t *testing.T) {
 
 // Reading, editing and deleting feedback is administration, which only the admin
 // group may do from the browser or the CLI. Capturing it is what every user does.
-func TestFeedback_AdministrationNeedsTheAdminGroupOnEitherPath(t *testing.T) {
+func TestFeedback_AdministrationNeedsTheAdminGroup(t *testing.T) {
 	pool := setupTestDB(t)
-	seeded := decodeFeedback(t, postJSON(t, asCaller(pool, nil, edgeAdmin), "/api/v1/feedback",
+	seeded := decodeFeedback(t, postJSON(t, asCaller(pool, nil, browserAdmin, nil), "/api/v1/feedback",
 		map[string]any{"body": "seeded by an admin"}).Body)
 	item := "/api/v1/feedback/" + seeded.ID.String()
 
-	outsiders := map[string]http.Handler{
-		"browser outside admin":  asCaller(pool, nil, map[string]string{"Remote-User": "guest", "Remote-Groups": "dev"}),
-		"browser with no groups": asCaller(pool, nil, map[string]string{"Remote-User": "guest"}),
-		"CLI outside admin": asCaller(pool,
-			verifiedAs{Subject: "guest", ClientID: "meso-cli-laptop", Groups: []string{"dev"}}, cliRequest),
-		"CLI token with no groups claim": asCaller(pool,
-			verifiedAs{Subject: "guest", ClientID: "meso-cli-laptop"}, cliRequest),
-		"CLI outside admin with a forged Remote-Groups": asCaller(pool,
-			verifiedAs{Subject: "guest", ClientID: "meso-cli-laptop"},
-			map[string]string{"Authorization": cliRequest["Authorization"], "Remote-User": "chris", "Remote-Groups": "admin"}),
-	}
-	for name, mux := range outsiders {
-		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, http.StatusForbidden, getJSON(t, mux, "/api/v1/feedback").Code)
-			assert.Equal(t, http.StatusForbidden, getJSON(t, mux, item).Code)
-			assert.Equal(t, http.StatusForbidden, putJSON(t, mux, item, map[string]any{"status": "done"}).Code)
-			assert.Equal(t, http.StatusForbidden, deleteReq(t, mux, item).Code)
-			assert.Equal(t, http.StatusCreated,
-				postJSON(t, mux, "/api/v1/feedback", map[string]any{"body": "captured by " + name}).Code)
-		})
-	}
+	outsider := asCaller(pool, nil, sessionIn{"dev"}, nil)
+	assert.Equal(t, http.StatusForbidden, getJSON(t, outsider, "/api/v1/feedback").Code)
+	assert.Equal(t, http.StatusForbidden, getJSON(t, outsider, item).Code)
+	assert.Equal(t, http.StatusForbidden, putJSON(t, outsider, item, map[string]any{"status": "done"}).Code)
+	assert.Equal(t, http.StatusForbidden, deleteReq(t, outsider, item).Code)
+	assert.Equal(t, http.StatusCreated,
+		postJSON(t, outsider, "/api/v1/feedback", map[string]any{"body": "captured by a browser outside admin"}).Code)
 
-	cliAdmin := asCaller(pool, verifiedAs{Subject: "chris", ClientID: "meso-cli-laptop", Groups: []string{"admin"}}, cliRequest)
+	cliAdmin := asCaller(pool, verifiedAs{Subject: "chris", ClientID: "meso-cli-laptop", Groups: []string{"admin"}}, noSession{}, cliRequest)
 	assert.Equal(t, http.StatusOK, getJSON(t, cliAdmin, "/api/v1/feedback").Code)
 	assert.Equal(t, http.StatusOK, getJSON(t, cliAdmin, item).Code)
 	assert.Equal(t, http.StatusOK, putJSON(t, cliAdmin, item, map[string]any{"status": "done"}).Code)

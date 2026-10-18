@@ -9,7 +9,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/datapointchris/gobrowserlogin"
 
 	"meso/api/auth"
 )
@@ -38,35 +41,55 @@ func (f *fakeVerifier) Verify(context.Context, string) (auth.Identity, error) {
 	return f.identity, f.err
 }
 
+type fakeSessions struct {
+	identity gobrowserlogin.Identity
+	err      error
+}
+
+func (f fakeSessions) Authenticate(*http.Request) (gobrowserlogin.Identity, error) {
+	return f.identity, f.err
+}
+
+var noSession = fakeSessions{err: gobrowserlogin.ErrNoSession}
+
+func sessionIn(groups ...string) fakeSessions {
+	return fakeSessions{identity: gobrowserlogin.Identity{Subject: "user-uuid", Groups: groups}}
+}
+
 func middlewareWith(v TokenVerifier, handler http.Handler) http.Handler {
-	return middlewareWithServiceToken(v, "", handler)
+	return middlewareWithSessions(v, "", noSession, handler)
 }
 
 func middlewareWithServiceToken(v TokenVerifier, serviceToken string, handler http.Handler) http.Handler {
+	return middlewareWithSessions(v, serviceToken, noSession, handler)
+}
+
+func middlewareWithSessions(v TokenVerifier, serviceToken string, s SessionAuthenticator, handler http.Handler) http.Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return RequireAuth(v, serviceToken, logger)(handler)
+	return RequireAuth(v, serviceToken, s, logger)(handler)
 }
 
 func TestRequireGroup_AdmitsOnlyACallerRequireAuthPlacedInTheGroup(t *testing.T) {
 	cases := []struct {
 		name       string
 		verifier   TokenVerifier
+		sessions   SessionAuthenticator
 		headers    map[string]string
 		wantStatus int
 	}{
-		{"edge member, padded list", nil, map[string]string{"Remote-User": "chris", "Remote-Groups": " dev ,admin "}, http.StatusOK},
-		{"edge non-member", nil, map[string]string{"Remote-User": "guest", "Remote-Groups": "dev,administrators"}, http.StatusForbidden},
+		{"session member", nil, sessionIn("dev", "admin"), nil, http.StatusOK},
+		{"session non-member", nil, sessionIn("dev", "administrators"), nil, http.StatusForbidden},
 		{
-			"JWT member", &fakeVerifier{identity: auth.Identity{Subject: "chris", Groups: []string{"admin"}}},
+			"JWT member", &fakeVerifier{identity: auth.Identity{Subject: "chris", Groups: []string{"admin"}}}, noSession,
 			map[string]string{"Authorization": "Bearer a.b.c"},
 			http.StatusOK,
 		},
-		{"service token", nil, map[string]string{"Authorization": "Bearer " + testServiceToken}, http.StatusForbidden},
+		{"service token", nil, noSession, map[string]string{"Authorization": "Bearer " + testServiceToken}, http.StatusForbidden},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			handler, _ := next()
-			mw := middlewareWithServiceToken(tc.verifier, testServiceToken, RequireGroup("admin", handler))
+			mw := middlewareWithSessions(tc.verifier, testServiceToken, tc.sessions, RequireGroup("admin", handler))
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/feedback", nil)
 			for name, value := range tc.headers {
 				req.Header.Set(name, value)
@@ -84,9 +107,8 @@ func TestRequireGroup_AdmitsOnlyACallerRequireAuthPlacedInTheGroup(t *testing.T)
 // admin command refused in plain text printed a bare 403.
 func TestRequireGroup_RefusesInTheEnvelopeEveryCLIDecodes(t *testing.T) {
 	handler, _ := next()
-	mw := middlewareWith(nil, RequireGroup("admin", handler))
+	mw := middlewareWithSessions(nil, "", sessionIn("dev"), RequireGroup("admin", handler))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/feedback", nil)
-	req.Header.Set("Remote-User", "guest")
 	rec := httptest.NewRecorder()
 	mw.ServeHTTP(rec, req)
 
@@ -97,7 +119,8 @@ func TestRequireGroup_RefusesInTheEnvelopeEveryCLIDecodes(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("refusal body %q is not the JSON envelope: %v", rec.Body.String(), err)
 	}
-	if rec.Code != http.StatusForbidden || envelope.Message != "this needs membership in the admin group" {
+	if rec.Code != http.StatusForbidden || envelope.Error != http.StatusText(http.StatusForbidden) ||
+		!strings.Contains(envelope.Message, "admin") {
 		t.Fatalf("status %d, envelope %+v", rec.Code, envelope)
 	}
 }
@@ -111,64 +134,42 @@ func TestDevGroups_PlacesEveryRequestInTheNamedGroups(t *testing.T) {
 	}
 }
 
-func TestRequireAuth_HealthIsExempt(t *testing.T) {
-	handler, called := next()
-	mw := middlewareWith(&fakeVerifier{err: auth.ErrUnauthorized}, handler)
+// A probe, a CLI with no token yet, and a browser with no session each reach
+// these before they hold a credential.
+func TestRequireAuth_PathsReachedBeforeACredentialAreExempt(t *testing.T) {
+	for _, path := range []string{"/health", auth.ProtectedResourcePath, LoginPath, CallbackPath} {
+		handler, called := next()
+		mw := middlewareWith(&fakeVerifier{err: auth.ErrUnauthorized}, handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-	rec := httptest.NewRecorder()
-	mw.ServeHTTP(rec, req)
+		rec := httptest.NewRecorder()
+		mw.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, http.NoBody))
 
-	if !*called {
-		t.Fatal("/health should bypass auth, but the next handler was not called")
-	}
-	if rec.Code != http.StatusOK {
-		t.Fatalf("/health should return 200 even without auth, got %d", rec.Code)
-	}
-}
-
-func TestRequireAuth_ProtectedResourceMetadataIsExempt(t *testing.T) {
-	handler, called := next()
-	mw := middlewareWith(&fakeVerifier{err: auth.ErrUnauthorized}, handler)
-
-	rec := httptest.NewRecorder()
-	mw.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, auth.ProtectedResourcePath, nil))
-
-	if !*called || rec.Code != http.StatusOK {
-		t.Fatalf("a CLI with no token yet was refused the metadata: called %v, status %d", *called, rec.Code)
+		if !*called || rec.Code != http.StatusOK {
+			t.Errorf("%s was refused with no credential: called %v, status %d", path, *called, rec.Code)
+		}
 	}
 }
 
-func TestRequireAuth_RejectsUnauthenticated(t *testing.T) {
-	handler, called := next()
-	mw := middlewareWith(&fakeVerifier{err: auth.ErrUnauthorized}, handler)
+// The SPA answers a 401 by sending the browser to log in. A missing CSRF header
+// or a store outage is neither fixed by logging in, so neither may be a 401.
+func TestRequireAuth_SessionFailuresAnswerWhatFixesThem(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		want int
+	}{
+		{gobrowserlogin.ErrNoSession, http.StatusUnauthorized},
+		{gobrowserlogin.ErrNoCSRFHeader, http.StatusForbidden},
+		{errors.New("connection refused"), http.StatusServiceUnavailable},
+	} {
+		handler, called := next()
+		mw := middlewareWithSessions(&fakeVerifier{err: auth.ErrUnauthorized}, "", fakeSessions{err: tc.err}, handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/movements", nil)
-	rec := httptest.NewRecorder()
-	mw.ServeHTTP(rec, req)
+		rec := httptest.NewRecorder()
+		mw.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/movements", http.NoBody))
 
-	if *called {
-		t.Fatal("unauthenticated request should not reach the next handler")
-	}
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401, got %d", rec.Code)
-	}
-}
-
-func TestRequireAuth_AcceptsAutheliaHeader(t *testing.T) {
-	handler, called := next()
-	mw := middlewareWith(&fakeVerifier{err: auth.ErrUnauthorized}, handler)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/movements", nil)
-	req.Header.Set("Remote-User", "chris")
-	rec := httptest.NewRecorder()
-	mw.ServeHTTP(rec, req)
-
-	if !*called {
-		t.Fatal("Remote-User header should authenticate the request")
-	}
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
+		if *called || rec.Code != tc.want {
+			t.Errorf("%v: called %v, status %d, want %d", tc.err, *called, rec.Code, tc.want)
+		}
 	}
 }
 
@@ -198,20 +199,19 @@ func TestRequireAuth_AcceptsVerifiedBearerAndExposesIdentity(t *testing.T) {
 	}
 }
 
-// A rejected token must fail the request outright. Falling through to the
-// Remote-User path would let a caller pair a junk token with a forged header.
-func TestRequireAuth_RejectedBearerDoesNotFallBackToHeader(t *testing.T) {
+// A rejected token must fail the request outright, rather than fall through to
+// whatever session the same request carries.
+func TestRequireAuth_RejectedBearerDoesNotFallBackToASession(t *testing.T) {
 	handler, called := next()
-	mw := middlewareWith(&fakeVerifier{err: errors.New("bad signature")}, handler)
+	mw := middlewareWithSessions(&fakeVerifier{err: errors.New("bad signature")}, "", sessionIn("admin"), handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/movements", nil)
 	req.Header.Set("Authorization", "Bearer forged.jwt.value")
-	req.Header.Set("Remote-User", "chris")
 	rec := httptest.NewRecorder()
 	mw.ServeHTTP(rec, req)
 
 	if *called {
-		t.Fatal("a rejected bearer token must not fall through to Remote-User")
+		t.Fatal("a rejected bearer token must not fall through to the session")
 	}
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rec.Code)
@@ -261,16 +261,15 @@ func TestRequireAuth_ServiceTokenCarriesNoIdentity(t *testing.T) {
 
 func TestRequireAuth_RejectsWrongServiceToken(t *testing.T) {
 	handler, called := next()
-	mw := middlewareWithServiceToken(&fakeVerifier{err: auth.ErrUnauthorized}, testServiceToken, handler)
+	mw := middlewareWithSessions(&fakeVerifier{err: auth.ErrUnauthorized}, testServiceToken, sessionIn("admin"), handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/movements", nil)
 	req.Header.Set("Authorization", "Bearer wrong-service-token")
-	req.Header.Set("Remote-User", "chris")
 	rec := httptest.NewRecorder()
 	mw.ServeHTTP(rec, req)
 
 	if *called {
-		t.Fatal("a wrong service token must not authorize, nor fall through to Remote-User")
+		t.Fatal("a wrong service token must not authorize, nor fall through to the session")
 	}
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rec.Code)

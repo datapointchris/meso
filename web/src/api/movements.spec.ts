@@ -48,13 +48,6 @@ describe('movementsApi', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/movements')
   })
 
-  it('sends credentials on every request (Authelia cookie)', async () => {
-    fetchMock.mockResolvedValue(jsonResponse([]))
-    await movementsApi.list()
-    const init = fetchMock.mock.calls[0][1] as RequestInit
-    expect(init.credentials).toBe('include')
-  })
-
   it('PUTs an update as JSON', async () => {
     fetchMock.mockResolvedValue(jsonResponse(sample))
     await movementsApi.update(1, { favorite: true })
