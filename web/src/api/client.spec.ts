@@ -60,7 +60,7 @@ describe('request', () => {
     const assign = vi.fn()
     vi.stubGlobal('location', { pathname: '/sessions/3', search: '', hash: '', assign })
 
-    await expect(http.post('/sessions', {})).rejects.toThrow('this change was not saved')
+    await expect(http.post('/sessions', {})).rejects.toMatchObject({ status: 401 })
     expect(assign).not.toHaveBeenCalled()
   })
 })

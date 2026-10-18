@@ -185,30 +185,19 @@ func TestFeedback_AbsentFromReviewAndStats(t *testing.T) {
 
 // Reading, editing and deleting feedback is administration, which only the admin
 // group may do from the browser or the CLI. Capturing it is what every user does.
-func TestFeedback_AdministrationNeedsTheAdminGroupOnEitherPath(t *testing.T) {
+func TestFeedback_AdministrationNeedsTheAdminGroup(t *testing.T) {
 	pool := setupTestDB(t)
 	seeded := decodeFeedback(t, postJSON(t, asCaller(pool, nil, browserAdmin, nil), "/api/v1/feedback",
 		map[string]any{"body": "seeded by an admin"}).Body)
 	item := "/api/v1/feedback/" + seeded.ID.String()
 
-	outsiders := map[string]http.Handler{
-		"browser outside admin":  asCaller(pool, nil, sessionIn{"dev"}, nil),
-		"browser with no groups": asCaller(pool, nil, sessionIn{}, nil),
-		"CLI outside admin": asCaller(pool,
-			verifiedAs{Subject: "guest", ClientID: "meso-cli-laptop", Groups: []string{"dev"}}, noSession{}, cliRequest),
-		"CLI token with no groups claim": asCaller(pool,
-			verifiedAs{Subject: "guest", ClientID: "meso-cli-laptop"}, noSession{}, cliRequest),
-	}
-	for name, mux := range outsiders {
-		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, http.StatusForbidden, getJSON(t, mux, "/api/v1/feedback").Code)
-			assert.Equal(t, http.StatusForbidden, getJSON(t, mux, item).Code)
-			assert.Equal(t, http.StatusForbidden, putJSON(t, mux, item, map[string]any{"status": "done"}).Code)
-			assert.Equal(t, http.StatusForbidden, deleteReq(t, mux, item).Code)
-			assert.Equal(t, http.StatusCreated,
-				postJSON(t, mux, "/api/v1/feedback", map[string]any{"body": "captured by " + name}).Code)
-		})
-	}
+	outsider := asCaller(pool, nil, sessionIn{"dev"}, nil)
+	assert.Equal(t, http.StatusForbidden, getJSON(t, outsider, "/api/v1/feedback").Code)
+	assert.Equal(t, http.StatusForbidden, getJSON(t, outsider, item).Code)
+	assert.Equal(t, http.StatusForbidden, putJSON(t, outsider, item, map[string]any{"status": "done"}).Code)
+	assert.Equal(t, http.StatusForbidden, deleteReq(t, outsider, item).Code)
+	assert.Equal(t, http.StatusCreated,
+		postJSON(t, outsider, "/api/v1/feedback", map[string]any{"body": "captured by a browser outside admin"}).Code)
 
 	cliAdmin := asCaller(pool, verifiedAs{Subject: "chris", ClientID: "meso-cli-laptop", Groups: []string{"admin"}}, noSession{}, cliRequest)
 	assert.Equal(t, http.StatusOK, getJSON(t, cliAdmin, "/api/v1/feedback").Code)

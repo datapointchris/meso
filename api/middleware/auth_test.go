@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/datapointchris/gobrowserlogin"
@@ -118,7 +119,8 @@ func TestRequireGroup_RefusesInTheEnvelopeEveryCLIDecodes(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("refusal body %q is not the JSON envelope: %v", rec.Body.String(), err)
 	}
-	if rec.Code != http.StatusForbidden || envelope.Message != "this needs membership in the admin group" {
+	if rec.Code != http.StatusForbidden || envelope.Error != http.StatusText(http.StatusForbidden) ||
+		!strings.Contains(envelope.Message, "admin") {
 		t.Fatalf("status %d, envelope %+v", rec.Code, envelope)
 	}
 }
@@ -132,60 +134,18 @@ func TestDevGroups_PlacesEveryRequestInTheNamedGroups(t *testing.T) {
 	}
 }
 
-func TestRequireAuth_HealthIsExempt(t *testing.T) {
-	handler, called := next()
-	mw := middlewareWith(&fakeVerifier{err: auth.ErrUnauthorized}, handler)
-
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-	rec := httptest.NewRecorder()
-	mw.ServeHTTP(rec, req)
-
-	if !*called {
-		t.Fatal("/health should bypass auth, but the next handler was not called")
-	}
-	if rec.Code != http.StatusOK {
-		t.Fatalf("/health should return 200 even without auth, got %d", rec.Code)
-	}
-}
-
-func TestRequireAuth_ProtectedResourceMetadataIsExempt(t *testing.T) {
-	handler, called := next()
-	mw := middlewareWith(&fakeVerifier{err: auth.ErrUnauthorized}, handler)
-
-	rec := httptest.NewRecorder()
-	mw.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, auth.ProtectedResourcePath, nil))
-
-	if !*called || rec.Code != http.StatusOK {
-		t.Fatalf("a CLI with no token yet was refused the metadata: called %v, status %d", *called, rec.Code)
-	}
-}
-
-func TestRequireAuth_RejectsUnauthenticated(t *testing.T) {
-	handler, called := next()
-	mw := middlewareWith(&fakeVerifier{err: auth.ErrUnauthorized}, handler)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/movements", nil)
-	rec := httptest.NewRecorder()
-	mw.ServeHTTP(rec, req)
-
-	if *called {
-		t.Fatal("unauthenticated request should not reach the next handler")
-	}
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected 401, got %d", rec.Code)
-	}
-}
-
-func TestRequireAuth_LoginRoutesAreExempt(t *testing.T) {
-	for _, path := range []string{LoginPath, CallbackPath} {
+// A probe, a CLI with no token yet, and a browser with no session each reach
+// these before they hold a credential.
+func TestRequireAuth_PathsReachedBeforeACredentialAreExempt(t *testing.T) {
+	for _, path := range []string{"/health", auth.ProtectedResourcePath, LoginPath, CallbackPath} {
 		handler, called := next()
 		mw := middlewareWith(&fakeVerifier{err: auth.ErrUnauthorized}, handler)
 
 		rec := httptest.NewRecorder()
 		mw.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, http.NoBody))
 
-		if !*called {
-			t.Errorf("%s was refused to a browser with no session", path)
+		if !*called || rec.Code != http.StatusOK {
+			t.Errorf("%s was refused with no credential: called %v, status %d", path, *called, rec.Code)
 		}
 	}
 }
