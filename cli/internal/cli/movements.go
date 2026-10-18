@@ -10,6 +10,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/datapointchris/goclikit"
 	"github.com/spf13/cobra"
 
 	"github.com/datapointchris/meso/cli/internal/api"
@@ -20,7 +21,7 @@ import (
 var exportFormats = []string{"csv"}
 
 func newMovementsCommand() *cobra.Command {
-	cmd := asNamespace(&cobra.Command{
+	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "movements",
 		Short: "Browse and manage the movement library",
 		Long: "The unified library of exercises, stretches, and yoga poses. List and\n" +
@@ -89,7 +90,7 @@ func printMusclesTable(out io.Writer, muscles []api.Muscle) {
 // newMovementsRelatedCommand groups the relationship sub-commands: add / rm a
 // directional relationship (alternate, antagonist, ...) between two movements.
 func newMovementsRelatedCommand() *cobra.Command {
-	cmd := asNamespace(&cobra.Command{
+	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "related",
 		Short: "Manage a movement's relationships (alternates, antagonists, ...)",
 		Long: "Relate one movement to another so the swap-alternate flow can offer it.\n" +
@@ -110,14 +111,14 @@ func newMovementsRelatedAddCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseID(args[0])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			relatedID, err := api.ParseID(args[1])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			if kind == "" {
-				return usageError{fmt.Errorf("--kind is required (alternate|antagonist|progression|regression|see_also)")}
+				return goclikit.UsageError(fmt.Errorf("--kind is required (alternate|antagonist|progression|regression|see_also)"))
 			}
 
 			client, err := newAPIClient(cmd.Context())
@@ -153,11 +154,11 @@ func newMovementsRelatedRemoveCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseID(args[0])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			relatedID, err := api.ParseID(args[1])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 
 			client, err := newAPIClient(cmd.Context())
@@ -342,11 +343,11 @@ func newMovementsCreateCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if w.kind == "" {
-				return usageError{fmt.Errorf("--kind is required")}
+				return goclikit.UsageError(fmt.Errorf("--kind is required"))
 			}
 			muscles, err := parseMuscleFlags(w.muscles)
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			in := api.MovementCreate{
 				Name:          args[0],
@@ -413,14 +414,14 @@ func newMovementsUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseID(args[0])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			patch, err := buildMovementPatch(cmd, &w)
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			if len(patch) == 0 {
-				return usageError{fmt.Errorf("nothing to update — pass at least one field flag")}
+				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
 			}
 
 			client, err := newAPIClient(cmd.Context())
@@ -519,7 +520,7 @@ func newMovementsDeleteCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseID(args[0])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -565,7 +566,7 @@ func newMovementsExportCommand() *cobra.Command {
 	cmd.Flags().StringVar(&format, "format", "csv", "Output format ("+strings.Join(exportFormats, "|")+")")
 	cmd.RunE = func(cmd *cobra.Command, _ []string) error {
 		if !slices.Contains(exportFormats, format) {
-			return usageError{fmt.Errorf("unknown format %q — valid formats are %s", format, strings.Join(exportFormats, ", "))}
+			return goclikit.UsageError(fmt.Errorf("unknown format %q — valid formats are %s", format, strings.Join(exportFormats, ", ")))
 		}
 		client, err := newAPIClient(cmd.Context())
 		if err != nil {

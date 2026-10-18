@@ -6,13 +6,14 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/datapointchris/goclikit"
 	"github.com/spf13/cobra"
 
 	"github.com/datapointchris/meso/cli/internal/api"
 )
 
 func newAdminFeedbackCommand() *cobra.Command {
-	cmd := asNamespace(&cobra.Command{
+	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "feedback",
 		Short: "Read and triage feedback captured in the app",
 		Long: "Feedback is captured by the button in the web app — a papercut or an idea,\n" +
@@ -55,7 +56,7 @@ func (f feedbackFilters) resolve() (string, error) {
 		}
 	}
 	if chosen > 1 {
-		return "", usageError{fmt.Errorf("--status, --open, --done and --all are mutually exclusive")}
+		return "", goclikit.UsageError(fmt.Errorf("--status, --open, --done and --all are mutually exclusive"))
 	}
 	switch {
 	case f.all:
@@ -205,7 +206,7 @@ func newFeedbackEditCommand() *cobra.Command {
 				patch["status"] = status
 			}
 			if len(patch) == 0 {
-				return usageError{fmt.Errorf("nothing to update — pass at least one field flag")}
+				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {

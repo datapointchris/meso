@@ -6,13 +6,14 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/datapointchris/goclikit"
 	"github.com/spf13/cobra"
 
 	"github.com/datapointchris/meso/cli/internal/api"
 )
 
 func newLogCommand() *cobra.Command {
-	cmd := asNamespace(&cobra.Command{
+	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "log",
 		Short: "Write and review the training journal — dated markdown entries",
 		Long: "The fitness log is the dated journal Claude reviews when drafting the next\n" +
@@ -157,7 +158,7 @@ func newLogEditCommand() *cobra.Command {
 				patch["tags"] = tags
 			}
 			if len(patch) == 0 {
-				return usageError{fmt.Errorf("nothing to update — pass at least one field flag")}
+				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {

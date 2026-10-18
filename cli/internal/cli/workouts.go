@@ -8,13 +8,14 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/datapointchris/goclikit"
 	"github.com/spf13/cobra"
 
 	"github.com/datapointchris/meso/cli/internal/api"
 )
 
 func newWorkoutsCommand() *cobra.Command {
-	cmd := asNamespace(&cobra.Command{
+	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "workouts",
 		Short: "Build and manage workouts — ordered compositions of movements",
 		Long: "A workout is an ordered, themed list of prescribed movements. List and\n" +
@@ -223,11 +224,11 @@ func newWorkoutsUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseWorkoutID(args[0])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			patch := buildWorkoutPatch(cmd, &w)
 			if len(patch) == 0 {
-				return usageError{fmt.Errorf("nothing to update — pass at least one field flag")}
+				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
 			}
 
 			client, err := newAPIClient(cmd.Context())
@@ -277,7 +278,7 @@ func newWorkoutsDeleteCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseWorkoutID(args[0])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -311,7 +312,7 @@ func newWorkoutsDeleteCommand() *cobra.Command {
 // newWorkoutMovementsCommand groups the composition sub-commands: add / update /
 // reorder / rm operate on a workout's ordered movement list.
 func newWorkoutMovementsCommand() *cobra.Command {
-	cmd := asNamespace(&cobra.Command{
+	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "movements",
 		Short: "Manage a workout's ordered movement list",
 		Long: "Add a movement to a workout, edit or swap an entry's prescription,\n" +
@@ -365,11 +366,11 @@ func newWorkoutMovementsAddCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workoutID, err := api.ParseWorkoutID(args[0])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			movementID, err := api.ParseID(args[1])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			in := api.WorkoutMovementInput{MovementID: movementID, Notes: p.notes}
 			f := cmd.Flags()
@@ -416,15 +417,15 @@ func newWorkoutMovementsUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workoutID, err := api.ParseWorkoutID(args[0])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			entryID, err := api.ParseWorkoutID(args[1])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			patch := buildPrescriptionPatch(cmd, &p)
 			if len(patch) == 0 {
-				return usageError{fmt.Errorf("nothing to update — pass at least one field flag")}
+				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
 			}
 
 			client, err := newAPIClient(cmd.Context())
@@ -480,13 +481,13 @@ func newWorkoutMovementsReorderCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workoutID, err := api.ParseWorkoutID(args[0])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			entryIDs := make([]int64, 0, len(args)-1)
 			for _, raw := range args[1:] {
 				id, err := api.ParseWorkoutID(raw)
 				if err != nil {
-					return usageError{err}
+					return goclikit.UsageError(err)
 				}
 				entryIDs = append(entryIDs, id)
 			}
@@ -516,11 +517,11 @@ func newWorkoutMovementsRemoveCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workoutID, err := api.ParseWorkoutID(args[0])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			entryID, err := api.ParseWorkoutID(args[1])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {

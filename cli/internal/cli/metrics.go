@@ -5,13 +5,14 @@ import (
 	"io"
 	"text/tabwriter"
 
+	"github.com/datapointchris/goclikit"
 	"github.com/spf13/cobra"
 
 	"github.com/datapointchris/meso/cli/internal/api"
 )
 
 func newMetricsCommand() *cobra.Command {
-	cmd := asNamespace(&cobra.Command{
+	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "metrics",
 		Short: "Define and list the tracked-stat vocabulary",
 		Long: "A metric is a thing worth tracking over time — a lift's working weight, a 5k\n" +

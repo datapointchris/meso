@@ -7,13 +7,14 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/datapointchris/goclikit"
 	"github.com/spf13/cobra"
 
 	"github.com/datapointchris/meso/cli/internal/api"
 )
 
 func newSessionsCommand() *cobra.Command {
-	cmd := asNamespace(&cobra.Command{
+	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "sessions",
 		Short: "Log and review workout sessions — a workout performed on a date",
 		Long: "A session is the tracked instance of a workout: what was actually performed,\n" +
@@ -58,7 +59,7 @@ func newSessionsPromoteCommand() *cobra.Command {
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if in.Name == "" {
-				return usageError{fmt.Errorf("--name is required")}
+				return goclikit.UsageError(fmt.Errorf("--name is required"))
 			}
 			if cmd.Flags().Changed("theme") {
 				in.Theme = &theme
@@ -253,7 +254,7 @@ func newSessionsUpdateCommand() *cobra.Command {
 				patch["duration_minutes"] = w.duration
 			}
 			if len(patch) == 0 {
-				return usageError{fmt.Errorf("nothing to update — pass at least one field flag")}
+				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -338,7 +339,7 @@ func newSessionsDeleteCommand() *cobra.Command {
 // newSessionMovementCommand groups the per-entry sub-commands: composing the session
 // (add / rm) and logging against it (done, update).
 func newSessionMovementCommand() *cobra.Command {
-	cmd := asNamespace(&cobra.Command{
+	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "movement",
 		Short: "Compose and log the movements of a session",
 		Long: "Add movements to a session as they get performed, drop one added by mistake,\n" +
@@ -373,7 +374,7 @@ func newSessionMovementAddCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			movementID, err := api.ParseID(args[1])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			in := api.SessionMovementInput{MovementID: movementID, Done: a.done, Notes: a.notes}
 			f := cmd.Flags()
@@ -418,7 +419,7 @@ func newSessionMovementRemoveCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			entryID, err := api.ParseID(args[1])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -445,7 +446,7 @@ func newSessionMovementDoneCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			entryID, err := api.ParseID(args[1])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -488,11 +489,11 @@ func newSessionMovementUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			entryID, err := api.ParseID(args[1])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			patch := buildSessionMovementPatch(cmd, &a)
 			if len(patch) == 0 {
-				return usageError{fmt.Errorf("nothing to update — pass at least one field flag")}
+				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -544,7 +545,7 @@ func buildSessionMovementPatch(cmd *cobra.Command, a *sessionTargetFlags) map[st
 // write in the app: `set add` with no flags repeats the last set, so a working set costs
 // one command rather than a form.
 func newSessionSetCommand() *cobra.Command {
-	cmd := asNamespace(&cobra.Command{
+	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "set",
 		Short: "Log the sets actually performed against an entry",
 		Long: "A set is one set as it happened. Adding one with no flags repeats the previous\n" +
@@ -594,7 +595,7 @@ func newSessionSetAddCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			entryID, err := api.ParseID(args[1])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			in := api.SessionSetInput{SetKind: v.kind, Notes: v.notes}
 			f := cmd.Flags()
@@ -637,7 +638,7 @@ func newSessionSetUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			entryID, setID, err := parseEntryAndSetIDs(args[1], args[2])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			f := cmd.Flags()
 			patch := map[string]any{}
@@ -657,7 +658,7 @@ func newSessionSetUpdateCommand() *cobra.Command {
 				patch["notes"] = v.notes
 			}
 			if len(patch) == 0 {
-				return usageError{fmt.Errorf("nothing to update — pass at least one field flag")}
+				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
 			}
 
 			client, err := newAPIClient(cmd.Context())
@@ -686,7 +687,7 @@ func newSessionSetRemoveCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			entryID, setID, err := parseEntryAndSetIDs(args[1], args[2])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/datapointchris/goclikit"
 	"github.com/datapointchris/goclilogin"
 	"github.com/zalando/go-keyring"
 	"golang.org/x/oauth2"
@@ -103,8 +104,7 @@ func TestAuthLogin_RefusesAURLDisagreeingWithAPI(t *testing.T) {
 	isolateAuth(t)
 
 	_, err := runMeso(t, "auth", "login", "--api", "https://one.example.com", "https://two.example.com")
-	var usage usageError
-	if !errors.As(err, &usage) {
-		t.Fatalf("want a usageError, got %T: %v", err, err)
+	if !errors.Is(err, goclikit.ErrUsage) {
+		t.Fatalf("want a usage error, got %T: %v", err, err)
 	}
 }

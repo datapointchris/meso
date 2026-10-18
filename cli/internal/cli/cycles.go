@@ -7,13 +7,14 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/datapointchris/goclikit"
 	"github.com/spf13/cobra"
 
 	"github.com/datapointchris/meso/cli/internal/api"
 )
 
 func newCyclesCommand() *cobra.Command {
-	cmd := asNamespace(&cobra.Command{
+	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "cycles",
 		Short: "Plan and manage cycles — ordered sequences of workouts toward a goal",
 		Long: "A cycle (mesocycle) is a multi-week block of workouts aimed at a target — a\n" +
@@ -193,11 +194,11 @@ func newCyclesUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseCycleID(args[0])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			patch := buildCyclePatch(cmd, &c)
 			if len(patch) == 0 {
-				return usageError{fmt.Errorf("nothing to update — pass at least one field flag")}
+				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
 			}
 
 			client, err := newAPIClient(cmd.Context())
@@ -253,7 +254,7 @@ func newCyclesDeleteCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := api.ParseCycleID(args[0])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {
@@ -287,7 +288,7 @@ func newCyclesDeleteCommand() *cobra.Command {
 // newCycleWorkoutsCommand groups the sequence sub-commands: add / update / reorder /
 // rm operate on a cycle's ordered workout list.
 func newCycleWorkoutsCommand() *cobra.Command {
-	cmd := asNamespace(&cobra.Command{
+	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "workouts",
 		Short: "Manage a cycle's ordered workout sequence",
 		Long: "Add a workout to a cycle, edit or swap an entry's prescription (week/phase/\n" +
@@ -338,11 +339,11 @@ func newCycleWorkoutsAddCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cycleID, err := api.ParseCycleID(args[0])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			workoutID, err := api.ParseWorkoutID(args[1])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			in := api.CycleWorkoutInput{WorkoutID: workoutID}
 			f := cmd.Flags()
@@ -389,15 +390,15 @@ func newCycleWorkoutsUpdateCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cycleID, err := api.ParseCycleID(args[0])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			entryID, err := api.ParseCycleID(args[1])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			patch := buildPeriodizationPatch(cmd, &p)
 			if len(patch) == 0 {
-				return usageError{fmt.Errorf("nothing to update — pass at least one field flag")}
+				return goclikit.UsageError(fmt.Errorf("nothing to update — pass at least one field flag"))
 			}
 
 			client, err := newAPIClient(cmd.Context())
@@ -450,13 +451,13 @@ func newCycleWorkoutsReorderCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cycleID, err := api.ParseCycleID(args[0])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			entryIDs := make([]int64, 0, len(args)-1)
 			for _, raw := range args[1:] {
 				id, err := api.ParseCycleID(raw)
 				if err != nil {
-					return usageError{err}
+					return goclikit.UsageError(err)
 				}
 				entryIDs = append(entryIDs, id)
 			}
@@ -486,11 +487,11 @@ func newCycleWorkoutsRemoveCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cycleID, err := api.ParseCycleID(args[0])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			entryID, err := api.ParseCycleID(args[1])
 			if err != nil {
-				return usageError{err}
+				return goclikit.UsageError(err)
 			}
 			client, err := newAPIClient(cmd.Context())
 			if err != nil {

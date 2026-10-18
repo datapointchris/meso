@@ -25,12 +25,6 @@ var noInput bool
 // Package-level for the reason noInput is.
 var apiOverride string
 
-// usageError marks an invocation mistake (bad flag/args) so Execute can return
-// exit code 2, distinct from a runtime failure (1). Per CLI conventions.
-type usageError struct{ err error }
-
-func (u usageError) Error() string { return u.err.Error() }
-
 // exitCode lets a command choose the process exit code without Execute printing
 // an "error:" line — used by `auth status` to report "not logged in" (exit 1)
 // as a valid state, not a failure.
@@ -38,18 +32,8 @@ type exitCode int
 
 func (e exitCode) Error() string { return "" }
 
-// asNamespace marks a group with no action of its own, the root included. A
-// bare one shows help and exits 0. A word naming none of its subcommands exits
-// 2 naming the ones near it, with or without a flag after the word.
-//
-// Here rather than in each command file so this package's files import
-// goclikit in one place.
-func asNamespace(cmd *cobra.Command) *cobra.Command {
-	return goclikit.AsNamespace(cmd)
-}
-
 func NewRootCommand() *cobra.Command {
-	root := asNamespace(&cobra.Command{
+	root := goclikit.AsNamespace(&cobra.Command{
 		Use:   "meso",
 		Short: "A mobile-first training log",
 		Long: "meso is a training log — the movement library, the workouts composed from\n" +
@@ -68,11 +52,11 @@ func NewRootCommand() *cobra.Command {
 		SilenceUsage:  true, // usage is shown deliberately, not on every runtime error
 		SilenceErrors: true, // Execute prints errors itself, to stderr
 	})
-	// Flag mistakes become usageError → exit 2. Inherited by subcommands.
+	// Flag mistakes are marked goclikit.ErrUsage, so they exit 2. Inherited by subcommands.
 	// goclikit.Execute composes with this rather than replacing it, and keeping
 	// it here is what makes the tree self-classifying for anything driving
 	// NewRootCommand directly.
-	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return usageError{err} })
+	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error { return goclikit.UsageError(err) })
 
 	root.PersistentFlags().BoolVar(&noInput, "no-input", false,
 		"Never prompt; fail naming the flag that would have answered")
@@ -156,12 +140,8 @@ func Execute() int {
 		fmt.Fprintln(os.Stderr, "error:", err)
 	}
 
-	var usageErr usageError
-	if errors.As(err, &usageErr) {
-		return 2
-	}
-	// The library's classification, for a usage mistake cobra rejects before
-	// any RunE runs and the tree therefore never marks itself.
+	// A usage mistake is marked either by goclikit, for a line cobra rejects
+	// before any RunE runs, or by the RunE that refused it.
 	if errors.Is(err, goclikit.ErrUsage) {
 		return 2
 	}

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"github.com/datapointchris/goclikit"
 	"github.com/spf13/cobra"
 )
 
@@ -18,7 +19,7 @@ import (
 // is Authelia at the edge, the same one every other command passes. The namespace is
 // where that check would go if it ever gained one.
 func newAdminCommand() *cobra.Command {
-	cmd := asNamespace(&cobra.Command{
+	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "admin",
 		Short: "Administer the app itself, as opposed to your training",
 		Long: "Commands about meso rather than about training. Everything else in this CLI\n" +

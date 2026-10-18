@@ -7,13 +7,14 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/datapointchris/goclikit"
 	"github.com/spf13/cobra"
 
 	"github.com/datapointchris/meso/cli/internal/api"
 )
 
 func newMeasurementsCommand() *cobra.Command {
-	cmd := asNamespace(&cobra.Command{
+	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "measurements",
 		Short: "Record and review measurements — the tracked stat time series",
 		Long: "A measurement is a dated reading of a metric (define metrics first with\n" +
@@ -45,7 +46,7 @@ func newMeasurementsRecordCommand() *cobra.Command {
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !cmd.Flags().Changed("value") {
-				return usageError{fmt.Errorf("a --value is required")}
+				return goclikit.UsageError(fmt.Errorf("a --value is required"))
 			}
 			in := api.MeasurementCreate{Metric: args[0], Value: value, MeasuredOn: date, Notes: notes}
 			client, err := newAPIClient(cmd.Context())

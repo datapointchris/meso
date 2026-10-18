@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/datapointchris/goclikit"
 	"github.com/datapointchris/goclilogin"
 	"github.com/spf13/cobra"
 
@@ -11,7 +12,7 @@ import (
 )
 
 func newConfigCommand() *cobra.Command {
-	cmd := asNamespace(&cobra.Command{
+	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "config",
 		Short: "Where this machine finds the API",
 		Long: "The API's address, its login server and this machine's client, from one\n" +

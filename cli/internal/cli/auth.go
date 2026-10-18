@@ -8,6 +8,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/datapointchris/goclikit"
 	"github.com/datapointchris/goclilogin"
 	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
@@ -20,7 +21,7 @@ import (
 const loginTimeout = 15 * time.Minute
 
 func newAuthCommand() *cobra.Command {
-	cmd := asNamespace(&cobra.Command{
+	cmd := goclikit.AsNamespace(&cobra.Command{
 		Use:   "auth",
 		Short: "Log in and out of the meso API",
 		Long: "Authenticate this machine against Authelia using the OAuth 2.0 device\n" +
@@ -56,7 +57,7 @@ func newAuthLoginCommand() *cobra.Command {
 			url := apiOverride
 			if len(args) == 1 {
 				if apiOverride != "" && apiOverride != args[0] {
-					return usageError{fmt.Errorf("--api %s and the url %s name different APIs; give one", apiOverride, args[0])}
+					return goclikit.UsageError(fmt.Errorf("--api %s and the url %s name different APIs; give one", apiOverride, args[0]))
 				}
 				url = args[0]
 			}
