@@ -57,7 +57,7 @@ verb returns plain errors through `handleAPIError`, and widening it belongs
 in `goclikit` rather than here — so treat this as describing three commands, not the CLI.
 
 **A name is accepted where a command reads and never where it writes.** `show` resolves
-`<id-or-name>`; `update`, `delete` and the composition verbs take ids. A fuzzy match that
+`<id-or-name>`; `edit`, `delete` and the composition verbs take ids. A fuzzy match that
 narrows to the wrong record costs a wrong screen on a read and a wrong row on a write.
 
 ## Conventions specific to meso
