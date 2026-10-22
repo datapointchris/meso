@@ -464,11 +464,13 @@ answers with 401 fails instead and says the change was not saved, so nothing is 
   alert lands its buttons wherever iOS decides. Its "OK" says nothing about what is being agreed
   to. That is the wrong shape for a destructive action taken one-handed mid-workout. Every
   confirmation goes through `useConfirm`, which renders one in-app dialog.
-- **The movement picker and the date field are in-app components.** A native `<select>` or
-  `<input type="date">` hands off to an OS picker whose density is fixed and small. Either costs
-  several interactions where one would do. The movement picker is a search box over tap targets,
-  used by the workout builder and the logging screen. The edit modals, the cycle screens and the
-  movement page's relationship form still use a native `<select>`.
+- **The movement picker, the date field and the choice field are in-app components.** A native
+  `<select>` or `<input type="date">` hands off to an OS picker whose density is fixed and small.
+  Either costs several interactions where one would do. The movement picker is a search box over
+  tap targets, used by the workout builder and the logging screen. The choice field lays a small
+  closed vocabulary out as a row of tap targets, so choosing is one tap. The movement, metric and
+  cycle edit forms use it. The measurement form, the cycle screens and the movement page's
+  relationship form still use a native `<select>`.
 - A feedback button sits on every screen. It records the route and the viewport it was raised at.
 - The theme is a CSS-variable switch on `data-theme`, dark or light.
 

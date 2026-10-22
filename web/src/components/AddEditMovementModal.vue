@@ -11,6 +11,7 @@ import {
   type Muscle,
 } from '@/api/movements'
 import { ApiError } from '@/api/client'
+import ChoiceField from './ChoiceField.vue'
 import ModalShell from './ModalShell.vue'
 
 // When `movement` is supplied the modal edits it (PUT); otherwise it creates (POST).
@@ -38,10 +39,23 @@ const form = reactive({
   sanskrit_name: props.movement?.sanskrit_name ?? '',
 })
 
+const KIND_CHOICES = (Object.keys(KIND_LABELS) as MovementKind[]).map((k) => ({ value: k, label: KIND_LABELS[k] }))
+const ROLE_CHOICES: { value: MuscleRole; label: string }[] = [
+  { value: 'primary', label: 'primary' },
+  { value: 'secondary', label: 'secondary' },
+]
+
 const muscles = reactive<MuscleInput[]>((props.movement?.muscles ?? []).map((m) => ({ muscle: m.muscle, role: m.role })))
 const muscleOptions = ref<Muscle[]>([])
-const pickMuscle = ref('')
 const pickRole = ref<MuscleRole>('primary')
+
+// A muscle already listed under the chosen role leaves the row, so a tap that added
+// one is visible as the chip disappearing.
+const muscleChoices = computed(() =>
+  muscleOptions.value
+    .filter((opt) => !muscles.some((m) => m.muscle === opt.name && m.role === pickRole.value))
+    .map((opt) => ({ value: opt.name, label: opt.name })),
+)
 
 const showMore = ref(false)
 const saving = ref(false)
@@ -55,11 +69,9 @@ onMounted(async () => {
   }
 })
 
-function addMuscle() {
-  if (!pickMuscle.value) return
-  if (muscles.some((m) => m.muscle === pickMuscle.value && m.role === pickRole.value)) return
-  muscles.push({ muscle: pickMuscle.value, role: pickRole.value })
-  pickMuscle.value = ''
+function addMuscle(muscle: string) {
+  if (muscles.some((m) => m.muscle === muscle && m.role === pickRole.value)) return
+  muscles.push({ muscle, role: pickRole.value })
 }
 
 function removeMuscle(index: number) {
@@ -125,19 +137,13 @@ async function save() {
         required />
     </label>
 
-    <label class="field">
+    <div class="field">
       <span class="field__label">Kind</span>
-      <select
+      <ChoiceField
         v-model="form.movement_kind"
-        class="field__input">
-        <option
-          v-for="(label, value) in KIND_LABELS"
-          :key="value"
-          :value="value">
-          {{ label }}
-        </option>
-      </select>
-    </label>
+        :options="KIND_CHOICES"
+        label="Kind" />
+    </div>
 
     <label class="field field--check">
       <input
@@ -191,31 +197,16 @@ async function save() {
         </li>
       </ul>
       <div class="muscles__picker">
-        <select
-          v-model="pickMuscle"
-          class="field__input"
-          aria-label="Muscle">
-          <option value="">Choose a muscle…</option>
-          <option
-            v-for="opt in muscleOptions"
-            :key="opt.name"
-            :value="opt.name">
-            {{ opt.name }} ({{ opt.region }})
-          </option>
-        </select>
-        <select
+        <ChoiceField
           v-model="pickRole"
-          class="field__input muscles__role"
-          aria-label="Role">
-          <option value="primary">primary</option>
-          <option value="secondary">secondary</option>
-        </select>
-        <button
-          type="button"
-          class="btn"
-          @click="addMuscle">
-          Add
-        </button>
+          :options="ROLE_CHOICES"
+          label="Role" />
+        <span class="field__label">Tap a muscle to add it with that role</span>
+        <ChoiceField
+          model-value=""
+          :options="muscleChoices"
+          label="Add a muscle"
+          @update:model-value="addMuscle" />
       </div>
     </fieldset>
 
@@ -413,16 +404,8 @@ async function save() {
 
 .muscles__picker {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: var(--space-2);
-
-  .field__input {
-    flex: 1 1 8rem;
-  }
-}
-
-.muscles__role {
-  flex: 0 0 auto;
 }
 
 .more-toggle {

@@ -10,6 +10,7 @@ import {
 } from '@/api/measurements'
 import { ApiError } from '@/api/client'
 import { useConfirm } from '@/composables/useConfirm'
+import ChoiceField from './ChoiceField.vue'
 import ModalShell from './ModalShell.vue'
 
 const { ask } = useConfirm()
@@ -52,6 +53,11 @@ const deleting = ref(false)
 const error = ref('')
 
 const CATEGORIES: MetricCategory[] = ['strength', 'cardio', 'mobility', 'body']
+const CATEGORY_CHOICES = CATEGORIES.map((c) => ({ value: c, label: CATEGORY_LABELS[c] }))
+const DIRECTION_CHOICES: { value: MetricDirection; label: string }[] = [
+  { value: 'higher_better', label: 'Higher is better' },
+  { value: 'lower_better', label: 'Lower is better' },
+]
 
 async function save() {
   if (!form.label.trim()) {
@@ -155,32 +161,24 @@ async function remove() {
         required />
     </label>
 
-    <label class="field">
+    <div class="field">
       <span class="field__label">Category</span>
-      <select
+      <ChoiceField
         v-model="form.category"
-        class="field__input">
-        <option
-          v-for="c in CATEGORIES"
-          :key="c"
-          :value="c">
-          {{ CATEGORY_LABELS[c] }}
-        </option>
-      </select>
-    </label>
+        :options="CATEGORY_CHOICES"
+        label="Category" />
+    </div>
 
-    <label class="field">
+    <div class="field">
       <span class="field__label">
         Improvement
         <em>(which way is better)</em>
       </span>
-      <select
+      <ChoiceField
         v-model="form.direction"
-        class="field__input">
-        <option value="higher_better">Higher is better</option>
-        <option value="lower_better">Lower is better</option>
-      </select>
-    </label>
+        :options="DIRECTION_CHOICES"
+        label="Improvement" />
+    </div>
 
     <label class="field">
       <span class="field__label">

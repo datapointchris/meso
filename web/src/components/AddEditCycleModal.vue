@@ -3,6 +3,7 @@ import { reactive, ref, computed, onMounted } from 'vue'
 import { cyclesApi, CYCLE_STATUSES, type Cycle, type CycleWrite, type CycleStatus } from '@/api/cycles'
 import { metricsApi, type MetricDefinition } from '@/api/measurements'
 import { ApiError } from '@/api/client'
+import ChoiceField from '@/components/ChoiceField.vue'
 import DateField from '@/components/DateField.vue'
 import ModalShell from './ModalShell.vue'
 
@@ -23,8 +24,10 @@ const form = reactive({
   notes: props.cycle?.notes ?? '',
 })
 
-// The metric vocabulary populates the target picker; a failed load just leaves the
-// select empty (a cycle can have no numeric target).
+const statusChoices = CYCLE_STATUSES.map((s) => ({ value: s, label: s }))
+
+// The metric vocabulary populates the target picker; a failed load leaves only
+// "No numeric target", since a cycle can have none.
 const metrics = ref<MetricDefinition[]>([])
 onMounted(async () => {
   try {
@@ -33,6 +36,10 @@ onMounted(async () => {
     // non-fatal
   }
 })
+const targetMetricChoices = computed(() => [
+  { value: '', label: 'No numeric target' },
+  ...metrics.value.map((m) => ({ value: m.name, label: `${m.name} (${m.unit})` })),
+])
 
 const saving = ref(false)
 const error = ref('')
@@ -92,34 +99,21 @@ async function save() {
         placeholder="12-week run return" />
     </label>
 
-    <label class="field field--inline">
+    <div class="field">
       <span class="field__label">Status</span>
-      <select
+      <ChoiceField
         v-model="form.status"
-        class="field__input">
-        <option
-          v-for="s in CYCLE_STATUSES"
-          :key="s"
-          :value="s">
-          {{ s }}
-        </option>
-      </select>
-    </label>
+        :options="statusChoices"
+        label="Status" />
+    </div>
 
-    <label class="field">
+    <div class="field">
       <span class="field__label">Target metric</span>
-      <select
+      <ChoiceField
         v-model="form.target_metric"
-        class="field__input">
-        <option value="">No numeric target</option>
-        <option
-          v-for="m in metrics"
-          :key="m.name"
-          :value="m.name">
-          {{ m.name }} ({{ m.unit }})
-        </option>
-      </select>
-    </label>
+        :options="targetMetricChoices"
+        label="Target metric" />
+    </div>
 
     <label class="field field--inline">
       <span class="field__label">Target value</span>
