@@ -98,6 +98,7 @@ func TestTrend_QueryPathAndDecode(t *testing.T) {
 
 func TestStats_Decode(t *testing.T) {
 	srv, got := recordingServer(t, http.StatusOK, `{
+		"schema_version":1,
 		"metrics":[{"metric":"deadlift-working-weight","unit":"lb","direction":"higher_better","category":"strength",
 			"points":[{"measured_on":"2026-07-01","value":185}],"first":185,"latest":225,"change":40,"count":2}],
 		"library":{"by_kind":[{"kind":"exercise","count":3}],"total_movements":3,"favorites":1},
@@ -112,7 +113,8 @@ func TestStats_Decode(t *testing.T) {
 	if got.path != "/api/v1/stats" {
 		t.Errorf("path = %s", got.path)
 	}
-	if stats.Library.TotalMovements != 3 || stats.Sessions.Total != 2 || len(stats.Metrics) != 1 {
+	if stats.SchemaVersion != StatsSchemaVersion || stats.Library.TotalMovements != 3 ||
+		stats.Sessions.Total != 2 || len(stats.Metrics) != 1 {
 		t.Fatalf("decoded = %+v", stats)
 	}
 }

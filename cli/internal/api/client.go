@@ -61,6 +61,30 @@ func (e *APIError) Forbidden() bool { return e.StatusCode == http.StatusForbidde
 // clean "no such movement" message.
 func (e *APIError) NotFound() bool { return e.StatusCode == http.StatusNotFound }
 
+// SchemaSkewError is a versioned payload whose schema_version is newer than the
+// one this client reads. Decoding a reshaped payload into the older struct would
+// drop or misread fields without an error, so the client refuses it instead.
+type SchemaSkewError struct {
+	Payload string
+	Got     int
+	Reads   int
+}
+
+func (e *SchemaSkewError) Error() string {
+	return fmt.Sprintf("the API sent %s schema_version %d, and this meso reads up to %d: run `meso update`",
+		e.Payload, e.Got, e.Reads)
+}
+
+// checkSchemaVersion refuses a payload newer than the version this client reads.
+// A payload without the field decodes as version 0 and passes, because a server
+// that sends no schema_version sends the first shape.
+func checkSchemaVersion(payload string, got, reads int) error {
+	if got > reads {
+		return &SchemaSkewError{Payload: payload, Got: got, Reads: reads}
+	}
+	return nil
+}
+
 // get issues a GET to path and decodes a 2xx JSON body into out.
 func (c *Client) get(ctx context.Context, path string, out any) error {
 	return c.send(ctx, http.MethodGet, path, nil, out)

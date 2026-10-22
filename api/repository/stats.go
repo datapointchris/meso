@@ -38,7 +38,12 @@ func (r *StatsRepo) Summary(ctx context.Context) (models.StatsSummary, error) {
 	if err != nil {
 		return models.StatsSummary{}, err
 	}
-	return models.StatsSummary{Metrics: metrics, Library: library, Sessions: sessions}, nil
+	return models.StatsSummary{
+		SchemaVersion: models.StatsSchemaVersion,
+		Metrics:       metrics,
+		Library:       library,
+		Sessions:      sessions,
+	}, nil
 }
 
 // metricTrends returns a trend for every defined metric, points oldest-first. The

@@ -56,6 +56,7 @@ func TestReview_WindowsRecentHistoryAndActiveCycles(t *testing.T) {
 	rr := getJSON(t, mux, "/api/v1/review?"+q.Encode())
 	require.Equal(t, http.StatusOK, rr.Code)
 	rev := decodeReview(t, rr.Body)
+	assert.Equal(t, models.ReviewSchemaVersion, rev.SchemaVersion)
 	assert.NotEmpty(t, rev.Since)
 	assert.Empty(t, rev.Until)
 	require.Len(t, rev.ActiveCycles, 1)

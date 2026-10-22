@@ -103,11 +103,15 @@ type SessionStats struct {
 	Last30Days int         `json:"last_30_days"`
 }
 
+// StatsSchemaVersion is the newest stats payload shape this client reads.
+const StatsSchemaVersion = 1
+
 // Stats mirrors GET /api/v1/stats — the whole stats-page payload.
 type Stats struct {
-	Metrics  []MetricTrend `json:"metrics"`
-	Library  LibraryStats  `json:"library"`
-	Sessions SessionStats  `json:"sessions"`
+	SchemaVersion int           `json:"schema_version"`
+	Metrics       []MetricTrend `json:"metrics"`
+	Library       LibraryStats  `json:"library"`
+	Sessions      SessionStats  `json:"sessions"`
 }
 
 // MeasurementFilter carries the list-endpoint query params.
@@ -208,6 +212,9 @@ func (c *Client) RecordMeasurement(ctx context.Context, in MeasurementCreate) (M
 func (c *Client) Stats(ctx context.Context) (Stats, error) {
 	var s Stats
 	if err := c.get(ctx, "/api/v1/stats", &s); err != nil {
+		return Stats{}, err
+	}
+	if err := checkSchemaVersion("stats", s.SchemaVersion, StatsSchemaVersion); err != nil {
 		return Stats{}, err
 	}
 	return s, nil

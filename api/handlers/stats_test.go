@@ -47,6 +47,7 @@ func TestStats_Summary(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 	var stats models.StatsSummary
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &stats))
+	assert.Equal(t, models.StatsSchemaVersion, stats.SchemaVersion)
 
 	// Library counts.
 	assert.Equal(t, 3, stats.Library.TotalMovements)

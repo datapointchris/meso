@@ -44,11 +44,12 @@ func (r *ReviewRepo) Review(ctx context.Context, first, last string) (models.Rev
 	}
 
 	return models.Review{
-		Since:        first,
-		Until:        last,
-		ActiveCycles: activeCycles,
-		Sessions:     sessions,
-		Measurements: measurements,
-		LogEntries:   logEntries,
+		SchemaVersion: models.ReviewSchemaVersion,
+		Since:         first,
+		Until:         last,
+		ActiveCycles:  activeCycles,
+		Sessions:      sessions,
+		Measurements:  measurements,
+		LogEntries:    logEntries,
 	}, nil
 }

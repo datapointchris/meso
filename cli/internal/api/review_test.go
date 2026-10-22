@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"testing"
@@ -10,6 +11,7 @@ import (
 
 func TestGetReview_QueryAndDecode(t *testing.T) {
 	srv, got := recordingServer(t, http.StatusOK, `{
+		"schema_version":1,
 		"since":"2026-05-01",
 		"active_cycles":[{"id":1,"name":"Current block","status":"active","workouts":[]}],
 		"sessions":[{"id":"abc","workout_name":"Push Day","performed_on":"2026-07-20","movements":[]}],
@@ -35,13 +37,32 @@ func TestGetReview_QueryAndDecode(t *testing.T) {
 	if got.query != want {
 		t.Errorf("query = %q, want %q", got.query, want)
 	}
-	if review.Since != "2026-05-01" {
-		t.Errorf("since = %q", review.Since)
+	if review.SchemaVersion != ReviewSchemaVersion || review.Since != "2026-05-01" {
+		t.Errorf("schema_version = %d, since = %q", review.SchemaVersion, review.Since)
 	}
 	if len(review.ActiveCycles) != 1 || review.ActiveCycles[0].Name != "Current block" {
 		t.Errorf("active_cycles = %+v", review.ActiveCycles)
 	}
 	if len(review.Sessions) != 1 || len(review.Measurements) != 1 || len(review.LogEntries) != 1 {
 		t.Errorf("history slices = %+v", review)
+	}
+}
+
+// A payload newer than the client reads is refused whole, never decoded into the
+// older shape.
+func TestVersionedReads_RefuseNewerSchema(t *testing.T) {
+	reads := map[string]func(*Client) error{
+		"review": func(c *Client) error { _, err := c.GetReview(context.Background(), Window{}); return err },
+		"stats":  func(c *Client) error { _, err := c.Stats(context.Background()); return err },
+	}
+	for payload, read := range reads {
+		t.Run(payload, func(t *testing.T) {
+			srv, _ := recordingServer(t, http.StatusOK, `{"schema_version":99}`)
+			err := read(New(srv.URL, staticTokenClient("t")))
+			var skew *SchemaSkewError
+			if !errors.As(err, &skew) || skew.Payload != payload || skew.Got != 99 {
+				t.Fatalf("err = %v, want a %s schema skew at 99", err, payload)
+			}
+		})
 	}
 }

@@ -161,10 +161,18 @@ type SessionStats struct {
 	Last30Days int         `json:"last_30_days"`
 }
 
+// StatsSchemaVersion is the shape of the StatsSummary payload. A field reshaped or
+// removed raises it; an added field does not, because a reader ignores what it does
+// not know.
+const StatsSchemaVersion = 1
+
 // StatsSummary is the whole stats-page payload: every metric's trend, plus library
-// and session summaries. One GET renders the page.
+// and session summaries. One GET renders the page. SchemaVersion is
+// StatsSchemaVersion, so a reader built for an older shape can refuse the payload
+// rather than half-read it.
 type StatsSummary struct {
-	Metrics  []MetricTrend `json:"metrics"`
-	Library  LibraryStats  `json:"library"`
-	Sessions SessionStats  `json:"sessions"`
+	SchemaVersion int           `json:"schema_version"`
+	Metrics       []MetricTrend `json:"metrics"`
+	Library       LibraryStats  `json:"library"`
+	Sessions      SessionStats  `json:"sessions"`
 }
