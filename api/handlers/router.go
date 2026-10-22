@@ -7,10 +7,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/datapointchris/goapiauth"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"meso/api/auth"
-	"meso/api/middleware"
 	"meso/api/repository"
 )
 
@@ -18,7 +17,7 @@ import (
 const AdminGroup = "admin"
 
 func admin(h http.HandlerFunc) http.HandlerFunc {
-	return middleware.RequireGroup(AdminGroup, h).ServeHTTP
+	return goapiauth.RequireGroup(AdminGroup, h).ServeHTTP
 }
 
 // route is one method on one path and the handler answering it.
@@ -61,7 +60,7 @@ func NewRouter(pool *pgxpool.Pool, metadata http.Handler) *http.ServeMux {
 	// Unauthenticated (auth middleware exempts the path): a CLI reads it before
 	// it holds a token.
 	if metadata != nil {
-		mux.Handle("GET "+auth.ProtectedResourcePath, metadata)
+		mux.Handle("GET "+goapiauth.ProtectedResourcePath, metadata)
 	}
 
 	// Health — unauthenticated (auth middleware exempts /health).

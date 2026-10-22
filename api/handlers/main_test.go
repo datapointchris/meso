@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/datapointchris/goapiauth"
 	"github.com/datapointchris/gobrowserlogin/postgresstore"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
@@ -21,7 +22,6 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"meso/api/auth"
 	"meso/api/database"
 	"meso/api/handlers"
 )
@@ -194,7 +194,7 @@ func setupTestDB(t *testing.T) *database.TestPool {
 // Postgres. It delegates to handlers.NewRouter so the tests exercise the exact route
 // table main() serves — the two can't drift.
 func buildTestMux(pool *database.TestPool) *http.ServeMux {
-	return handlers.NewRouter(pool.Pool, auth.ProtectedResourceMetadata("http://meso.test", "http://auth.test"))
+	return handlers.NewRouter(pool.Pool, goapiauth.ProtectedResourceMetadata{Resource: "http://meso.test", Issuer: "http://auth.test"})
 }
 
 func postJSON(t *testing.T, mux http.Handler, path string, body any) *httptest.ResponseRecorder {

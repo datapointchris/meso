@@ -23,9 +23,6 @@ type Config struct {
 	// under it too. Empty serves no metadata, since only the deployment knows
 	// the address it is reached at, and production refuses to start without it.
 	PublicURL string
-	// ServiceToken is the shared secret for internal service-to-service calls
-	// on the docker network that bypass the edge. Empty disables that path.
-	ServiceToken string
 }
 
 func Load() *Config {
@@ -38,7 +35,6 @@ func Load() *Config {
 		WebClientID:       getEnv("WEB_CLIENT_ID", "meso-web"),
 		WebClientSecret:   getEnv("WEB_CLIENT_SECRET", ""),
 		PublicURL:         getEnv("PUBLIC_URL", ""),
-		ServiceToken:      getEnv("MESO_SERVICE_TOKEN", ""),
 	}
 }
 

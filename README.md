@@ -562,16 +562,15 @@ carries its ordered entries, a session its entries and their sets, a cycle its o
 and a movement its muscles and related movements. The database owns computed values such as
 timestamps, never the client. Every resource has a testcontainers-backed handler test.
 
-Three kinds of credential reach it. A bearer credential's shape decides which check grades it,
-before either check runs, so one cannot be graded by the other's rules.
+Two kinds of credential reach it. The `goapiauth` library verifies both.
 
-- **A JWT bearer is the CLI.** The API checks, in order, that the header is `typ=at+jwt`, that the
-  signature verifies against the issuer's JWKS, that `iss` matches, that `sub` is non-empty, that
-  `client_id` starts with `meso-cli-`, and that `exp` is in the future. Every rejection is the same
-  401 with the same message, so a probe cannot learn which check it failed. An identity provider
-  that does not answer is a 503 instead, because logging in again cannot fix a network failure.
-- **Any other bearer is an internal service-to-service caller.** It must equal
-  `MESO_SERVICE_TOKEN`, compared in constant time. It names no user and carries no group.
+- **A bearer token is the CLI.** The API checks, in order, that the header is `typ=at+jwt`, that
+  the signature verifies against the issuer's JWKS, that `iss` matches, that `exp` is in the
+  future, that `client_id` starts with `meso-cli-`, and that `sub` is non-empty. Every rejection is
+  the same 401 with the same message, so a probe cannot learn which check it failed. The keys
+  already fetched keep verifying while the identity provider is down. A token none of them
+  verifies is a 503 while the provider does not answer, because logging in again cannot fix a
+  network failure.
 - **No bearer is the browser.** The API is the identity provider's confidential client `meso-web`,
   and logs the browser in at `/api/auth/login`. The session lives in the API's database. The
   browser holds one `HttpOnly`, `SameSite=Strict` cookie naming it, and no token. Every request
@@ -626,7 +625,6 @@ inline, so a deployment edits it there. The API reads:
 | `WEB_CLIENT_ID` | the confidential client the API logs browsers in as, `meso-web` by default |
 | `WEB_CLIENT_SECRET` | that client's secret; production refuses to start without it |
 | `PUBLIC_URL` | the address the edge serves the API at; the metadata names it, a CLI refuses it unless it matches exactly, and the browser login's callback is under it. Production refuses to start without it |
-| `MESO_SERVICE_TOKEN` | the shared secret for internal callers; empty disables that path |
 | `PORT` | the listen port, 8088 by default |
 
 **Set `ENV` in the env file.** Its default is `development`, which accepts every request

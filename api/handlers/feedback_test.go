@@ -8,14 +8,14 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/datapointchris/goapiauth"
+	"github.com/datapointchris/goapiauth/tokenorsession"
 	"github.com/datapointchris/gobrowserlogin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"meso/api/auth"
 	"meso/api/database"
 	"meso/api/handlers"
-	"meso/api/middleware"
 	"meso/api/models"
 )
 
@@ -27,10 +27,10 @@ func decodeFeedback(t *testing.T, rr interface{ Bytes() []byte }) models.Feedbac
 }
 
 // verifiedAs stands in for the JWKS check, answering every bearer JWT with one identity.
-type verifiedAs auth.Identity
+type verifiedAs goapiauth.Identity
 
-func (v verifiedAs) Verify(context.Context, string) (auth.Identity, error) {
-	return auth.Identity(v), nil
+func (v verifiedAs) Verify(context.Context, string) (goapiauth.Identity, error) {
+	return goapiauth.Identity(v), nil
 }
 
 // sessionIn stands in for the browser login, answering every request as a
@@ -48,11 +48,11 @@ func (noSession) Authenticate(*http.Request) (gobrowserlogin.Identity, error) {
 	return gobrowserlogin.Identity{}, gobrowserlogin.ErrNoSession
 }
 
-// asCaller is the router behind RequireAuth, the way main() serves it, with each
-// request carrying the browser's session or the headers the CLI sets.
-func asCaller(pool *database.TestPool, verifier middleware.TokenVerifier, sessions middleware.SessionAuthenticator, headers map[string]string) http.Handler {
+// asCaller is the router behind tokenorsession.Require, the way main() serves
+// it, with each request carrying the browser's session or the headers the CLI sets.
+func asCaller(pool *database.TestPool, verifier goapiauth.TokenVerifier, sessions tokenorsession.Sessions, headers map[string]string) http.Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	authed := middleware.RequireAuth(verifier, "", sessions, logger)(handlers.NewRouter(pool.Pool, nil))
+	authed := tokenorsession.Require(verifier, sessions, logger)(handlers.NewRouter(pool.Pool, nil))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		for name, value := range headers {
 			r.Header.Set(name, value)
