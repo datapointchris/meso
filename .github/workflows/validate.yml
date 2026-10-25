@@ -1,4 +1,4 @@
-# forge-toolchain: 52
+# forge-toolchain: 53
 name: CI
 
 on:
@@ -384,7 +384,7 @@ jobs:
             vue-eslint
             vue-prettier
             vue-typecheck
-            hadolint-docker
+            hadolint
             jactionlint
             sqlfluff-lint
           )
