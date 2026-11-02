@@ -1,9 +1,11 @@
 package middleware
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/datapointchris/goapiauth"
+	"github.com/datapointchris/goapiauth/tokenorsession"
 	"github.com/datapointchris/gobrowserlogin"
 )
 
@@ -12,6 +14,15 @@ const (
 	LoginPath    = "/api/auth/login"
 	CallbackPath = "/api/auth/callback"
 )
+
+// RequireAuth passes a request to mux when it carries a bearer token verifier
+// accepts or a browser session, and keeps a service client to the routes
+// serviceRoutes lists for its scopes. /health and the browser login's routes
+// need neither.
+func RequireAuth(verifier goapiauth.TokenVerifier, sessions tokenorsession.Sessions, mux *http.ServeMux, serviceRoutes map[string][]string) http.Handler {
+	limited := goapiauth.LimitServices(mux, serviceRoutes, slog.Default())
+	return tokenorsession.Require(verifier, sessions, slog.Default(), "/health", LoginPath, CallbackPath)(limited)
+}
 
 // DevGroups places every request in groups, as the developer. Development runs
 // no identity provider, so goapiauth.RequireGroup reads this identity instead.

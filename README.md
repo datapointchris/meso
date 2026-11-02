@@ -564,7 +564,7 @@ carries its ordered entries, a session its entries and their sets, a cycle its o
 and a movement its muscles and related movements. The database owns computed values such as
 timestamps, never the client. Every resource has a testcontainers-backed handler test.
 
-Two kinds of credential reach it. The `goapiauth` library verifies both.
+Three kinds of credential reach it. The `goapiauth` library verifies all three.
 
 - **A bearer token is the CLI.** The API checks, in order, that the header is `typ=at+jwt`, that
   the signature verifies against the issuer's JWKS, that `iss` matches, that `exp` is in the
@@ -573,6 +573,9 @@ Two kinds of credential reach it. The `goapiauth` library verifies both.
   already fetched keep verifying while the identity provider is down. A token none of them
   verifies is a 503 while the provider does not answer, because logging in again cannot fix a
   network failure.
+- **A bearer token from a `meso-svc-` client is another service.** It comes from the
+  client-credentials grant and carries scopes in place of `sub`. `handlers.ServiceRoutes` names
+  the routes each scope reaches, and every other route answers it 403. No scope reaches a write.
 - **No bearer is the browser.** The API is the identity provider's confidential client `meso-web`,
   and logs the browser in at `/api/auth/login`. The session lives in the API's database. The
   browser holds one `HttpOnly`, `SameSite=Strict` cookie naming it, and no token. Every request

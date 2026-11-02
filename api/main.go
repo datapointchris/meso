@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/datapointchris/goapiauth"
-	"github.com/datapointchris/goapiauth/tokenorsession"
+	"github.com/datapointchris/goapiauth/clientid"
 	"github.com/datapointchris/gobrowserlogin"
 	"github.com/datapointchris/gobrowserlogin/postgresstore"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -73,8 +73,9 @@ func main() {
 		handler = middleware.DevCORS(middleware.DevGroups(mux, handlers.AdminGroup))
 	} else {
 		verifier, verifierErr := goapiauth.NewVerifier(ctx, goapiauth.Config{
-			Issuer:       cfg.OIDCIssuer,
-			PersonPrefix: cfg.CLIClientIDPrefix,
+			Issuer:        cfg.OIDCIssuer,
+			PersonPrefix:  cfg.CLIClientIDPrefix,
+			ServicePrefix: clientid.ServicePrefix("meso"),
 		})
 		if verifierErr != nil {
 			slog.Error("oidc verifier", "err", verifierErr)
@@ -87,8 +88,7 @@ func main() {
 		}
 		mux.HandleFunc("GET "+middleware.LoginPath, sessions.Login)
 		mux.HandleFunc("GET "+middleware.CallbackPath, sessions.Callback)
-		handler = tokenorsession.Require(verifier, sessions, slog.Default(),
-			"/health", middleware.LoginPath, middleware.CallbackPath)(mux)
+		handler = middleware.RequireAuth(verifier, sessions, mux, handlers.ServiceRoutes)
 	}
 
 	srv := &http.Server{

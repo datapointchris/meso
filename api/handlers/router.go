@@ -20,6 +20,16 @@ func admin(h http.HandlerFunc) http.HandlerFunc {
 	return goapiauth.RequireGroup(AdminGroup, h).ServeHTTP
 }
 
+// ServiceRoutes is every route a service client reaches, by the scope that
+// reaches it, written as NewRouter registers them. A service client is refused
+// with 403 everywhere else.
+var ServiceRoutes = map[string][]string{
+	// What `meso cycles list` and `show` read.
+	"meso.cycles.read": {"GET /api/v1/cycles", "GET /api/v1/cycles/{id}"},
+	// What `meso review` reads.
+	"meso.review.read": {"GET /api/v1/review"},
+}
+
 // route is one method on one path and the handler answering it.
 type route struct {
 	method, path string
