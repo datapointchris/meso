@@ -21,6 +21,9 @@ func newWorkoutsCommand() *cobra.Command {
 		Long: "A workout is an ordered, themed list of prescribed movements. List and\n" +
 			"filter, inspect the composition, create/edit/delete workouts, and manage\n" +
 			"their movement list (add, edit/swap, reorder, remove).",
+		Example: "  meso workouts list                            the workouts a session can start from\n" +
+			"  meso workouts show \"push day\"                 one workout's movements in order\n" +
+			"  meso workouts create \"Push Day\" --theme push  start a new workout",
 	})
 	withNotFoundHints(cmd, hintWorkouts)
 	cmd.AddCommand(
@@ -318,6 +321,9 @@ func newWorkoutMovementsCommand() *cobra.Command {
 		Short: "Manage a workout's ordered movement list",
 		Long: "Add a movement to a workout, edit or swap an entry's prescription,\n" +
 			"reorder the list, or remove an entry. Entry ids come from `workouts show`.",
+		Example: "  meso workouts movements add 1 7 --sets 5 --reps 5  add movement 7 to workout 1\n" +
+			"  meso workouts movements reorder 1 4 2 3            put workout 1's entries in this order\n" +
+			"  meso workouts movements rm 1 4                     drop entry 4 from workout 1",
 	})
 	// An entry id belongs to one workout and appears nowhere else, so this
 	// replaces the workouts set rather than adding to it. add also takes a

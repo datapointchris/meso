@@ -177,6 +177,7 @@ func setupTestDB(t *testing.T) *database.TestPool {
 		// measurements reference metric_definitions with RESTRICT likewise. cycles
 		// must go before workouts (cycle_workouts RESTRICTs the workout) and before
 		// metric_definitions (cycles.target_metric references it).
+		_, _ = pool.Exec(ctx, `DELETE FROM feedback`)
 		pool.Exec(ctx, `DELETE FROM fitness_log_entries`) //nolint:errcheck // standalone, no FKs
 		pool.Exec(ctx, `DELETE FROM cycles`)              //nolint:errcheck // cascades to cycle_workouts
 		pool.Exec(ctx, `DELETE FROM measurements`)        //nolint:errcheck

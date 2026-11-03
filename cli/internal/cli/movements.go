@@ -27,6 +27,9 @@ func newMovementsCommand() *cobra.Command {
 		Long: "The unified library of exercises, stretches, and yoga poses. List and\n" +
 			"filter, inspect a movement's how-to/cues/faults and muscles, and create,\n" +
 			"edit, or delete entries.",
+		Example: "  meso movements list --kind stretch                  every stretch in the library\n" +
+			"  meso movements show \"front squat\"                   how-to, cues, faults and muscles\n" +
+			"  meso movements create \"Front Squat\" --kind exercise  add one to the library",
 	})
 	// show goes through resolveIDOrName, which answers a miss with computed
 	// candidates and never reaches the classifier. These reach the other verbs.
@@ -95,6 +98,8 @@ func newMovementsRelatedCommand() *cobra.Command {
 		Short: "Manage a movement's relationships (alternates, antagonists, ...)",
 		Long: "Relate one movement to another so the swap-alternate flow can offer it.\n" +
 			"Kinds: alternate | antagonist | progression | regression | see_also.",
+		Example: "  meso movements related add 3 8 --kind alternate  offer movement 8 as a swap for 3\n" +
+			"  meso movements related rm 3 8 --kind alternate   stop offering it",
 	})
 	cmd.AddCommand(newMovementsRelatedAddCommand(), newMovementsRelatedRemoveCommand())
 	return cmd

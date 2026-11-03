@@ -20,6 +20,9 @@ func newLogCommand() *cobra.Command {
 		Long: "The fitness log is the dated journal Claude reviews when drafting the next\n" +
 			"cycle: how training felt, what stalled, what to carry forward. Add entries,\n" +
 			"list and filter them, and edit or delete.",
+		Example: "  meso log add \"Deadlifts moved well.\" --tag strength  write today's entry\n" +
+			"  meso log list --since 2026-07-01                     the entries since a date\n" +
+			"  meso log edit 018f... --mood tired                   revise one entry",
 	})
 	withNotFoundHints(cmd, hintLog)
 	cmd.AddCommand(

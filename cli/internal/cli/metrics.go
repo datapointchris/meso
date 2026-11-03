@@ -18,6 +18,10 @@ func newMetricsCommand() *cobra.Command {
 		Long: "A metric is a thing worth tracking over time — a lift's working weight, a 5k\n" +
 			"time, a knee-to-wall ROM. Each carries a unit, a direction (which way is\n" +
 			"improvement), and a category. Measurements are recorded against these.",
+		Example: "  meso metrics list                    the stats a reading can be recorded against\n" +
+			"  meso metrics show 5k-time            one metric's unit, direction and category\n" +
+			"  meso metrics define 5k-time --unit seconds --direction lower_better --category cardio\n" +
+			"                                       start tracking a new stat",
 	})
 	withNotFoundHints(cmd, hintMetrics)
 	cmd.AddCommand(

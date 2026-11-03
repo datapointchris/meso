@@ -28,6 +28,8 @@ func newAdminCommand() *cobra.Command {
 			"operates your movement library, workouts, and history; these operate the\n" +
 			"application. The server refuses administration to anyone outside the admin\n" +
 			"group. A command open to every user says so in its own help.",
+		Example: "  meso admin feedback list          feedback still to work through\n" +
+			"  meso admin feedback done 019f...  mark one item handled",
 	})
 	cmd.AddCommand(newAdminFeedbackCommand())
 	return cmd

@@ -21,6 +21,9 @@ func newCyclesCommand() *cobra.Command {
 			"race date, a working weight, restored range of motion. List and filter, inspect\n" +
 			"the sequence, create/edit/delete cycles, and manage their workout list (add,\n" +
 			"edit/swap, reorder, remove).",
+		Example: "  meso cycles list --status active                            the cycles in progress\n" +
+			"  meso cycles show \"winter strength\"                          one cycle's workout sequence\n" +
+			"  meso cycles create \"Return to 5k\" --goal \"12-week run return\"  plan a new block",
 	})
 	withNotFoundHints(cmd, hintCycles)
 	cmd.AddCommand(
@@ -295,6 +298,9 @@ func newCycleWorkoutsCommand() *cobra.Command {
 		Long: "Add a workout to a cycle, edit or swap an entry's prescription (week/phase/\n" +
 			"frequency/intensity/conditions), reorder the sequence, or remove an entry.\n" +
 			"Entry ids come from `cycles show`.",
+		Example: "  meso cycles workouts add 1 7 --week 1 --phase base  add workout 7 to cycle 1's first week\n" +
+			"  meso cycles workouts reorder 1 4 2 3                put cycle 1's entries in this order\n" +
+			"  meso cycles workouts rm 1 4                         drop entry 4 from cycle 1",
 	})
 	withNotFoundHints(cmd, hintCycleEntries, hintCycles)
 	cmd.AddCommand(

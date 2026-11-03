@@ -21,6 +21,9 @@ func newMeasurementsCommand() *cobra.Command {
 		Long: "A measurement is a dated reading of a metric (define metrics first with\n" +
 			"`meso metrics define`). Record readings, list them, and view a metric's trend\n" +
 			"over time with its improvement summary.",
+		Example: "  meso measurements record deadlift-working-weight --value 225  log today's reading\n" +
+			"  meso measurements trend deadlift-working-weight               how it has moved, with its summary\n" +
+			"  meso measurements list --since 2026-07-01                     every reading since a date",
 	})
 	withNotFoundHints(cmd, hintMeasurements)
 	cmd.AddCommand(

@@ -22,6 +22,10 @@ func newSessionsCommand() *cobra.Command {
 			"set by set, and how it felt. Start one from a workout template (its movements\n" +
 			"copy in as the target) or start it free-form and add movements as they happen —\n" +
 			"then `promote` that one into a reusable workout. `finish` ends it.",
+		Example: "  meso sessions log --from-workout 1  start a session from workout 1\n" +
+			"  meso sessions list --unfinished     the sessions still open\n" +
+			"  meso sessions show 018f...          what was performed, set by set\n" +
+			"  meso sessions finish 018f...        end the session",
 	})
 	withNotFoundHints(cmd, hintSessions)
 	cmd.AddCommand(
@@ -351,6 +355,11 @@ func newSessionMovementCommand() *cobra.Command {
 			"adjust this session's target, or swap an entry for an alternate mid-session\n" +
 			"(the target and the logged sets carry over). What was actually performed is\n" +
 			"logged with `sessions set`. Entry ids come from `sessions show`.",
+		Example: "  meso sessions movement add 018f... 37 --target-sets 3 --target-reps 12\n" +
+			"                                                add movement 37 as it gets performed\n" +
+			"  meso sessions movement done 018f... 42        tick entry 42 off\n" +
+			"  meso sessions movement edit 018f... 42 --movement 9\n" +
+			"                                                swap entry 42 for movement 9, sets and all",
 	})
 	cmd.AddCommand(
 		newSessionMovementAddCommand(),
@@ -558,6 +567,9 @@ func newSessionSetCommand() *cobra.Command {
 			"set — same reps, same load — falling back to the entry's target for the first,\n" +
 			"so only a set that differs needs describing. Reaching the target ticks the entry\n" +
 			"off. Entry ids come from `sessions show`.",
+		Example: "  meso sessions set add 018f... 42                        log a set like the last one\n" +
+			"  meso sessions set add 018f... 42 --reps 8 --load 100lb  log a set that differs\n" +
+			"  meso sessions set rm 018f... 42 7                       remove set 7 from entry 42",
 	})
 	cmd.AddCommand(
 		newSessionSetAddCommand(),

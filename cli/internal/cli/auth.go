@@ -34,6 +34,9 @@ func newAuthCommand() *cobra.Command {
 			"Where the CLI is pointed comes from one config file. `meso auth status`\n" +
 			"prints its path and its api, issuer and client_id, and `meso auth login\n" +
 			"<url>` fills in whatever it lacks.",
+		Example: "  meso auth login                           log this machine in\n" +
+			"  meso auth login https://meso.example.com  point at an API, then log in\n" +
+			"  meso auth status                          who is logged in, and where the token is kept",
 	})
 	cmd.AddCommand(withAPIFlag(newAuthLoginCommand()), newAuthLogoutCommand(), withAPIFlag(newAuthStatusCommand()), withAPIFlag(newAuthTokenCommand()))
 	return cmd

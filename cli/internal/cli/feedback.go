@@ -24,6 +24,10 @@ func newAdminFeedbackCommand() *cobra.Command {
 			"is, and the response is the same either way.\n\n" +
 			"Capturing feedback needs only a login. Reading, editing and deleting it need\n" +
 			"membership in the admin group.",
+		Example: "  meso admin feedback list               feedback still to work through\n" +
+			"  meso admin feedback show 019f...       one item in full\n" +
+			"  meso admin feedback done 019f...       mark it handled\n" +
+			"  meso admin feedback list --all --json  everything, for another tool to read",
 	})
 	withNotFoundHints(cmd, hintFeedback)
 	cmd.AddCommand(
