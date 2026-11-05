@@ -90,21 +90,21 @@ func NewRouter(pool *pgxpool.Pool, metadata http.Handler) *http.ServeMux {
 			writeJSON(w, http.StatusOK, map[string]string{"message": "meso API"})
 		}},
 
-		// Movements — the unified exercise/stretch/pose library (Phase 1).
+		// Movements — the unified exercise/stretch/pose library.
 		{http.MethodGet, "/api/v1/movements", movementH.List},
 		{http.MethodPost, "/api/v1/movements", movementH.Create},
 		{http.MethodGet, "/api/v1/movements/{id}", movementH.Get},
 		{http.MethodPut, "/api/v1/movements/{id}", movementH.Update},
 		{http.MethodDelete, "/api/v1/movements/{id}", movementH.Delete},
 
-		// Movement relationships — the self-ref alternate/antagonist join (Phase 2).
+		// Movement relationships — the self-ref alternate/antagonist join.
 		{http.MethodPost, "/api/v1/movements/{id}/related", movementH.AddRelated},
 		{http.MethodDelete, "/api/v1/movements/{id}/related/{rid}", movementH.RemoveRelated},
 
 		// Muscle lookup — the tagging vocabulary the UI offers.
 		{http.MethodGet, "/api/v1/muscles", movementH.ListMuscles},
 
-		// Workouts — ordered, themed compositions of movements (Phase 2).
+		// Workouts — ordered, themed compositions of movements.
 		{http.MethodGet, "/api/v1/workouts", workoutH.List},
 		{http.MethodPost, "/api/v1/workouts", workoutH.Create},
 		{http.MethodGet, "/api/v1/workouts/{id}", workoutH.Get},
@@ -118,7 +118,7 @@ func NewRouter(pool *pgxpool.Pool, metadata http.Handler) *http.ServeMux {
 		{http.MethodPatch, "/api/v1/workouts/{id}/movements/{entryID}", workoutH.UpdateMovement},
 		{http.MethodDelete, "/api/v1/workouts/{id}/movements/{entryID}", workoutH.RemoveMovement},
 
-		// Sessions — workouts performed on a date, the logged instance (Phase 3).
+		// Sessions — workouts performed on a date, the logged instance.
 		// POST with a workout_id copies that template's movements in as targets; without one
 		// the session starts empty and grows through the sub-resource POST as the workout is
 		// performed. The entry PATCH overrides done / edits this session's target / swaps an
@@ -141,7 +141,7 @@ func NewRouter(pool *pgxpool.Pool, metadata http.Handler) *http.ServeMux {
 		{http.MethodPatch, "/api/v1/sessions/{id}/movements/{entryID}/sets/{setID}", sessionH.UpdateSet},
 		{http.MethodDelete, "/api/v1/sessions/{id}/movements/{entryID}/sets/{setID}", sessionH.RemoveSet},
 
-		// Metrics + measurements — the tracked stats time series (Phase 4). Metrics are
+		// Metrics + measurements — the tracked stats time series. Metrics are
 		// the definition vocabulary; measurements are dated readings against them; the
 		// {name}/trend sub-resource returns one metric's series plus its summary numbers.
 		{http.MethodGet, "/api/v1/metrics", measurementH.ListMetrics},
@@ -156,17 +156,17 @@ func NewRouter(pool *pgxpool.Pool, metadata http.Handler) *http.ServeMux {
 		{http.MethodPut, "/api/v1/measurements/{id}", measurementH.Update},
 		{http.MethodDelete, "/api/v1/measurements/{id}", measurementH.Delete},
 
-		// Stats — the aggregated stats-page payload in one read (Phase 4).
+		// Stats — the aggregated stats-page payload in one read.
 		{http.MethodGet, "/api/v1/stats", statsH.Summary},
 
-		// Fitness log — the dated training journal, `meso review`'s substrate (Phase 5).
+		// Fitness log — the dated training journal, `meso review`'s substrate.
 		{http.MethodGet, "/api/v1/log", logH.List},
 		{http.MethodPost, "/api/v1/log", logH.Create},
 		{http.MethodGet, "/api/v1/log/{id}", logH.Get},
 		{http.MethodPut, "/api/v1/log/{id}", logH.Update},
 		{http.MethodDelete, "/api/v1/log/{id}", logH.Delete},
 
-		// Cycles — mesocycles: ordered sequences of workouts toward a goal (Phase 6).
+		// Cycles — mesocycles: ordered sequences of workouts toward a goal.
 		// The sub-resource PATCH without an entry id reorders; with one it edits/swaps.
 		{http.MethodGet, "/api/v1/cycles", cycleH.List},
 		{http.MethodPost, "/api/v1/cycles", cycleH.Create},
@@ -189,8 +189,8 @@ func NewRouter(pool *pgxpool.Pool, metadata http.Handler) *http.ServeMux {
 		{http.MethodPut, "/api/v1/feedback/{id}", admin(feedbackH.Update)},
 		{http.MethodDelete, "/api/v1/feedback/{id}", admin(feedbackH.Delete)},
 
-		// Review — the capstone read: active cycles + recent sessions/measurements/log
-		// in one payload, for Claude to draft the next cycle from real history (Phase 6).
+		// Review — active cycles + recent sessions/measurements/log in one payload, so
+		// the next cycle can be drafted from real history.
 		{http.MethodGet, "/api/v1/review", reviewH.Review},
 	}
 
