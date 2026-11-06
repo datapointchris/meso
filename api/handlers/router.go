@@ -20,6 +20,19 @@ func admin(h http.HandlerFunc) http.HandlerFunc {
 	return goapiauth.RequireGroup(AdminGroup, h).ServeHTTP
 }
 
+// adminOrService also passes a service client, which holds no group. One only
+// reaches a handler through a scope listing that route in ServiceRoutes.
+func adminOrService(h http.HandlerFunc) http.HandlerFunc {
+	forPeople := admin(h)
+	return func(w http.ResponseWriter, r *http.Request) {
+		if identity, _ := goapiauth.IdentityFrom(r.Context()); identity.Service {
+			h(w, r)
+			return
+		}
+		forPeople(w, r)
+	}
+}
+
 // ServiceRoutes is every route a service client reaches, by the scope that
 // reaches it, written as NewRouter registers them. A service client is refused
 // with 403 everywhere else.
@@ -28,6 +41,8 @@ var ServiceRoutes = map[string][]string{
 	"meso.cycles.read": {"GET /api/v1/cycles", "GET /api/v1/cycles/{id}"},
 	// What `meso review` reads.
 	"meso.review.read": {"GET /api/v1/review"},
+	// What `meso admin feedback list` reads.
+	"meso.feedback.read": {"GET /api/v1/feedback"},
 }
 
 // route is one method on one path and the handler answering it.
@@ -182,8 +197,9 @@ func NewRouter(pool *pgxpool.Pool, metadata http.Handler) *http.ServeMux {
 		// non-training resource here: the web app POSTs, and the reads/writes below serve
 		// the CLI's `meso admin feedback` namespace. meso owns this data outright and
 		// forwards it nowhere — whoever wants it reads it back out. Any signed-in user
-		// captures, and only the admin group reads, edits or deletes.
-		{http.MethodGet, "/api/v1/feedback", admin(feedbackH.List)},
+		// captures, and only the admin group reads, edits or deletes. A service client
+		// holding meso.feedback.read lists it as well.
+		{http.MethodGet, "/api/v1/feedback", adminOrService(feedbackH.List)},
 		{http.MethodPost, "/api/v1/feedback", feedbackH.Create},
 		{http.MethodGet, "/api/v1/feedback/{id}", admin(feedbackH.Get)},
 		{http.MethodPut, "/api/v1/feedback/{id}", admin(feedbackH.Update)},

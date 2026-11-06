@@ -39,6 +39,7 @@ func TestAServiceTokenReachesOnlyTheRoutesItsScopesList(t *testing.T) {
 	person := provider.Person(t, "meso-cli-test", "user")
 	cycles := scoped("meso.cycles.read")
 	review := scoped("meso.review.read")
+	feedback := scoped("meso.feedback.read")
 
 	cases := []struct {
 		token, method, path string
@@ -53,6 +54,10 @@ func TestAServiceTokenReachesOnlyTheRoutesItsScopesList(t *testing.T) {
 		{review, http.MethodGet, "/api/v1/cycles", http.StatusForbidden},
 		{review, http.MethodGet, "/api/v1/movements", http.StatusForbidden},
 		{person, http.MethodGet, "/api/v1/movements", http.StatusOK},
+		{feedback, http.MethodGet, "/api/v1/feedback?status=open", http.StatusOK},
+		{feedback, http.MethodPost, "/api/v1/feedback", http.StatusForbidden},
+		{cycles, http.MethodGet, "/api/v1/feedback", http.StatusForbidden},
+		{person, http.MethodGet, "/api/v1/feedback", http.StatusForbidden},
 	}
 	for _, c := range cases {
 		req := httptest.NewRequest(c.method, c.path, http.NoBody)
