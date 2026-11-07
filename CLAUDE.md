@@ -112,4 +112,4 @@ git-derived version embedded via ldflags. A locally built one reports as a dev b
 refuses to self-update, by design rather than as a defect: `git describe` returns the prefixed
 tag (`cli/v0.2.0-3-gabc1234`), which is not a semantic version. The CLI is a module in a
 subdirectory, so it needs its full module path and a `cli/v*` tag before `go install` can
-resolve it. Released binaries come from CI on a `cli/v*` tag.
+resolve it. Released binaries come from release.yml, which cuts the `cli/v*` tag itself on a push to main.

@@ -28,8 +28,6 @@ func runLine(t *testing.T, args ...string) error {
 	return run(root, autoupdate.Config{Suppress: true})
 }
 
-// A flag the leaf would have taken, typed after a word naming no subcommand,
-// leaves the word as the mistake rather than the flag.
 func TestAFlagAfterAnUnknownWordRefusesTheWord(t *testing.T) {
 	for _, args := range [][]string{
 		{"admin", "bogus", "--json"},

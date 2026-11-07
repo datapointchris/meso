@@ -4,12 +4,12 @@ meso is a self-hosted, single-user, mobile-first training app. A library of move
 workouts, and workouts sequence into goal-directed cycles. Sessions record each workout as it was
 actually performed. Measurements track the numbers that show progress. A journal holds the rest.
 
-The boundary is the reasoning. meso stores the training record and serves it. Drafting the next
+meso stores the training record and serves it. Drafting the next
 cycle happens outside it, in a conversation with Claude. Claude reads `meso review --json` and
 writes the cycle back with ordinary CLI commands. There is no server-side AI and no MCP server. The
 `meso` CLI is the agent's surface.
 
-The name is the thesis. A *mesocycle* is the unit of training planning: a multi-week block aimed at
+meso is named for the *mesocycle*, the unit of training planning: a multi-week block aimed at
 a target. The value is that planning, unified across strength, running, mobility and dance. The
 block entity is named `Cycle`.
 
@@ -143,7 +143,7 @@ conditioning progress in parallel. Each has its own cycle and target metric. The
 movement library and one weekly reality. The app holds several goals at once without making
 anyone pick one.
 
-**The wedge is the gap every incumbent shares.** The survey covered strength loggers (Strong, Hevy,
+**No existing app unifies the modalities or holds more than one plan.** The survey covered strength loggers (Strong, Hevy,
 FitNotes, Jefit, Boostcamp), running planners (Couch-to-5k, Runna, TrainingPeaks, Garmin Coach, Nike
 Run Club), yoga and mobility apps (Down Dog, Yoga Studio, Alo Moves) and hybrids (Fitbod, Strava,
 Centr). None unifies strength, endurance and mobility. Every one assumes a single active plan.
@@ -231,8 +231,7 @@ is, how to do it, what to watch for, and what commonly goes wrong." A movement c
 writing to reconstruct it, or to explain a sequence built from it, and nothing more. A
 prisoner-squat entry reads: *how-to* — hands laced behind the head, elbows wide, squat to depth
 keeping the chest up; *form cues* — elbows stay back, knees track over toes, weight mid-foot;
-*common faults* — elbows collapse forward, chest drops, heels lift. That is the whole ambition of
-the field.
+*common faults* — elbows collapse forward, chest drops, heels lift.
 
 **Author them as markdown, not as one run-on paragraph.** They are read on a phone, mid-set. A
 how-to that packs execution, tempo and progression into one block reads as a wall no typography can
@@ -254,8 +253,8 @@ regression ride the same table for free.
 
 ### Workout — an ordered composition, read on every render
 
-A workout is its ordered list of prescribed movements. The join carries a payload and drives the
-render, so a many-to-many with a payload is correct here rather than over-engineering.
+A workout is its ordered list of prescribed movements. The join carries each entry's sets, reps,
+load and rest, and every render reads it.
 
 - `Workout`: `name` (unique), `theme` (nullable — "push", "lower + shoulder rehab"),
   `tags: TEXT[]`, `notes` (markdown), `favorite`, `estimated_minutes`, `created_at`, `updated_at`
@@ -352,7 +351,7 @@ started from the workout and abandoned with nothing done does not count.
 Changing or clearing a cycle's `target_metric` without supplying a value clears the old
 `target_value`. A target never outlives the metric it was measured against.
 
-A cycle is humane rather than a straitjacket, which answers the top structural complaint about
+A cycle never penalizes a missed or reordered day, which answers the top structural complaint about
 running apps:
 
 - **Nothing is ever marked failed.** A cycle holds no calendar of due dates, so a missed day is not
