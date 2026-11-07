@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/datapointchris/goclilogin"
 	"golang.org/x/oauth2"
@@ -37,8 +38,16 @@ func newAPIClient(ctx context.Context) (*api.Client, error) {
 	}
 
 	httpClient := oauth2.NewClient(ctx, source)
+	httpClient.Timeout = apiRequestTimeout
 	return api.New(deployment.API.Value, httpClient), nil
 }
+
+// apiRequestTimeout bounds each request to the API, so a server that accepts the
+// connection and never answers fails the command instead of holding it until it
+// is killed. Every request is a small JSON exchange the API answers within its
+// own write timeout, so this cuts off only a stall. The token fetch behind a
+// request is bounded apart from it, by the login library.
+const apiRequestTimeout = 30 * time.Second
 
 // handleAPIError maps an error from a resource command to a message and exit
 // code: not-logged-in and 401 both point at `meso auth login`, and a 403 carrying
