@@ -33,6 +33,8 @@ type exitCode int
 
 func (e exitCode) Error() string { return "" }
 
+// NewRootCommand builds the meso command tree: the root command with its
+// persistent flags and every subcommand attached.
 func NewRootCommand() *cobra.Command {
 	root := goclikit.AsNamespace(&cobra.Command{
 		Use:   "meso",
