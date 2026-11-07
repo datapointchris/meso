@@ -38,8 +38,8 @@ func updateConfig() goselfupdate.Config {
 		// TokenFunc, not Token: Execute builds this config on every invocation
 		// to run the daily update check's gate, and that gate is designed to
 		// cost nothing. Calling githubToken() here would put a `gh auth token`
-		// subprocess in front of every `meso` command, including the ~364 out
-		// of 365 that decline to check at all.
+		// subprocess in front of every `meso` command, including every one
+		// after the day's check, which declines to check at all.
 		TokenFunc: githubToken,
 	}
 }
