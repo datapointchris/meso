@@ -1,10 +1,6 @@
 package cli
 
 import (
-	"os"
-	"os/exec"
-	"strings"
-
 	"github.com/datapointchris/goclikit"
 	"github.com/datapointchris/goselfupdate"
 	"github.com/spf13/cobra"
@@ -35,31 +31,9 @@ func updateConfig() goselfupdate.Config {
 		Binary:    "meso",
 		Version:   version,
 		TagPrefix: "cli/",
-		// TokenFunc, not Token: Execute builds this config on every invocation
-		// to run the daily update check's gate, and that gate is designed to
-		// cost nothing. Calling githubToken() here would put a `gh auth token`
-		// subprocess in front of every `meso` command, including every one
-		// after the day's check, which declines to check at all.
-		TokenFunc: githubToken,
+		// No Token or TokenFunc. goselfupdate resolves the credential itself,
+		// only when a request goes out: $GITHUB_TOKEN, then $GH_TOKEN, then
+		// $GITHUB_TOKEN_COMMAND, which defaults to `gh auth token` and runs
+		// under the library's own timeout.
 	}
-}
-
-// githubToken resolves a GitHub credential: the environment first, then the gh
-// CLI's stored token.
-//
-// goselfupdate reads $GITHUB_TOKEN and $GH_TOKEN on its own, so this only adds
-// the third source. meso's repository is public, so this is not load-bearing
-// here — it lifts the 60-requests-per-hour unauthenticated rate limit, and it
-// keeps `meso update` working unchanged if the repository is ever made private.
-func githubToken() string {
-	for _, name := range []string{"GITHUB_TOKEN", "GH_TOKEN"} {
-		if token := os.Getenv(name); token != "" {
-			return token
-		}
-	}
-	out, err := exec.Command("gh", "auth", "token").Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
 }
