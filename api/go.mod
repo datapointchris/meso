@@ -6,7 +6,7 @@ toolchain go1.26.10
 
 require (
 	github.com/datapointchris/goapiauth v0.2.0
-	github.com/datapointchris/gobrowserlogin v0.1.2
+	github.com/datapointchris/gobrowserlogin v0.2.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/pressly/goose/v3 v3.26.0

@@ -72,7 +72,11 @@ func main() {
 	if cfg.Env == "development" {
 		handler = middleware.DevCORS(middleware.DevGroups(mux, handlers.AdminGroup))
 	} else {
-		verifier, verifierErr := goapiauth.NewVerifier(ctx, goapiauth.Config{
+		// Both read the identity provider in the background, so a provider that
+		// is down at start costs the browser login and bearer verification until
+		// it answers, rather than the whole API. /health leaves them out, so the
+		// outage does not take the API out of service either.
+		verifier, verifierErr := goapiauth.NewConnecting(goapiauth.Config{
 			Issuer:        cfg.OIDCIssuer,
 			PersonPrefix:  cfg.CLIClientIDPrefix,
 			ServicePrefix: clientid.ServicePrefix("meso"),
@@ -81,11 +85,13 @@ func main() {
 			slog.Error("oidc verifier", "err", verifierErr)
 			os.Exit(1)
 		}
-		sessions, sessionsErr := browserSessions(ctx, cfg, pool)
+		sessions, sessionsErr := browserSessions(cfg, pool)
 		if sessionsErr != nil {
 			slog.Error("browser login", "err", sessionsErr)
 			os.Exit(1)
 		}
+		go verifier.Run(ctx, slog.Default())
+		go sessions.Run(ctx)
 		mux.HandleFunc("GET "+middleware.LoginPath, sessions.Login)
 		mux.HandleFunc("GET "+middleware.CallbackPath, sessions.Callback)
 		handler = middleware.RequireAuth(verifier, sessions, mux, handlers.ServiceRoutes)
@@ -123,22 +129,21 @@ func main() {
 
 // browserSessions logs the SPA's browsers in as this API's own confidential
 // client, and keeps each session in the API's database. It asks for groups,
-// because the admin routes read them from the session.
-func browserSessions(ctx context.Context, cfg *config.Config, pool *pgxpool.Pool) (*gobrowserlogin.Sessions, error) {
+// because the admin routes read them from the session. It refuses a
+// configuration that can never log anyone in; Run opens the session store and
+// reads the provider.
+func browserSessions(cfg *config.Config, pool *pgxpool.Pool) (*gobrowserlogin.Connecting, error) {
 	if cfg.PublicURL == "" || cfg.WebClientSecret == "" {
 		return nil, errors.New("PUBLIC_URL and WEB_CLIENT_SECRET must both be set: the login's callback is under the one, and the API authenticates to the provider with the other")
 	}
-	store, err := postgresstore.New(ctx, stdlib.OpenDBFromPool(pool))
-	if err != nil {
-		return nil, err
-	}
-	return gobrowserlogin.New(ctx, gobrowserlogin.Config{
+	return gobrowserlogin.NewConnecting(gobrowserlogin.Config{
 		Issuer:       cfg.OIDCIssuer,
 		ClientID:     cfg.WebClientID,
 		ClientSecret: cfg.WebClientSecret,
 		RedirectURL:  strings.TrimSuffix(cfg.PublicURL, "/") + middleware.CallbackPath,
 		Scopes:       []string{"openid", "profile", "groups"},
-		Store:        store,
 		Logger:       slog.Default(),
+	}, func(ctx context.Context) (gobrowserlogin.Store, error) {
+		return postgresstore.New(ctx, stdlib.OpenDBFromPool(pool))
 	})
 }
