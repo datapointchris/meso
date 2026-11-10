@@ -63,4 +63,13 @@ describe('request', () => {
     await expect(http.post('/sessions', {})).rejects.toMatchObject({ status: 401 })
     expect(assign).not.toHaveBeenCalled()
   })
+
+  it('fails a read holding typed input on a 401 and stays on the page', async () => {
+    stubFetch(401)
+    const assign = vi.fn()
+    vi.stubGlobal('location', { pathname: '/movements', search: '', hash: '', assign })
+
+    await expect(http.get('/movements?search=squat', { holdsTypedInput: true })).rejects.toMatchObject({ status: 401 })
+    expect(assign).not.toHaveBeenCalled()
+  })
 })

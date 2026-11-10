@@ -114,7 +114,10 @@ export interface RelationshipInput {
 }
 
 export const movementsApi = {
-  list: (filter: MovementFilter = {}) => http.get<Movement[]>(`/movements${queryString(filter)}`),
+  // A search term exists only in the box it was typed in, so its read must not
+  // navigate away to log in.
+  list: (filter: MovementFilter = {}) =>
+    http.get<Movement[]>(`/movements${queryString(filter)}`, { holdsTypedInput: Boolean(filter.search) }),
   get: (id: number) => http.get<Movement>(`/movements/${id}`),
   create: (body: MovementWrite) => http.post<Movement>('/movements', body),
   update: (id: number, body: MovementWrite) => http.put<Movement>(`/movements/${id}`, body),

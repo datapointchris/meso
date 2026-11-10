@@ -3,7 +3,7 @@
 // logs the browser in itself and keeps the session, so the browser holds one
 // HttpOnly cookie and this code never sees a token. A read that gets a 401
 // sends the browser to the API's login route, which brings it back to the same
-// page.
+// page. A write, or a read carrying what the person typed, fails in place.
 
 const BASE = '/api/v1'
 const LOGIN = '/api/auth/login'
@@ -17,6 +17,7 @@ const LOGIN_STARTS_ALLOWED = 2
 const LOGIN_STARTS_KEY = 'loginStarts'
 
 const SESSION_ENDED = 'Your login has ended, so this change was not saved. Reload the page to log in again.'
+const SESSION_ENDED_ON_TYPED_READ = 'Your login has ended. Copy what you typed, then reload the page to log in again.'
 const LOGIN_REFUSED = 'Logging in did not complete. Wait a minute, then reload the page.'
 
 // One start per page: the reads a page fires together all get the 401.
@@ -56,7 +57,14 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+// A read whose request carries text the person typed, such as a search, sets
+// holdsTypedInput: navigating to log in would drop that text, so its 401 fails
+// in place like a write's.
+export interface ReadOptions {
+  holdsTypedInput?: boolean
+}
+
+async function request<T>(method: string, path: string, body?: unknown, options: ReadOptions = {}): Promise<T> {
   const init: RequestInit = {
     method,
     // Send the session cookie the API set at login with every request.
@@ -80,6 +88,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (resp.status === 401) {
     // A write fails in place so its caller rolls back; navigating would drop the change.
     if (method !== 'GET') throw new ApiError(401, SESSION_ENDED)
+    if (options.holdsTypedInput) throw new ApiError(401, SESSION_ENDED_ON_TYPED_READ)
     // The page is navigating away, so the caller never settles and shows no error.
     if (sendToLogin()) return new Promise<T>(() => {})
     throw new ApiError(401, LOGIN_REFUSED)
@@ -105,7 +114,7 @@ async function errorMessage(resp: Response): Promise<string> {
 }
 
 export const http = {
-  get: <T>(path: string) => request<T>('GET', path),
+  get: <T>(path: string, options?: ReadOptions) => request<T>('GET', path, undefined, options),
   post: <T>(path: string, body: unknown) => request<T>('POST', path, body),
   put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),
   patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),
