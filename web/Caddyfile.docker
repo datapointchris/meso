@@ -15,31 +15,32 @@
 		respond "ok" 200
 	}
 
-	handle /api/* {
+	# The API's routes, and the RFC 9728 metadata `meso auth login <url>` reads
+	# before it holds a token. The rest of /.well-known goes there too, so no
+	# document under it is answered with the SPA's page.
+	@api path /api/* /.well-known/*
+	handle @api {
 		reverse_proxy api:8088
 	}
 
-	# RFC 9728 metadata, read by `meso auth login <url>` before it holds a token.
-	handle /.well-known/oauth-protected-resource {
-		reverse_proxy api:8088
+	# The build names each file here by a hash of its content, so a file is
+	# cached for a year. A name no release holds answers 404 rather than the
+	# page, which a tab still running an older release would otherwise parse
+	# as a script and keep for that year.
+	handle /assets/* {
+		root * /srv/dist
+		@present file
+		header @present Cache-Control "public, max-age=31536000, immutable"
+		file_server
 	}
 
+	# Every other path is the one page, since Vue Router owns the client routes.
+	# It revalidates, so a release shows promptly.
 	handle {
 		root * /srv/dist
-
-		# SPA fallback — Vue Router owns all client routes
 		try_files {path} /index.html
 		file_server
-
-		# Hashed assets are immutable — cache aggressively
-		@hashed path_regexp ^/assets/.+\.(js|css|woff2?|webp|png|svg|jpg)$
-		header @hashed Cache-Control "public, max-age=31536000, immutable"
-
-		# Everything unhashed revalidates, so deploys are picked up promptly. The
-		# matcher reads the path before try_files rewrites it, so a client route
-		# serving index.html is matched as itself rather than as *.html.
-		@unhashed not path /assets/*
-		header @unhashed Cache-Control "public, max-age=300, must-revalidate"
+		header Cache-Control "public, max-age=300, must-revalidate"
 	}
 
 	header {
