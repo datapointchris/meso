@@ -1,4 +1,4 @@
-# forge-toolchain: 56
+# forge-toolchain: 59
 name: CI
 
 on:
@@ -11,18 +11,21 @@ permissions:
 jobs:
 
   go-api:
+    name: "Go tests and vulnerabilities in api"
     runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: api
     steps:
 
-      - uses: actions/checkout@v7
+      - name: Check out the commit
+        uses: actions/checkout@v7
 
       # generated:go-api
       # Shared by the go job and the hooks job, whose go-vet, go-build,
       # go-mod-tidy and go-test hooks call the go on PATH.
-      - uses: actions/setup-go@v7
+      - name: Install the Go api/go.mod names
+        uses: actions/setup-go@v7
         with:
           # Action inputs resolve from the workspace root, not the job's
           # working-directory, so this needs the component path.
@@ -45,18 +48,21 @@ jobs:
           govulncheck ./...
 
   go-cli:
+    name: "Go tests and vulnerabilities in cli"
     runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: cli
     steps:
 
-      - uses: actions/checkout@v7
+      - name: Check out the commit
+        uses: actions/checkout@v7
 
       # generated:go-cli
       # Shared by the go job and the hooks job, whose go-vet, go-build,
       # go-mod-tidy and go-test hooks call the go on PATH.
-      - uses: actions/setup-go@v7
+      - name: Install the Go cli/go.mod names
+        uses: actions/setup-go@v7
         with:
           # Action inputs resolve from the workspace root, not the job's
           # working-directory, so this needs the component path.
@@ -79,18 +85,21 @@ jobs:
           govulncheck ./...
 
   vue-web:
+    name: "Vue build and tests in web"
     runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: web
     steps:
 
-      - uses: actions/checkout@v7
+      - name: Check out the commit
+        uses: actions/checkout@v7
 
       # generated:vue-web
       # Shared by the vue job and the hooks job, whose vue-eslint, vue-prettier
       # and vue-typecheck hooks run npm scripts in the component.
-      - uses: actions/setup-node@v7
+      - name: Install the Node .nvmrc names
+        uses: actions/setup-node@v7
         with:
           # The repo's own file, at the workspace root, because the Node major
           # also lives in each Dockerfile's FROM line and a pin here would be a
@@ -115,7 +124,8 @@ jobs:
       #
       # The directory is named on the step because the hooks job has no
       # working-directory of its own, and installs for every component.
-      - working-directory: "web"
+      - name: npm ci in web
+        working-directory: "web"
         run: |
           if [ -f package-lock.json ]; then
             npm ci
@@ -134,15 +144,18 @@ jobs:
           if [ -n "$script" ]; then npm run "$script"; fi
 
   hooks:
+    name: "Pre-commit hooks"
     runs-on: ubuntu-26.04
     steps:
 
-      - uses: actions/checkout@v7
+      - name: Check out the commit
+        uses: actions/checkout@v7
 
       # generated:hooks
       # Shared by the go job and the hooks job, whose go-vet, go-build,
       # go-mod-tidy and go-test hooks call the go on PATH.
-      - uses: actions/setup-go@v7
+      - name: Install the Go api/go.mod names
+        uses: actions/setup-go@v7
         with:
           # Action inputs resolve from the workspace root, not the job's
           # working-directory, so this needs the component path.
@@ -152,7 +165,8 @@ jobs:
 
       # Shared by the go job and the hooks job, whose go-vet, go-build,
       # go-mod-tidy and go-test hooks call the go on PATH.
-      - uses: actions/setup-go@v7
+      - name: Install the Go cli/go.mod names
+        uses: actions/setup-go@v7
         with:
           # Action inputs resolve from the workspace root, not the job's
           # working-directory, so this needs the component path.
@@ -162,7 +176,8 @@ jobs:
 
       # Shared by the vue job and the hooks job, whose vue-eslint, vue-prettier
       # and vue-typecheck hooks run npm scripts in the component.
-      - uses: actions/setup-node@v7
+      - name: Install the Node .nvmrc names
+        uses: actions/setup-node@v7
         with:
           # The repo's own file, at the workspace root, because the Node major
           # also lives in each Dockerfile's FROM line and a pin here would be a
@@ -187,7 +202,8 @@ jobs:
       #
       # The directory is named on the step because the hooks job has no
       # working-directory of its own, and installs for every component.
-      - working-directory: "web"
+      - name: npm ci in web
+        working-directory: "web"
         run: |
           if [ -f package-lock.json ]; then
             npm ci
@@ -201,7 +217,8 @@ jobs:
       # and this is the gate that catches both. CI runs the hooks themselves
       # rather than copies of their checks, because a copy is a second spelling
       # of the check that drifts from the first.
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - name: Install uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: "0.12.24"
 
@@ -209,13 +226,15 @@ jobs:
       # npm are there, and otherwise downloads the newest release. That release
       # can need libraries a runner image lacks, as Node 25 needs libatomic. So
       # the job puts the declared Node on PATH, on every runner alike.
-      - uses: actions/setup-node@v7
+      - name: Install Node for the hooks
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
 
       # A self-hosted runner keeps ~/.cache/pre-commit between jobs, so there
       # the archive is a download of what is already on disk.
-      - uses: actions/cache@v6
+      - name: Restore the pre-commit cache
+        uses: actions/cache@v6
         if: runner.environment == 'github-hosted'
         with:
           path: ~/.cache/pre-commit
@@ -265,14 +284,28 @@ jobs:
       # search with them. A self-hosted runner image ships neither, so every
       # test reaching one exits 127. Each is pinned to the release developers
       # run, as jq is.
+      #
+      # A version names a release, not its bytes. A release asset can be
+      # replaced and a tag moved after the pin was chosen, so each download is
+      # checked against the sha256 the declaration records, and each clone's
+      # HEAD against the commit its tag pointed at. A mismatch fails the job
+      # before anything it fetched runs. A helper library already on a
+      # self-hosted runner's disk is checked too, because it may predate the
+      # check.
       - name: Set up bats
         run: |
           bats_version="1.14.0"
+          bats_commit="eb7f42f8d608ac693d7a4b67474f6714ea68cfc5"
           bats_support_version="0.3.0"
+          bats_support_commit="24a72e14349690bcbf7c151b9d2d1cdd32d36eb1"
           bats_assert_version="2.2.4"
+          bats_assert_commit="f1e9280eaae8f86cbe278a687e6ba755bc802c1a"
           jq_version="1.8.2"
+          jq_sha256="b1c22172dd303f3be49e935aa56aa48a8b7a46e0bc838b4997d3bb451495870f"
           yq_version="4.54.1"
+          yq_sha256="8e34fc298390875de416e6a4afcb8cabeceb25d9aa8506c1a2f9353cf702ea5f"
           rg_version="15.2.0"
+          rg_sha256="33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c"
 
           if ! compgen -G "tests/*.bats" > /dev/null; then
             if [ -n "$(find tests -name '*.bats' -print -quit 2>/dev/null)" ]; then
@@ -281,21 +314,32 @@ jobs:
             exit 0
           fi
 
+          at_commit() {
+            actual=$(git -C "$1" rev-parse HEAD)
+            [ "$actual" = "$2" ] && return 0
+            echo "::error::$1 is at commit $actual, and the pin names $2"
+            return 1
+          }
+
           git clone --depth 1 --branch "v${bats_version}" \
             https://github.com/bats-core/bats-core.git "$RUNNER_TEMP/bats"
+          at_commit "$RUNNER_TEMP/bats" "$bats_commit"
           echo "$RUNNER_TEMP/bats/bin" >> "$GITHUB_PATH"
 
           lib="$HOME/.local/lib"
           mkdir -p "$lib"
-          for helper in "bats-support:${bats_support_version}" "bats-assert:${bats_assert_version}"; do
-            name="${helper%%:*}"
-            release="${name}-v${helper#*:}"
+          for helper in "bats-support:${bats_support_version}:${bats_support_commit}" \
+            "bats-assert:${bats_assert_version}:${bats_assert_commit}"; do
+            IFS=: read -r name version commit <<< "$helper"
+            release="${name}-v${version}"
             if [ ! -d "$lib/$release" ]; then
               staged=$(mktemp -d "$lib/.$release.XXXXXX")
-              git clone --depth 1 --branch "v${helper#*:}" \
+              git clone --depth 1 --branch "v${version}" \
                 "https://github.com/bats-core/$name.git" "$staged"
+              at_commit "$staged" "$commit" || { rm -rf "$staged"; exit 1; }
               mv -T "$staged" "$lib/$release" 2>/dev/null || rm -rf "$staged"
             fi
+            at_commit "$lib/$release" "$commit"
             [ -L "$lib/$name" ] || rm -rf "${lib:?}/$name"
             ln -s "$release" "$lib/.$name.$$"
             mv -T "$lib/.$name.$$" "$lib/$name"
@@ -304,6 +348,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/jq"
           curl -fsSL --retry 3 -o "$RUNNER_TEMP/jq/jq" \
             "https://github.com/jqlang/jq/releases/download/jq-${jq_version}/jq-linux-amd64"
+          echo "${jq_sha256}  $RUNNER_TEMP/jq/jq" | sha256sum -c -
           chmod +x "$RUNNER_TEMP/jq/jq"
           echo "$RUNNER_TEMP/jq" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/jq/jq" --version
@@ -311,14 +356,18 @@ jobs:
           mkdir -p "$RUNNER_TEMP/yq"
           curl -fsSL --retry 3 -o "$RUNNER_TEMP/yq/yq" \
             "https://github.com/mikefarah/yq/releases/download/v${yq_version}/yq_linux_amd64"
+          echo "${yq_sha256}  $RUNNER_TEMP/yq/yq" | sha256sum -c -
           chmod +x "$RUNNER_TEMP/yq/yq"
           echo "$RUNNER_TEMP/yq" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/yq/yq" --version
 
           rg_release="ripgrep-${rg_version}-x86_64-unknown-linux-musl"
           mkdir -p "$RUNNER_TEMP/rg"
-          curl -fsSL --retry 3 "https://github.com/BurntSushi/ripgrep/releases/download/${rg_version}/${rg_release}.tar.gz" |
-            tar -xzf - -C "$RUNNER_TEMP/rg" --strip-components=1 "${rg_release}/rg"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/rg/${rg_release}.tar.gz" \
+            "https://github.com/BurntSushi/ripgrep/releases/download/${rg_version}/${rg_release}.tar.gz"
+          echo "${rg_sha256}  $RUNNER_TEMP/rg/${rg_release}.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/rg/${rg_release}.tar.gz" -C "$RUNNER_TEMP/rg" --strip-components=1 "${rg_release}/rg"
+          rm "$RUNNER_TEMP/rg/${rg_release}.tar.gz"
           echo "$RUNNER_TEMP/rg" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/rg/rg" --version
 
@@ -339,30 +388,25 @@ jobs:
       # disk, and refcheck's --moves reads the range as a two-dot diff too, so
       # the base commit alone is enough.
       #
-      # GITHUB_TOKEN is for the tflint hook, whose --init installs the plugins a
-      # .tflint.hcl names from GitHub, which rate-limits a runner that does not
-      # authenticate.
-      #
-      # setup-go exports GOTOOLCHAIN=local, and this job sets Go up once per
-      # module. Under local, a later setup-go ignores its go.mod's toolchain
-      # line, and each module's go refuses a go.mod asking for a newer release.
-      # auto lets each module's go switch to the toolchain its go.mod names. It
-      # is exported in the script, where no GITHUB_ENV write can override it.
-      - name: Run the hooks over the change
+      # The scope is chosen once, and written to a file beside the script every
+      # hook's step runs, so each hook checks the same files.
+      - name: Choose the files the hooks check
+        id: hook-scope
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          export GOTOOLCHAIN=auto
           from=
           if [ -n "$BASE" ] && git fetch --quiet --depth=1 --no-tags origin "$BASE" 2>/dev/null; then
             from=$BASE
+            reason="the change from ${BASE:0:12}"
           elif git fetch --quiet --depth=2 --no-tags origin "$(git rev-parse HEAD)" &&
             git rev-parse --quiet --verify HEAD~1 >/dev/null; then
             echo "::notice::this event names no base commit, so only the head commit's change is checked"
             from=HEAD~1
+            reason="the head commit's change, because this event names no base commit"
           else
             echo "::notice::no earlier commit to diff against, so every file is checked"
+            reason="every file, because there is no earlier commit to diff against"
           fi
           scope=(--all-files)
           if [ -n "$from" ]; then
@@ -377,54 +421,262 @@ jobs:
                   rust-toolchain.toml | package.json | package-lock.json | .nvmrc | .terraform.lock.hcl)
                   echo "::notice::$changed changed, so every file is checked"
                   scope=(--all-files)
+                  reason="every file, because $changed changed"
                   break
                   ;;
               esac
             done < <(git diff --name-only "$from" HEAD)
           fi
-          hooks=(
-            check-yaml
-            check-toml
-            check-json
-            end-of-file-fixer
-            trailing-whitespace
-            check-executables-have-shebangs
-            check-shebang-scripts-are-executable
-            check-added-large-files
-            check-merge-conflict
-            mixed-line-ending
-            check-case-conflict
-            detect-private-key
-            check-json5
-            markdownlint
-            shellcheck
-            shfmt
-            bats
-            codespell
-            refcheck
-            gofumpt-api
-            golangci-lint-api
-            gofumpt-cli
-            golangci-lint-cli
-            go-vet-repo-mod
-            go-build-repo-mod
-            go-mod-tidy-repo
-            go-test-repo-mod
-            vue-eslint
-            vue-prettier
-            vue-typecheck
-            hadolint
-            jactionlint
-            sqlfluff-lint
-          )
-          # Every hook runs whatever the one before it found, so one push
-          # reports every failing hook rather than the first.
-          #
+          printf '%s\n' "${scope[@]}" > "$RUNNER_TEMP/hook-scope"
+          echo "$reason" > "$RUNNER_TEMP/hook-scope-reason"
+          : > "$RUNNER_TEMP/hook-results"
+          echo "The hooks check $reason."
+
           # pre-commit builds each `language: python` hook on the interpreter
           # running it. Left to uv, that is whatever Python the runner ships,
           # so pre-commit runs on the declared floor instead.
-          status=0
-          for hook in "${hooks[@]}"; do
-            uvx --python 3.13 pre-commit run "$hook" "${scope[@]}" --show-diff-on-failure || status=1
-          done
+          #
+          # setup-go exports GOTOOLCHAIN=local, and this job sets Go up once per
+          # module. Under local, a later setup-go ignores its go.mod's toolchain
+          # line, and each module's go refuses a go.mod asking for a newer
+          # release. auto lets each module's go switch to the toolchain its
+          # go.mod names. It is exported in the script, where no GITHUB_ENV
+          # write can override it.
+          #
+          # A hook that passes prints a line ending in Passed, and one with no
+          # files to check prints Skipped, both exiting 0.
+          cat > "$RUNNER_TEMP/run-hook" <<'SCRIPT'
+          hook=$1
+          export GOTOOLCHAIN=auto
+          mapfile -t scope < "$RUNNER_TEMP/hook-scope"
+          output=$(mktemp)
+          start=$EPOCHREALTIME
+          uvx --python 3.13 pre-commit run "$hook" "${scope[@]}" --show-diff-on-failure 2>&1 | tee "$output"
+          status=${PIPESTATUS[0]}
+          seconds=$(awk -v start="$start" -v end="$EPOCHREALTIME" 'BEGIN { printf "%.1f", end - start }')
+          if [ "$status" -ne 0 ]; then
+            result=failed
+          elif grep -q 'Passed$' "$output"; then
+            result=passed
+          else
+            result=skipped
+          fi
+          printf '| `%s` | %s | %s |\n' "$hook" "$result" "$seconds" >> "$RUNNER_TEMP/hook-results"
           exit "$status"
+          SCRIPT
+
+      # One step per hook, so the run's listing names each hook, how long it
+      # took and whether it failed. Each runs whatever the hooks before it
+      # found, so one push reports every failing hook rather than the first.
+      # None runs where a step before the scope failed.
+      #
+      # GITHUB_TOKEN is for the tflint hook, whose --init installs the plugins a
+      # .tflint.hcl names from GitHub, which rate-limits a runner that does not
+      # authenticate.
+      - name: pre-commit run check-yaml
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" check-yaml
+
+      - name: pre-commit run check-toml
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" check-toml
+
+      - name: pre-commit run check-json
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" check-json
+
+      - name: pre-commit run end-of-file-fixer
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" end-of-file-fixer
+
+      - name: pre-commit run trailing-whitespace
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" trailing-whitespace
+
+      - name: pre-commit run check-executables-have-shebangs
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" check-executables-have-shebangs
+
+      - name: pre-commit run check-shebang-scripts-are-executable
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" check-shebang-scripts-are-executable
+
+      - name: pre-commit run check-added-large-files
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" check-added-large-files
+
+      - name: pre-commit run check-merge-conflict
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" check-merge-conflict
+
+      - name: pre-commit run mixed-line-ending
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" mixed-line-ending
+
+      - name: pre-commit run check-case-conflict
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" check-case-conflict
+
+      - name: pre-commit run detect-private-key
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" detect-private-key
+
+      - name: pre-commit run check-json5
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" check-json5
+
+      - name: pre-commit run markdownlint
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" markdownlint
+
+      - name: pre-commit run shellcheck
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" shellcheck
+
+      - name: pre-commit run shfmt
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" shfmt
+
+      - name: pre-commit run bats
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" bats
+
+      - name: pre-commit run codespell
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" codespell
+
+      - name: pre-commit run refcheck
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" refcheck
+
+      - name: pre-commit run gofumpt-api
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" gofumpt-api
+
+      - name: pre-commit run golangci-lint-api
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" golangci-lint-api
+
+      - name: pre-commit run gofumpt-cli
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" gofumpt-cli
+
+      - name: pre-commit run golangci-lint-cli
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" golangci-lint-cli
+
+      - name: pre-commit run go-vet-repo-mod
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" go-vet-repo-mod
+
+      - name: pre-commit run go-build-repo-mod
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" go-build-repo-mod
+
+      - name: pre-commit run go-mod-tidy-repo
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" go-mod-tidy-repo
+
+      - name: pre-commit run vue-eslint
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" vue-eslint
+
+      - name: pre-commit run vue-prettier
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" vue-prettier
+
+      - name: pre-commit run vue-typecheck
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" vue-typecheck
+
+      - name: pre-commit run hadolint
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" hadolint
+
+      - name: pre-commit run jactionlint
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" jactionlint
+
+      - name: pre-commit run sqlfluff-lint
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash "$RUNNER_TEMP/run-hook" sqlfluff-lint
+
+      # The table on the run's summary page, one row per hook in the order they
+      # ran. It is written once, from the rows each hook's step kept, so the
+      # table is one piece of markdown.
+      - name: Summarize the hooks
+        if: ${{ !cancelled() && steps.hook-scope.outcome == 'success' }}
+        run: |
+          {
+            echo "### pre-commit hooks"
+            echo
+            echo "Checked $(cat "$RUNNER_TEMP/hook-scope-reason")."
+            echo
+            echo "| Hook | Result | Seconds |"
+            echo "| --- | --- | ---: |"
+            cat "$RUNNER_TEMP/hook-results"
+          } | tee -a "$GITHUB_STEP_SUMMARY"

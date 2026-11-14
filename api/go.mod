@@ -1,8 +1,8 @@
 module meso/api
 
-go 1.26.5
+go 1.26.8
 
-toolchain go1.26.10
+toolchain go1.26.11
 
 require (
 	github.com/datapointchris/goapiauth v0.2.0
