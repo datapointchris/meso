@@ -46,11 +46,9 @@ what was expected, and the one command that changes the situation, and `goclikit
 the shared cobra bootstrap, adds the near matches and the `--help` pointer cobra leaves
 out. What is meso's own is the step past it: where the caller typed something valid and the CLI
 still has nothing to show, the response is a list of runnable commands rather than a
-failure at all. `resolveIDOrName` in `internal/cli/helpers.go` is the pattern. It writes
-the menu itself and returns `exitCode`, which sets the process status without `Execute`
-printing an `error:` line above it, and under `--json` it emits the same candidates as
-data. Every command it composes takes its path from `cmd.CommandPath()` and its values
-through `shellArg`, so a menu line can be pasted back as typed.
+failure at all. `resolveIDOrName` in `internal/cli/helpers.go` is the pattern. Its
+docstring, and those of the helpers it calls, say how the menu, its exit status and its
+`--json` form are built.
 
 **It reaches `show` on movements, workouts and cycles, and nothing else yet.** Every other
 verb returns plain errors through `handleAPIError`, and widening it belongs
