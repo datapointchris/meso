@@ -562,9 +562,8 @@ func newMovementsExportCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "export [flags]",
 		Short: "Export the movement library to stdout",
-		Long: "Export the movement library, optionally filtered, in a portable format —\n" +
-			"data portability from day one. CSV is the only format so far; --format is\n" +
-			"how a second one arrives without changing what `export` already means.",
+		Long: "Export the movement library, optionally filtered, in a portable format.\n" +
+			"--format picks the format, and its help lists the formats this build writes.",
 		Example: "  meso movements export > movements.csv\n  meso movements export --kind exercise\n  meso movements export --format csv",
 		Args:    cobra.NoArgs,
 	}
