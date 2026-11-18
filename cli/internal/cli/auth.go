@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -255,9 +254,7 @@ func newAuthStatusCommand() *cobra.Command {
 			}
 
 			if asJSON {
-				enc := json.NewEncoder(cmd.OutOrStdout())
-				enc.SetIndent("", "  ")
-				if err := enc.Encode(report); err != nil {
+				if err := encodeJSON(cmd.OutOrStdout(), report); err != nil {
 					return err
 				}
 			} else {
