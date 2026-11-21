@@ -605,8 +605,21 @@ With `ENV=development` none of this runs. Every request is accepted and placed i
 A push to `main` runs `.github/workflows/release.yml`. It validates first: lint, format, typecheck,
 build and tests for web, and the Go jobs for api and cli. It then builds the api and web images and
 pushes them to `ghcr.io/datapointchris/meso-api` and `ghcr.io/datapointchris/meso-web`, tagged
-`:latest` and `:sha-<short>`. The `:sha-` tag never moves, so a rollback is a manifest edit. A push
-with releasable commits under `cli/` also cuts a `cli/v*` release of the binaries.
+`:latest`, `:sha-<7>` and the release's version, `:sha-<12>`. Neither `:sha-` tag moves, so a
+rollback is a manifest edit. A version already published is never built again. A push with
+releasable commits under `cli/` also cuts a `cli/v*` release of the binaries.
+
+Beside the images, the release publishes its deploy directory as the OCI artifact
+`ghcr.io/datapointchris/meso/deploy:sha-<12>`, under the same version. It holds one file,
+`docker-compose.yml`, with each image named by the digest that release pushed rather than by
+`:latest`. A host can run a release from it with no clone of this repo:
+
+```bash
+oras pull ghcr.io/datapointchris/meso/deploy:sha-<12>   # writes docker-compose.yml here
+```
+
+A published version is never replaced. A re-run that renders other bytes for one fails rather
+than pushing them.
 
 When the workflow finishes, GitHub fires a repository `workflow_run` webhook. Its receiver lives
 outside this repo. It pulls the checkout on the host and runs:
@@ -619,7 +632,8 @@ docker compose run --rm --entrypoint ./meso-seed api    # after up, once the API
 A webhook 200 means the deploy script started, not that it succeeded. The receiver's own log
 answers "did it deploy?", and `gh run list` does not. The receiver deploys only when the finished
 workflow's path is `release.yml`, so renaming that file stops every deploy. A manual workflow in
-`.github/workflows/` re-fires the webhook, for a redeploy without a commit.
+`.github/workflows/` sends the webhook again for its commit's newest finished `release.yml` run, for a
+redeploy without a commit.
 
 `docker-compose.yml` reads its secrets from env files that are never committed:
 `/etc/meso/.env.postgres` for Postgres and `/etc/meso/.env.api` for the API. It sets `PUBLIC_URL`

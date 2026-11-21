@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# Publishes the deploy directory: docker-compose.yml naming each image this release pushed, by digest.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: push-deploy-directory --registry <host> --owner <account> --version <version>
+         --revision <sha> --source <url> [--plain-http]
+
+Reads the digest <registry>/<owner>/meso-<service>:<version> names for api and
+web. Writes each into a copy of docker-compose.yml, in place of the one line
+naming that service's image as `image: <anything>/meso-<service>:latest`. Pushes
+that copy with ORAS as <registry>/<owner>/meso/deploy:<version>, then pulls the
+tag back and fails unless the file it holds is byte for byte the one rendered.
+
+A published version is never replaced. Where <version> is already published, it
+pushes nothing, and fails unless the published file is byte for byte the one
+rendered. The manifest's created annotation is the commit's time, and its source
+annotation is <source>, which links a ghcr.io package to its repository. In an
+Actions step, the outputs are deploy, api and web, each a reference by digest.
+
+The login is $DOCKER_CONFIG/config.json. --plain-http is for a registry served
+over plain HTTP, such as a local registry:2. oras must be on PATH.
+EOF
+}
+
+die() {
+  printf 'push-deploy-directory: %s\n' "$*" >&2
+  exit 1
+}
+
+usage_error() {
+  printf 'push-deploy-directory: %s\n\n' "$1" >&2
+  usage >&2
+  exit 2
+}
+
+# A line on stdout, and in the Actions run's summary when there is one.
+report() {
+  echo "$1"
+  [ -z "${GITHUB_STEP_SUMMARY:-}" ] || echo "$1" >>"$GITHUB_STEP_SUMMARY"
+}
+
+output() {
+  [ -z "${GITHUB_OUTPUT:-}" ] || echo "$1=$2" >>"$GITHUB_OUTPUT"
+}
+
+if [ $# -eq 0 ]; then
+  usage
+  exit 0
+fi
+
+registry='' owner='' version='' revision='' source='' plain_http=false
+while [ $# -gt 0 ]; do
+  case $1 in
+    --registry | --owner | --version | --revision | --source)
+      [ $# -ge 2 ] || usage_error "$1 needs a value"
+      printf -v "${1#--}" '%s' "$2"
+      shift 2
+      ;;
+    --plain-http)
+      plain_http=true
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *) usage_error "unknown argument $1" ;;
+  esac
+done
+
+for name in registry owner version revision source; do
+  [ -n "${!name}" ] || usage_error "--$name is required"
+done
+[ -n "${DOCKER_CONFIG:-}" ] || die "DOCKER_CONFIG is unset, so there is no registry login to read"
+[ -f "$DOCKER_CONFIG/config.json" ] || die "$DOCKER_CONFIG/config.json does not exist, so there is no registry login to read"
+command -v oras >/dev/null || die "oras is not on PATH"
+
+repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+compose=docker-compose.yml
+deploy=$registry/$owner/meso/deploy
+oras_flags=(--registry-config "$DOCKER_CONFIG/config.json")
+[ "$plain_http" = false ] || oras_flags+=(--plain-http)
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir "$work/rendered" "$work/pulled"
+rendered=$work/rendered/$compose
+cp "$repo/$compose" "$rendered"
+
+for service in api web; do
+  image=$registry/$owner/meso-$service
+  digest=$(oras resolve "${oras_flags[@]}" "$image:$version") || die "$image:$version does not resolve"
+  [[ $digest =~ ^sha256:[0-9a-f]{64}$ ]] || die "$image:$version resolved to '$digest', which is not a sha256 digest"
+  line="image: [^[:space:]]+/meso-$service:latest"
+  count=$(grep -cxE "[[:space:]]+$line" "$rendered" || true)
+  [ "$count" -eq 1 ] || die "$compose holds a line matching '$line' $count times, not once"
+  sed -i -E "s|^([[:space:]]+)$line\$|\1image: $image@$digest|" "$rendered"
+  report "Names \`$image@$digest\`"
+  output "$service" "$image@$digest"
+done
+
+# A published version is never replaced, so a re-run reads what the first run pushed and
+# accepts it only where it holds these bytes. Only "not found" pushes, so a registry error
+# never pushes a published version anew.
+if published=$(oras resolve "${oras_flags[@]}" "$deploy:$version" 2>"$work/resolve.err"); then
+  mkdir "$work/published"
+  oras pull "${oras_flags[@]}" --no-tty -o "$work/published" "$deploy@$published" >/dev/null \
+    || die "pulling the published $deploy@$published failed"
+  if [ "$(cd "$work/published" && find . -type f)" != "./$compose" ] || ! cmp -s "$rendered" "$work/published/$compose"; then
+    die "$deploy:$version is already published as $published with other bytes, and a published version is never replaced"
+  fi
+  report "\`$deploy:$version\` is already published with these bytes, so nothing is pushed"
+  pushed=$published
+elif grep -qF "$deploy:$version: not found" "$work/resolve.err"; then
+  created=$(TZ=UTC git -C "$repo" log -1 --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%SZ "$revision")
+  pushed=$(cd "$work/rendered" && oras push "${oras_flags[@]}" --no-tty \
+    --artifact-type application/vnd.meso.deploy-directory.v1 \
+    --annotation "org.opencontainers.image.created=$created" \
+    --annotation "org.opencontainers.image.revision=$revision" \
+    --annotation "org.opencontainers.image.source=$source" \
+    --annotation "org.opencontainers.image.version=$version" \
+    --format go-template='{{.digest}}' \
+    "$deploy:$version" "$compose:application/yaml") || die "pushing $deploy:$version failed"
+else
+  cat "$work/resolve.err" >&2
+  die "could not read whether $deploy:$version is published"
+fi
+[[ $pushed =~ ^sha256:[0-9a-f]{64}$ ]] || die "oras answered '$pushed' rather than a digest"
+
+tagged=$(oras resolve "${oras_flags[@]}" "$deploy:$version") || die "$deploy:$version does not resolve after the push"
+[ "$tagged" = "$pushed" ] || die "$deploy:$version resolves to $tagged, not the $pushed just pushed"
+oras pull "${oras_flags[@]}" --no-tty -o "$work/pulled" "$deploy:$version" >/dev/null || die "pulling $deploy:$version back failed"
+files=$(cd "$work/pulled" && find . -type f | sort)
+[ "$files" = "./$compose" ] || die "$deploy:$version holds $(tr '\n' ' ' <<<"$files")rather than $compose alone"
+cmp -s "$rendered" "$work/pulled/$compose" || die "$deploy:$version serves a $compose other than the one rendered"
+
+report "\`$deploy:$version\` is published as \`$deploy@$pushed\`, holding $compose, and pulls back byte-identical"
+output deploy "$deploy@$pushed"
