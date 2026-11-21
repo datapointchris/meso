@@ -520,6 +520,11 @@ must name the file's issuer. So a CLI pointed at a local API with `--api http://
 needs the API run with `PUBLIC_URL=http://localhost:8088`, as `docker-compose.dev.yml` does, and
 with an `OIDC_ISSUER` matching the file's issuer.
 
+**A CLI started under a trace sends it to the API.** The W3C `TRACEPARENT`, `TRACESTATE` and
+`BAGGAGE` variables become the `traceparent`, `tracestate` and `baggage` headers of each API
+request. So the API's span sits under whatever ran the CLI. The CLI records no spans of its own,
+and its requests to the identity provider carry none of the three.
+
 **`admin` is the namespace for operating the app, as distinct from using it.** Every other
 top-level command is a training noun, which is what lets `meso --help` read as a description of
 the domain. Commands about the software itself go under `admin` instead of diluting that. The

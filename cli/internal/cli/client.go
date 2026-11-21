@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/datapointchris/goclikit"
 	"github.com/datapointchris/goclilogin"
 	"golang.org/x/oauth2"
 
@@ -21,6 +22,9 @@ var errNeedsLogin = errors.New("not logged in")
 // newAPIClient builds an authenticated API client for the logged-in machine. The
 // oauth2 client injects (and refreshes) the bearer token on every request via the
 // persisting token source, so resource commands never touch tokens directly.
+// Each request also carries the trace the CLI was started under, so the API's
+// span for it sits under whatever ran the CLI. The token source refreshes
+// through a client of its own, so the identity provider is sent no trace.
 func newAPIClient(ctx context.Context) (*api.Client, error) {
 	deployment, err := config.Load(ctx, apiOverride)
 	if err != nil {
@@ -38,6 +42,7 @@ func newAPIClient(ctx context.Context) (*api.Client, error) {
 	}
 
 	httpClient := oauth2.NewClient(ctx, source)
+	httpClient.Transport = goclikit.TraceForwardingTransport(httpClient.Transport)
 	httpClient.Timeout = apiRequestTimeout
 	return api.New(deployment.API.Value, httpClient), nil
 }
