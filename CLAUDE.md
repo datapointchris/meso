@@ -9,11 +9,11 @@ auth, deployed by pulling images from a registry.
 
 ## Architecture — three subsystems
 
-| Subsystem | Path   | Shape                                                                            |
-| --------- | ------ | -------------------------------------------------------------------------------- |
-| API       | `api/` | Go 1.26, `net/http` ServeMux, `pgx/v5`, goose migrations at startup, `slog` JSON |
-| CLI       | `cli/` | Go/cobra thin REST client over the API — the agent + power-user surface          |
-| Web       | `web/` | Vue 3 + TypeScript + Vite SPA, logged in and kept in session by the API          |
+| Subsystem | Path   | Shape                                                                                                                  |
+| --------- | ------ | ---------------------------------------------------------------------------------------------------------------------- |
+| API       | `api/` | Go 1.26, `net/http` ServeMux, `pgx/v5`, goose migrations at startup, `slog` JSON, OTLP traces where an endpoint is set |
+| CLI       | `cli/` | Go/cobra thin REST client over the API — the agent + power-user surface                                                |
+| Web       | `web/` | Vue 3 + TypeScript + Vite SPA, logged in and kept in session by the API                                                |
 
 The CLI's natural sibling is the API (shared REST contract), not the Vue frontend
 — that is why the CLI is Go, not TS.

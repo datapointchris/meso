@@ -24,6 +24,7 @@ import (
 	"meso/api/database"
 	"meso/api/handlers"
 	"meso/api/middleware"
+	"meso/api/tracing"
 )
 
 func main() {
@@ -97,6 +98,16 @@ func main() {
 		handler = middleware.RequireAuth(verifier, sessions, mux, handlers.ServiceRoutes)
 	}
 
+	// A tracing setup the environment gets wrong costs the spans, not the API.
+	tracerProvider, err := tracing.Start(ctx)
+	if err != nil {
+		slog.Error("tracing is off", "err", err)
+	}
+	if tracerProvider != nil {
+		handler = tracing.Handler(handler, tracerProvider)
+		slog.Info("tracing requests over OTLP")
+	}
+
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      handler,
@@ -124,6 +135,11 @@ func main() {
 		slog.Error("shutdown", "err", err)
 	} else {
 		slog.Info("stopped gracefully")
+	}
+	if tracerProvider != nil {
+		if err := tracerProvider.Shutdown(shutCtx); err != nil {
+			slog.Error("flush spans", "err", err)
+		}
 	}
 }
 

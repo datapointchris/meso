@@ -618,7 +618,7 @@ workflow's path is `release.yml`, so renaming that file stops every deploy. A ma
 
 `docker-compose.yml` reads its secrets from env files that are never committed:
 `/etc/meso/.env.postgres` for Postgres and `/etc/meso/.env.api` for the API. It sets `PUBLIC_URL`
-inline, so a deployment edits it there. The API reads:
+and `OTEL_EXPORTER_OTLP_ENDPOINT` inline, so a deployment edits them there. The API reads:
 
 | Variable | What it sets |
 | --- | --- |
@@ -630,6 +630,7 @@ inline, so a deployment edits it there. The API reads:
 | `WEB_CLIENT_SECRET` | that client's secret; production refuses to start without it |
 | `PUBLIC_URL` | the address the edge serves the API at; the metadata names it, a CLI refuses it unless it matches exactly, and the browser login's callback is under it. Production refuses to start without it |
 | `PORT` | the listen port, 8088 by default |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | the OTLP/HTTP collector each request's span goes to. Unset, the API exports nothing. The SDK's other `OTEL_*` variables apply as the SDK documents them |
 
 **Set `ENV` in the env file.** Its default is `development`, which accepts every request
 unauthenticated.
@@ -647,6 +648,11 @@ identifies anyone.
 The web container is Caddy. It serves the SPA with a fallback to `index.html`, and proxies
 `/api/*` and the RFC 9728 path to the API. Both containers answer `/health` unauthenticated. The
 API shuts down gracefully on SIGTERM and writes structured JSON logs to stdout.
+
+With a collector set, every request but the health probe gets a server span. It continues the
+trace the request's `traceparent` names, and carries each `baggage` member as an attribute. It is
+named `{method} {route}`, such as `GET /api/v1/sessions/{id}`. It carries each record the path
+names, such as `meso.session.id`, and the caller as `enduser.id` and `meso.oauth.client_id`.
 
 ## Out of scope
 

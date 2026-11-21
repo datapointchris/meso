@@ -26,10 +26,14 @@ services:
     image: ghcr.io/datapointchris/meso-api:latest
     restart: unless-stopped
     env_file: /etc/meso/.env.api
+    # The host's trace collector listens on the docker bridge, which host-gateway names.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     environment:
       # The address the edge serves this API at. Its RFC 9728 metadata names it,
       # and a CLI logging in refuses that document unless it matches exactly.
       PUBLIC_URL: https://meso.ichrisbirch.com
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://host.docker.internal:4318
     depends_on:
       postgres:
         condition: service_healthy

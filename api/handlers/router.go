@@ -212,15 +212,16 @@ func NewRouter(pool *pgxpool.Pool, metadata http.Handler) *http.ServeMux {
 
 	allowed := make(map[string][]string)
 	for _, rt := range routes {
-		mux.HandleFunc(rt.method+" "+rt.path, rt.handle)
+		pattern := rt.method + " " + rt.path
+		mux.HandleFunc(pattern, withRouteSpan(pattern, rt.handle))
 		allowed[rt.path] = append(allowed[rt.path], rt.method)
 	}
 	for path, methods := range allowed {
-		mux.HandleFunc(path, methodNotAllowed(methods))
+		mux.HandleFunc(path, withRouteSpan(path, methodNotAllowed(methods)))
 	}
-	mux.HandleFunc("/api/v1/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v1/", withRouteSpan("/api/v1/", func(w http.ResponseWriter, r *http.Request) {
 		writeNotFound(w, fmt.Sprintf("no route answers %s", r.URL.Path))
-	})
+	}))
 
 	return mux
 }
