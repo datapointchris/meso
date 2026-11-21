@@ -16,7 +16,7 @@ func TestDevGroups_PlacesEveryRequestInTheNamedGroups(t *testing.T) {
 	})
 	rec := httptest.NewRecorder()
 	DevGroups(goapiauth.RequireGroup("admin", handler), "admin").
-		ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/feedback", nil))
+		ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1/feedback", nil))
 	if !called || rec.Code != http.StatusOK {
 		t.Fatalf("development request was refused: status %d", rec.Code)
 	}

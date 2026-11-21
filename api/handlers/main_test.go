@@ -118,34 +118,35 @@ func seedTestLookups(url string) error {
 		return err
 	}
 	defer func() { _ = db.Close() }()
+	ctx := context.Background()
 
 	kinds := []string{"exercise", "stretch", "yoga_pose"}
 	for _, k := range kinds {
-		if _, err := db.Exec(`INSERT INTO movement_kinds (name) VALUES ($1) ON CONFLICT DO NOTHING`, k); err != nil {
+		if _, err := db.ExecContext(ctx, `INSERT INTO movement_kinds (name) VALUES ($1) ON CONFLICT DO NOTHING`, k); err != nil {
 			return err
 		}
 	}
 	relationshipKinds := []string{"alternate", "antagonist", "progression", "regression", "see_also"}
 	for _, k := range relationshipKinds {
-		if _, err := db.Exec(`INSERT INTO relationship_kinds (name) VALUES ($1) ON CONFLICT DO NOTHING`, k); err != nil {
+		if _, err := db.ExecContext(ctx, `INSERT INTO relationship_kinds (name) VALUES ($1) ON CONFLICT DO NOTHING`, k); err != nil {
 			return err
 		}
 	}
 	cycleStatuses := []string{"planned", "active", "paused", "completed"}
 	for _, s := range cycleStatuses {
-		if _, err := db.Exec(`INSERT INTO cycle_statuses (name) VALUES ($1) ON CONFLICT DO NOTHING`, s); err != nil {
+		if _, err := db.ExecContext(ctx, `INSERT INTO cycle_statuses (name) VALUES ($1) ON CONFLICT DO NOTHING`, s); err != nil {
 			return err
 		}
 	}
 	setKinds := []string{"working", "warmup", "amrap", "drop", "failure"}
 	for _, k := range setKinds {
-		if _, err := db.Exec(`INSERT INTO set_kinds (name) VALUES ($1) ON CONFLICT DO NOTHING`, k); err != nil {
+		if _, err := db.ExecContext(ctx, `INSERT INTO set_kinds (name) VALUES ($1) ON CONFLICT DO NOTHING`, k); err != nil {
 			return err
 		}
 	}
 	loadModes := []string{"weighted", "bodyweight", "timed", "assisted"}
 	for _, m := range loadModes {
-		if _, err := db.Exec(`INSERT INTO load_modes (name) VALUES ($1) ON CONFLICT DO NOTHING`, m); err != nil {
+		if _, err := db.ExecContext(ctx, `INSERT INTO load_modes (name) VALUES ($1) ON CONFLICT DO NOTHING`, m); err != nil {
 			return err
 		}
 	}
@@ -154,7 +155,7 @@ func seedTestLookups(url string) error {
 		"hamstrings": "posterior", "glutes": "posterior", "shoulders": "shoulders",
 	}
 	for name, region := range muscles {
-		if _, err := db.Exec(`INSERT INTO muscles (name, region) VALUES ($1, $2) ON CONFLICT DO NOTHING`, name, region); err != nil {
+		if _, err := db.ExecContext(ctx, `INSERT INTO muscles (name, region) VALUES ($1, $2) ON CONFLICT DO NOTHING`, name, region); err != nil {
 			return err
 		}
 	}
@@ -202,7 +203,7 @@ func postJSON(t *testing.T, mux http.Handler, path string, body any) *httptest.R
 	t.Helper()
 	b, err := json.Marshal(body)
 	require.NoError(t, err)
-	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(b))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, path, bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
@@ -213,7 +214,7 @@ func putJSON(t *testing.T, mux http.Handler, path string, body any) *httptest.Re
 	t.Helper()
 	b, err := json.Marshal(body)
 	require.NoError(t, err)
-	req := httptest.NewRequest(http.MethodPut, path, bytes.NewReader(b))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPut, path, bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
@@ -224,7 +225,7 @@ func patchJSON(t *testing.T, mux http.Handler, path string, body any) *httptest.
 	t.Helper()
 	b, err := json.Marshal(body)
 	require.NoError(t, err)
-	req := httptest.NewRequest(http.MethodPatch, path, bytes.NewReader(b))
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPatch, path, bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
@@ -233,7 +234,7 @@ func patchJSON(t *testing.T, mux http.Handler, path string, body any) *httptest.
 
 func getJSON(t *testing.T, mux http.Handler, path string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 	return rr
@@ -241,7 +242,7 @@ func getJSON(t *testing.T, mux http.Handler, path string) *httptest.ResponseReco
 
 func deleteReq(t *testing.T, mux http.Handler, path string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodDelete, path, nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, path, nil)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 	return rr

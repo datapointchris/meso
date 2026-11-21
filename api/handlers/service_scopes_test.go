@@ -60,7 +60,7 @@ func TestAServiceTokenReachesOnlyTheRoutesItsScopesList(t *testing.T) {
 		{person, http.MethodGet, "/api/v1/feedback", http.StatusForbidden},
 	}
 	for _, c := range cases {
-		req := httptest.NewRequest(c.method, c.path, http.NoBody)
+		req := httptest.NewRequestWithContext(t.Context(), c.method, c.path, http.NoBody)
 		req.Header.Set("Authorization", "Bearer "+c.token)
 		rr := httptest.NewRecorder()
 		authed.ServeHTTP(rr, req)
