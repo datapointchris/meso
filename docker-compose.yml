@@ -1,4 +1,10 @@
-# Production stack.
+# Production stack, as the template each release renders.
+#
+# A host runs the release's deploy directory, ghcr.io/datapointchris/meso/deploy
+# at the release's version, rather than this file. The release writes that copy
+# with each `:latest` image line below replaced by the digest it pushed, so the
+# running images never move under a tag. release/push-deploy-directory matches
+# each `image:` line whole, so a comment never goes on one.
 #
 # Pulls images from ghcr.io built and pushed by CI. No `build:` directives, so a
 # host runs exactly the images CI built and any container runtime can run them

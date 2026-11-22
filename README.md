@@ -622,10 +622,12 @@ A published version is never replaced. A re-run that renders other bytes for one
 than pushing them.
 
 When the workflow finishes, GitHub fires a repository `workflow_run` webhook. Its receiver lives
-outside this repo. It pulls the checkout on the host and runs:
+outside this repo. It resolves `meso/deploy:sha-<12>` for the run's head commit, pulls that
+directory by its digest, and runs its `docker-compose.yml` on the host. The `docker-compose.yml` in
+this repo is the template the release renders, so the host never runs a `:latest` image:
 
 ```bash
-docker compose pull && docker compose up -d --no-build  # the images CI pushed; nothing compiles on the host
+docker compose pull && docker compose up -d --no-build  # the images that release pushed, by digest; nothing compiles on the host
 docker compose run --rm --entrypoint ./meso-seed api    # after up, once the API has migrated; idempotent
 ```
 
