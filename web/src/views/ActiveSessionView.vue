@@ -69,6 +69,17 @@ function apply(s: Session, syncMeta = false) {
   }
 }
 
+// withHeldPrevious carries each entry's previous over from the session on screen. Logging,
+// editing or removing a set, and removing an entry, cannot change previous, so those
+// responses leave it null rather than have the server reread history on every set.
+function withHeldPrevious(s: Session): Session {
+  const held = new Map(session.value?.movements.map((m) => [m.id, m.previous]) ?? [])
+  return {
+    ...s,
+    movements: s.movements.map((m) => ({ ...m, previous: held.get(m.id) ?? m.previous })),
+  }
+}
+
 onMounted(load)
 
 // What happened, not a score against the plan.
@@ -106,7 +117,7 @@ async function withEntry<T>(entryId: number, work: () => Promise<T>) {
 // previous set, so nothing has to be typed unless something actually changed.
 function logSet(entry: SessionMovement, body: SessionSetInput = {}) {
   return withEntry(entry.id, async () => {
-    apply(await sessionsApi.addSet(id.value, entry.id, body))
+    apply(withHeldPrevious(await sessionsApi.addSet(id.value, entry.id, body)))
   })
 }
 
@@ -127,7 +138,7 @@ async function saveSet(patch: SessionSetInput) {
   const editing = editingSet.value
   if (!editing) return
   await withEntry(editing.entryId, async () => {
-    apply(await sessionsApi.updateSet(id.value, editing.entryId, editing.set.id, patch))
+    apply(withHeldPrevious(await sessionsApi.updateSet(id.value, editing.entryId, editing.set.id, patch)))
   })
   editingSet.value = null
 }
@@ -141,7 +152,7 @@ async function removeSet(entryId: number, set: SessionSet) {
   })
   if (!ok) return
   await withEntry(entryId, async () => {
-    apply(await sessionsApi.removeSet(id.value, entryId, set.id))
+    apply(withHeldPrevious(await sessionsApi.removeSet(id.value, entryId, set.id)))
   })
   editingSet.value = null
 }
@@ -172,7 +183,7 @@ async function removeEntry(entry: SessionMovement) {
   })
   if (!ok) return
   await withEntry(entry.id, async () => {
-    apply(await sessionsApi.removeMovement(id.value, entry.id))
+    apply(withHeldPrevious(await sessionsApi.removeMovement(id.value, entry.id)))
   })
 }
 

@@ -26,7 +26,8 @@ export interface SessionSet {
 
 // PreviousActuals is the last performed result for a movement before this session —
 // the number to beat, taken from the last set of it. Null when never performed, and only
-// sent on session detail; the list endpoint leaves it null.
+// sent on session detail and the writes that can change it; the list endpoint and the set,
+// entry-removal and finish responses leave it null.
 export interface PreviousActuals {
   performed_on: string
   sets: number

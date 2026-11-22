@@ -320,7 +320,9 @@ movements in is a finished session.
 Session detail embeds each entry's `previous`: the last set of the most recent performed entry for
 that movement, strictly before this session. An entry qualifies only if it is done and has sets
 under it. Ticked with nothing logged is not a number to beat. The list endpoint leaves `previous`
-null. One `DISTINCT ON` query resolves it for the whole session.
+null. So do the responses to logging, editing or removing a set, removing an entry, and finishing,
+because none of them can change it, and a client keeps the value it already holds. One `DISTINCT
+ON` query resolves it for the whole session.
 
 A swap re-points a session's entry to another movement, and its target and logged sets carry over
 to the substitute. The API and `meso sessions movement edit --movement` offer it. The web

@@ -181,6 +181,20 @@ describe('ActiveSessionView — logging', () => {
     expect(wrapper.text()).toContain('8 reps · 100lb')
   })
 
+  // A set's response leaves previous null, since logging cannot change it, so the number
+  // to beat has to stay on screen from the first load.
+  it('keeps the last result to beat after logging a set', async () => {
+    const previous = { performed_on: '2026-07-28', sets: 3, reps: 8, load: '95lb' }
+    getMock.mockResolvedValue(fakeSession({ movements: [fakeEntry({ previous })] }))
+    addSetMock.mockResolvedValue(fakeSession({ movements: [fakeEntry({ sets: [fakeSet({ reps: 8 })] })] }))
+    const { wrapper } = await mountView()
+
+    await wrapper.find('.log-set').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.entry__previous').exists()).toBe(true)
+  })
+
   it('shows the plan as context and the last result to beat', async () => {
     getMock.mockResolvedValue(
       fakeSession({

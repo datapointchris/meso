@@ -204,7 +204,24 @@ func (r *SessionRepo) attachSets(ctx context.Context, sessions []models.WorkoutS
 	return rows.Err()
 }
 
+// GetByID returns the session in full, with each entry's previous actuals attached.
 func (r *SessionRepo) GetByID(ctx context.Context, id uuid.UUID) (models.WorkoutSession, error) {
+	s, err := r.getWithoutPrevious(ctx, id)
+	if err != nil {
+		return models.WorkoutSession{}, err
+	}
+	if err := r.attachPreviousActuals(ctx, &s); err != nil {
+		return models.WorkoutSession{}, err
+	}
+	return s, nil
+}
+
+// getWithoutPrevious returns the session with its entries and sets, leaving each entry's
+// previous nil. It is what a write returns when the write cannot change previous:
+// previous reads only sessions strictly before this one, so logging, editing or removing
+// a set, or removing an entry, leaves it as the caller already has it. Recomputing it
+// would rerun a query over the whole history on every set logged.
+func (r *SessionRepo) getWithoutPrevious(ctx context.Context, id uuid.UUID) (models.WorkoutSession, error) {
 	s, err := scanSession(r.pool.QueryRow(ctx, sessionSelect+" WHERE s.id = $1", id))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -219,10 +236,21 @@ func (r *SessionRepo) GetByID(ctx context.Context, id uuid.UUID) (models.Workout
 	if err := r.attachSets(ctx, list); err != nil {
 		return models.WorkoutSession{}, err
 	}
-	if err := r.attachPreviousActuals(ctx, &list[0]); err != nil {
-		return models.WorkoutSession{}, err
-	}
 	return list[0], nil
+}
+
+// requireSession returns ErrNotFound unless the session exists, for a write that has to
+// answer 404 before it touches anything and needs nothing else from the row.
+func (r *SessionRepo) requireSession(ctx context.Context, id uuid.UUID) error {
+	var exists bool
+	if err := r.pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM workout_sessions WHERE id = $1)`, id).Scan(&exists); err != nil {
+		return fmt.Errorf("checking session: %w", err)
+	}
+	if !exists {
+		return fmt.Errorf("session %s: %w", id, ErrNotFound)
+	}
+	return nil
 }
 
 // attachPreviousActuals hangs the last recorded performance of each movement onto its
@@ -354,8 +382,10 @@ func (r *SessionRepo) Create(ctx context.Context, in models.WorkoutSessionCreate
 	return r.GetByID(ctx, id)
 }
 
+// Update returns the session in full, previous included, because a new performed_on
+// moves which sessions count as before this one.
 func (r *SessionRepo) Update(ctx context.Context, id uuid.UUID, in models.WorkoutSessionUpdate) (models.WorkoutSession, error) {
-	current, err := r.GetByID(ctx, id)
+	current, err := r.getWithoutPrevious(ctx, id)
 	if err != nil {
 		return models.WorkoutSession{}, err
 	}
@@ -391,8 +421,10 @@ func (r *SessionRepo) Update(ctx context.Context, id uuid.UUID, in models.Workou
 //
 // This says nothing about whether the plan was completed. A session finished with two
 // of five movements logged is a finished session.
+//
+// The returned session leaves previous nil, since finishing cannot change it.
 func (r *SessionRepo) Finish(ctx context.Context, id uuid.UUID) (models.WorkoutSession, error) {
-	if _, err := r.GetByID(ctx, id); err != nil {
+	if err := r.requireSession(ctx, id); err != nil {
 		return models.WorkoutSession{}, err
 	}
 	_, err := r.pool.Exec(ctx, `
@@ -404,7 +436,7 @@ func (r *SessionRepo) Finish(ctx context.Context, id uuid.UUID) (models.WorkoutS
 	if err != nil {
 		return models.WorkoutSession{}, mapWriteError("finishing session", err)
 	}
-	return r.GetByID(ctx, id)
+	return r.getWithoutPrevious(ctx, id)
 }
 
 func (r *SessionRepo) Delete(ctx context.Context, id uuid.UUID) error {
@@ -454,7 +486,7 @@ func (r *SessionRepo) UpdateMovement(ctx context.Context, sessionID uuid.UUID, e
 // record of what was done, and doing something the plan did not call for has to be
 // recordable or the record is a lie. The new entry lands after every existing one.
 func (r *SessionRepo) AddMovement(ctx context.Context, sessionID uuid.UUID, in models.SessionMovementInput) (models.WorkoutSession, error) {
-	if _, err := r.GetByID(ctx, sessionID); err != nil {
+	if err := r.requireSession(ctx, sessionID); err != nil {
 		return models.WorkoutSession{}, err
 	}
 
@@ -484,7 +516,7 @@ func (r *SessionRepo) RemoveMovement(ctx context.Context, sessionID uuid.UUID, e
 	if tag.RowsAffected() == 0 {
 		return models.WorkoutSession{}, fmt.Errorf("session %s entry %d: %w", sessionID, entryID, ErrNotFound)
 	}
-	return r.GetByID(ctx, sessionID)
+	return r.getWithoutPrevious(ctx, sessionID)
 }
 
 // AddSet logs one set against an entry and returns the refreshed session.
@@ -543,7 +575,7 @@ func (r *SessionRepo) AddSet(ctx context.Context, sessionID uuid.UUID, entryID i
 	if err := tx.Commit(ctx); err != nil {
 		return models.WorkoutSession{}, fmt.Errorf("commit: %w", err)
 	}
-	return r.GetByID(ctx, sessionID)
+	return r.getWithoutPrevious(ctx, sessionID)
 }
 
 // UpdateSet applies a partial update to one logged set and returns the refreshed
@@ -566,7 +598,7 @@ func (r *SessionRepo) UpdateSet(ctx context.Context, sessionID uuid.UUID, entryI
 	if err != nil {
 		return models.WorkoutSession{}, mapWriteError("updating set", err)
 	}
-	return r.GetByID(ctx, sessionID)
+	return r.getWithoutPrevious(ctx, sessionID)
 }
 
 // RemoveSet drops one logged set and returns the refreshed session. The entry's done
@@ -579,7 +611,7 @@ func (r *SessionRepo) RemoveSet(ctx context.Context, sessionID uuid.UUID, entryI
 		`DELETE FROM session_sets WHERE id = $1 AND session_movement_id = $2`, setID, entryID); err != nil {
 		return models.WorkoutSession{}, fmt.Errorf("removing set: %w", err)
 	}
-	return r.GetByID(ctx, sessionID)
+	return r.getWithoutPrevious(ctx, sessionID)
 }
 
 // PromoteToWorkout turns a performed free-form session into a reusable workout
@@ -590,7 +622,7 @@ func (r *SessionRepo) RemoveSet(ctx context.Context, sessionID uuid.UUID, entryI
 // Only a free-form session can be promoted — a session already backed by a template
 // would silently fork it, which is an edit of that workout, not a new one.
 func (r *SessionRepo) PromoteToWorkout(ctx context.Context, sessionID uuid.UUID, in models.SessionPromote) (int64, error) {
-	session, err := r.GetByID(ctx, sessionID)
+	session, err := r.getWithoutPrevious(ctx, sessionID)
 	if err != nil {
 		return 0, err
 	}
