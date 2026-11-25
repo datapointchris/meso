@@ -9,7 +9,6 @@ import (
 
 	"github.com/datapointchris/goclikit"
 	"github.com/datapointchris/goclilogin"
-	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
 
 	"github.com/datapointchris/meso/cli/internal/config"
@@ -78,19 +77,9 @@ func newAuthLoginCommand() *cobra.Command {
 			login := config.Login(deployment)
 			store := goclilogin.NewTokenStore(login)
 
-			// pkg/browser hands the launcher subprocess os.Stdout and os.Stderr,
-			// which puts whatever the browser writes at startup — GPU warnings,
-			// favicon decode failures, a dbus complaint — in the middle of the
-			// user code and the verification URL. A launcher that fails is
-			// reported by OpenURL's error instead, so nothing diagnostic is lost
-			// by dropping the stream. Package-level vars are the library's only
-			// knob for it.
-			browser.Stdout = io.Discard
-			browser.Stderr = io.Discard
-
 			token, err := goclilogin.Login(ctx, login, func(p goclilogin.DevicePrompt) {
 				goclilogin.WriteInstructions(cmd.ErrOrStderr(), login.ClientID, p)
-				if openErr := browser.OpenURL(p.BrowserURL()); openErr != nil {
+				if openErr := goclilogin.OpenBrowser(p.BrowserURL()); openErr != nil {
 					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "(could not open a browser here: %v)\n", openErr)
 				}
 			})
